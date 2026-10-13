@@ -574,9 +574,9 @@ export default function PLInput() {
 
   const filteredRecords = batchRecords.filter((r) => {
     const matchesSearch =
-      r.supplier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.shipper_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.packing_list_no.toLowerCase().includes(searchTerm.toLowerCase());
+      (r.supplier_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.shipper_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.packing_list_no || "").toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || r.status === statusFilter;
     const matchesDate = !dateFilter || r.date === dateFilter;
     const matchesSupplier = !supplierFilter || r.supplier_name === supplierFilter;
