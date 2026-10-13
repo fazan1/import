@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { companyFor } from '../lib/company';
 import { esc } from '../lib/html';
+import { fetchAllPages } from '../lib/fetchAll';
 import { useAuth } from '../contexts/AuthContext';
 import { Ship, Plus, Pencil, Trash2, X, RefreshCw, Container, Boxes, Printer, Banknote } from 'lucide-react';
 import ShipmentCharges from './ShipmentCharges';
@@ -84,11 +85,22 @@ export default function Shipping() {
   const [previewNo, setPreviewNo] = useState('');
   const [pickedBills, setPickedBills] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<string | null>(null);
+  // items of an opened shipment (its packing list lines), loaded when the row is opened
+  type ShipItem = { id: string; packing_list_no: string | null; item_name: string | null; quantity: number | null; unit: string | null; weight_kg: number | null; cbm: number | null };
+  const [shipItems, setShipItems] = useState<Record<string, ShipItem[] | 'loading' | string>>({});
+  useEffect(() => {
+    const s = shipments.find((x) => x.id === expanded);
+    if (!s || shipItems[s.id] !== undefined) return;
+    setShipItems((m) => ({ ...m, [s.id]: 'loading' }));
+    fetchAllPages<ShipItem>(() => supabase.from('packing_list_items').select('id, packing_list_no, item_name, quantity, unit, weight_kg, cbm').eq('batch_number', s.shipment_no).order('id'))
+      .then(({ data, error }) => setShipItems((m) => ({ ...m, [s.id]: error ? `Could not load the items: ${error}` : data.sort((a, b) => String(a.packing_list_no ?? '').localeCompare(String(b.packing_list_no ?? ''), undefined, { numeric: true }) || String(a.item_name ?? '').localeCompare(String(b.item_name ?? ''))) })));
+  }, [expanded]); // eslint-disable-line react-hooks/exhaustive-deps
   const [charging, setCharging] = useState<ChargeShipment | null>(null);
 
   useEffect(() => { loadAll(); }, []);
 
   async function loadAll() {
+    setShipItems({}); // re-read items of opened shipments too
     setLoading(true);
     setError('');
     const [sRes, bRes, plRes, cRes] = await Promise.all([
@@ -450,6 +462,34 @@ export default function Shipping() {
                               </tbody>
                             </table>
                           )}
+                          {(() => {
+                            const it = shipItems[s.id];
+                            if (it === undefined || it === 'loading') return <p className="text-xs text-gray-500 mt-3">Loading items…</p>;
+                            if (typeof it === 'string') return <p className="text-xs text-red-600 mt-3">{it}</p>;
+                            if (it.length === 0) return <p className="text-xs text-gray-500 mt-3">No packing list items in this shipment yet — add them in PL Input / Packing List.</p>;
+                            const tq = it.reduce((t, x) => t + (Number(x.quantity) || 0), 0), tk = it.reduce((t, x) => t + (Number(x.weight_kg) || 0), 0), tc = it.reduce((t, x) => t + (Number(x.cbm) || 0), 0);
+                            return (
+                              <div className="mt-3 max-w-3xl overflow-x-auto">
+                                <p className="text-xs font-semibold text-gray-700 mb-1">Items in this shipment ({it.length})</p>
+                                <table className="text-xs w-full">
+                                  <thead><tr className="text-gray-500"><th className="text-left py-1 pr-2">PL</th><th className="text-left py-1">Item</th><th className="text-right py-1">Qty</th><th className="text-left py-1 pl-2">Unit</th><th className="text-right py-1">Kg</th><th className="text-right py-1">CBM</th></tr></thead>
+                                  <tbody>
+                                    {it.map((x) => (
+                                      <tr key={x.id} className="border-t border-gray-200">
+                                        <td className="py-1 pr-2 text-gray-500">{x.packing_list_no || '—'}</td>
+                                        <td className="py-1">{x.item_name || '—'}</td>
+                                        <td className="py-1 text-right tabular-nums">{fmt(Number(x.quantity) || 0, 0)}</td>
+                                        <td className="py-1 pl-2 text-gray-500">{x.unit || ''}</td>
+                                        <td className="py-1 text-right tabular-nums">{Number(x.weight_kg) ? fmt(Number(x.weight_kg), 2) : <span className="text-amber-600">—</span>}</td>
+                                        <td className="py-1 text-right tabular-nums">{Number(x.cbm) ? fmt(Number(x.cbm), 3) : <span className="text-amber-600">—</span>}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot><tr className="border-t-2 border-gray-300 font-semibold"><td className="py-1" colSpan={2}>Total</td><td className="py-1 text-right tabular-nums">{fmt(tq, 0)}</td><td></td><td className="py-1 text-right tabular-nums">{fmt(tk, 2)}</td><td className="py-1 text-right tabular-nums">{fmt(tc, 3)}</td></tr></tfoot>
+                                </table>
+                              </div>
+                            );
+                          })()}
                           {s.actual_charges > 0 && (
                             <p className="text-xs text-gray-600 mt-2">Actual shipment charges: LKR {fmt(s.actual_charges, 2)}</p>
                           )}
