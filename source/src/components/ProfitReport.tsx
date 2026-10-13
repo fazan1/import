@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Wand2, AlertTriangle, TrendingUp, TrendingDown, Package, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { selectByIds } from '../lib/fetchAll';
 import { esc } from '../lib/html';
 
 interface Inv { id: string; invoice_number: string; invoice_date: string; customer_id: string | null; customer_name: string; total_amount: number; amount_paid: number; status: string; }
@@ -28,11 +29,13 @@ export default function ProfitReport({ startDate = '' }: { startDate?: string })
 
   useEffect(() => { load(); }, []);
   async function load() {
-    const [i, l, it] = await Promise.all([
+    const [i, it] = await Promise.all([
       supabase.from('busy_sales_invoices').select('id, invoice_number, invoice_date, customer_id, customer_name, total_amount, amount_paid, status'),
-      supabase.from('busy_sales_invoice_items').select('id, invoice_id, item_id, item_name, quantity, unit_price, cost_price'),
       supabase.from('items').select('id, item_name, purchase_price'),
     ]);
+    // only the lines of this book's invoices (all lines of all books would also stop at 1000 rows)
+    const l = await selectByIds<Line>('busy_sales_invoice_items', 'id, invoice_id, item_id, item_name, quantity, unit_price, cost_price', 'invoice_id', ((i.data ?? []) as Inv[]).map((x) => x.id));
+    if (i.error || l.error) alert('Could not load all sales for the report: ' + (i.error?.message || l.error));
     setInvoices(((i.data ?? []) as Inv[]).filter((x) => x.status !== 'cancelled'));
     setLines(((l.data ?? []) as Line[]).map((x) => ({ ...x, quantity: Number(x.quantity) || 0, unit_price: Number(x.unit_price) || 0, cost_price: Number(x.cost_price) || 0 })));
     setItems((it.data ?? []) as Item[]);

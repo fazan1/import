@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { selectByIds } from '../lib/fetchAll';
 import { openingBal } from '../lib/book';
 import { RefreshCw, DollarSign, TrendingUp, Wallet, AlertTriangle, ChevronRight, FileText, CreditCard } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ComposedChart, Line } from "recharts";
@@ -30,13 +31,14 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
 
   async function load() {
     setLoading(true);
-    const [i, p, c, o, li] = await Promise.all([
+    const [i, p, c, o] = await Promise.all([
       supabase.from('busy_sales_invoices').select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status'),
       supabase.from('busy_sales_payments').select('id, payment_date, customer_id, customer_name, amount, payment_mode, sales_invoice_id').order('payment_date', { ascending: false }),
       supabase.from('customers').select('id, name, opening_balance, credit_days, credit_amount'),
       supabase.from('busy_sales_orders').select('id', { count: 'exact', head: true }),
-      supabase.from('busy_sales_invoice_items').select('invoice_id, quantity, unit_price, cost_price'),
     ]);
+    // only the lines of this book's invoices (reading every line of every book also stops at 1000 rows)
+    const li = await selectByIds<{ invoice_id: string; quantity: number; unit_price: number; cost_price: number }>('busy_sales_invoice_items', 'invoice_id, quantity, unit_price, cost_price', 'invoice_id', ((i.data || []) as { id: string }[]).map((x) => x.id));
     setLines((li.data || []) as { invoice_id: string; quantity: number; unit_price: number; cost_price: number }[]);
     setInvoices((i.data || []) as Invoice[]);
     setPayments((p.data || []) as Payment[]);

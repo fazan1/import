@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { selectByIds } from '../lib/fetchAll';
 import { esc } from '../lib/html';
 
 interface Prod { id: string; name: string; unit: string; master_item_id: string | null; avg_cost: number; sell_price: number; is_active: boolean; }
@@ -29,13 +30,14 @@ export default function WarehouseReport({ startDate = '' }: { startDate?: string
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { (async () => {
-    const [p, n, l, i, il] = await Promise.all([
+    const [p, n, l, i] = await Promise.all([
       supabase.from('wh_products').select('id, name, unit, master_item_id, avg_cost, sell_price, is_active'),
       supabase.from('wh_notes').select('id, kind, note_date, sales_invoice_id'),
       supabase.from('wh_note_lines').select('note_id, product_id, qty, unit_cost'),
       supabase.from('busy_sales_invoices').select('id, invoice_date, customer_name, status'),
-      supabase.from('busy_sales_invoice_items').select('sales_invoice_id, item_id, item_name, quantity, unit_price, cost_price'),
     ]);
+    // only the lines of this book's invoices (reading every line of every book also stops at 1000 rows)
+    const il = await selectByIds<Record<string, unknown>>('busy_sales_invoice_items', 'sales_invoice_id, item_id, item_name, quantity, unit_price, cost_price', 'sales_invoice_id', ((i.data ?? []) as { id: string }[]).map((x) => x.id));
     setProds(((p.data ?? []) as Prod[]).map((x) => ({ ...x, avg_cost: Number(x.avg_cost) || 0, sell_price: Number(x.sell_price) || 0 })));
     setNotes((n.data ?? []) as Note[]);
     setLines(((l.data ?? []) as LineRow[]).map((x) => ({ ...x, qty: Number(x.qty), unit_cost: x.unit_cost == null ? null : Number(x.unit_cost) })));

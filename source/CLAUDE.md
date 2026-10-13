@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V95)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V96)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -45,9 +45,11 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. health-check.sql is read-only and verifies all of it.
 
 ## Open items
-- security-lock.sql (v95) written and tested locally - not yet confirmed applied on live.
+- security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
+- Books decided (v96): LCL 2026 is the only new book; it must never count OLD. OLD stays open until old customers are paid
+  (collection), then gets locked as reference. packing_list_items is booked since v96.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
 - Not fixed yet: customer balance rules differ between screens; some totals stop at 1000 rows; Backup exports only the current book;
-  packing_list_items / purchase_bill_items not in BOOKED_TABLES; SECURITY DEFINER bulk_import is callable by any member.
+  SECURITY DEFINER bulk_import is callable by any member.
 - Warehouse items without cost; hide OLD book later when old customers settle.
 - Shipping cost per bill is in CN Reports but not yet pulled into Costing & Duty landed cost.
