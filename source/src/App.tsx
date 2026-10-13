@@ -417,7 +417,7 @@ function App() {
   const inToolsGroup = (id: View) => groups.find((g) => g.key === 'tools')?.items.some((i) => i.id === id) ?? false;
   const goItem = (id: View) => { setMoreOpen(false); if (id === 'hunt') window.open(HUNT_URL, '_blank', 'noopener'); else if (id === 'settings') openSettings(); else if (inToolsGroup(id) && !toolsUnlocked) askToolsPin(id); else setCurrentView(id); };
   const goGroup = (g: Group) => { if (g.items.some((i) => i.id === currentView)) return; goItem(g.items[0].id); };
-  const portalBtn = (on: boolean) => `px-3 lg:px-4 h-11 text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-white border-[#e8552a]' : 'text-neutral-400 border-transparent hover:text-white'}`;
+  const portalBtn = (on: boolean) => `px-3 lg:px-4 h-11 text-[12px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-white border-[#e8552a]' : 'text-neutral-200 border-transparent hover:text-white'}`;
   const bookLocked = typeof perm === 'object' && perm !== null && perm.role !== 'admin' && !!perm.book;
   function changeBook(b: string) {
     const was = book;
@@ -426,17 +426,17 @@ function App() {
     else if (was === BOOK_BRO) setCurrentView('main-dashboard');          // back to your full dashboard
   }
 
-  const tabBtn = (on: boolean) => `px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-neutral-900 border-[#e8552a]' : 'text-neutral-500 border-transparent hover:text-neutral-900'}`;
+  const tabBtn = (on: boolean) => `px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-neutral-900 border-[#e8552a]' : 'text-neutral-700 border-transparent hover:text-neutral-900'}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{APP_COMPANY}<span className="hidden sm:inline font-mono font-normal text-[9px] tracking-[0.12em] text-neutral-500 ml-2">{APP_TITLE} / V97</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{APP_COMPANY}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V98</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
-              className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[10px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
+              className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
               <BookIcon className="w-3 h-3" />
               <span className="hidden sm:inline">{book === BOOK_ALL ? 'ALL BOOKS' : book}</span>
             </button>
@@ -447,8 +447,8 @@ function App() {
                   {[{ v: BOOK_NEW, t: BOOK_NEW, d: 'New business from the changeover' }, { v: BOOK_OLD, t: BOOK_OLD + ' BOOKS', d: 'Everything up to the changeover' }, { v: BOOK_ALL, t: 'ALL BOOKS', d: 'Old + LCL 2026 together, for checking' }, { v: BOOK_BRO, t: BOOK_BRO, d: 'Shop transactions only — kept apart' }].map((o) => (
                     <button key={o.v} onClick={() => { changeBook(o.v); setBookOpen(false); }}
                       className={`w-full text-left px-3 py-2 border-b border-neutral-800 last:border-0 hover:bg-neutral-900 ${o.v === book ? 'text-[#e8552a]' : 'text-neutral-300'}`}>
-                      <div className="font-mono text-[10px] tracking-[0.1em] uppercase">{o.t}</div>
-                      <div className="text-[10px] text-neutral-500 normal-case tracking-normal mt-0.5">{o.d}</div>
+                      <div className="font-mono text-[11px] tracking-[0.1em] uppercase">{o.t}</div>
+                      <div className="text-[11px] text-neutral-300 normal-case tracking-normal mt-0.5">{o.d}</div>
                     </button>
                   ))}
                 </div>
@@ -459,10 +459,10 @@ function App() {
             {groups.map((g) => <button key={g.key} onClick={() => goGroup(g)} className={portalBtn(g.key === activeGroup?.key)}>{g.label}{g.key === 'tools' && !toolsUnlocked && <Lock className="w-3 h-3 inline ml-1.5 -mt-0.5 opacity-60" />}</button>)}
           </nav>
           <div className="ml-auto pl-3 flex items-center gap-1 shrink-0">
-            <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[10px] text-neutral-500 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
-            <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-400 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
-            <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-400'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-400 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[9px] text-neutral-600">v97</span></button>
+            <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
+            <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
+            <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v98</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
@@ -508,15 +508,15 @@ function App() {
 
       {/* phone: portals at the thumb */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0a0a0a] border-t border-neutral-800 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        {groups.slice(0, 4).map((g) => <button key={g.key} onClick={() => goGroup(g)} className={`flex-1 py-2.5 font-mono text-[9px] uppercase tracking-[0.08em] border-t-2 ${g.key === activeGroup?.key ? 'text-[#e8552a] border-[#e8552a]' : 'text-neutral-400 border-transparent'}`}>{g.label.replace(' Portal', '')}</button>)}
-        <button onClick={() => setMoreOpen((o) => !o)} className={`flex-1 py-2.5 font-mono text-[9px] uppercase tracking-[0.08em] border-t-2 ${moreOpen || (activeGroup && groups.indexOf(activeGroup) >= 4) ? 'text-[#e8552a] border-[#e8552a]' : 'text-neutral-400 border-transparent'}`}>More</button>
+        {groups.slice(0, 4).map((g) => <button key={g.key} onClick={() => goGroup(g)} className={`flex-1 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] border-t-2 ${g.key === activeGroup?.key ? 'text-[#e8552a] border-[#e8552a]' : 'text-neutral-200 border-transparent'}`}>{g.label.replace(' Portal', '')}</button>)}
+        <button onClick={() => setMoreOpen((o) => !o)} className={`flex-1 py-2.5 font-mono text-[11px] uppercase tracking-[0.08em] border-t-2 ${moreOpen || (activeGroup && groups.indexOf(activeGroup) >= 4) ? 'text-[#e8552a] border-[#e8552a]' : 'text-neutral-200 border-transparent'}`}>More</button>
       </nav>
       {moreOpen && (
         <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setMoreOpen(false)}>
           <div onClick={(e) => e.stopPropagation()} className="absolute bottom-12 inset-x-0 bg-white border-t border-[#d8d8d4] max-h-[70vh] overflow-y-auto">
             {groups.slice(4).map((g) => (
               <div key={g.key} className="border-b border-[#ececea]">
-                <div className="px-4 pt-3 pb-1 font-mono text-[9px] uppercase tracking-[0.14em] text-neutral-500">{g.label}</div>
+                <div className="px-4 pt-3 pb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-neutral-600">{g.label}</div>
                 {g.items.map((it) => <button key={it.id} onClick={() => goItem(it.id)} className={`w-full text-left px-4 py-2.5 text-[12px] uppercase tracking-[0.04em] ${it.id === currentView ? 'text-neutral-900 font-bold border-l-2 border-[#e8552a]' : 'text-neutral-700'}`}>{it.label}</button>)}
               </div>
             ))}
