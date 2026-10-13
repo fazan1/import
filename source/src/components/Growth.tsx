@@ -32,7 +32,7 @@ const card = 'bg-white border border-gray-200 rounded-lg';
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 
 /* ---------- settings (giving percentages), kept in the browser ---------- */
-interface Cfg { max: number; rotate: number; stretch: number }
+interface Cfg { max: number; rotate: number; stretch: number; fixed: boolean }  // fixed = the same % of every profitable month
 const CFG_KEY = 'capital-mentor-cfg5';
 
 /* ---------- savings ledger (capital_savings) ---------- */
@@ -40,10 +40,15 @@ interface Sav { id: string; entry_date: string; kind: 'deposit' | 'withdraw'; am
 // month → money moved to savings / money brought back from savings into the business
 let SAV: { dep: Record<string, number>; back: Record<string, number>; list: Sav[]; ready: boolean } = { dep: {}, back: {}, list: [], ready: false };
 /* capital left in the business after this month's savings moves */
-const carried = (x: Row) => x.net_capital + (x.profit - x.expenses) + x.capital_added - x.withdrawn - (SAV.dep[x.month] || 0) + (SAV.back[x.month] || 0);
-const balanceAt = (month: string) => SAV.list.filter((e) => e.entry_date.slice(0, 7) <= month).reduce((t, e) => t + (e.kind === 'deposit' ? e.amount : -e.amount), 0);
+const carried = (x: Row) => x.net_capital + (x.profit - x.expenses) + x.capital_added - x.withdrawn - (SAV.dep[x.month] || 0) + (SAV.back[x.month] || 0) - (CH.fromBiz[x.month] || 0);
+const balanceAt = (month: string) => SAV.list.filter((e) => e.entry_date.slice(0, 7) <= month).reduce((t, e) => t + (e.kind === 'deposit' ? e.amount : -e.amount), 0)
+  - CH.list.filter((g) => g.source === 'savings' && g.entry_date.slice(0, 7) <= month).reduce((t, g) => t + g.amount, 0);
+/* ---------- charity record (capital_charity) ---------- */
+interface Gift { id: string; entry_date: string; for_month: string; amount: number; given_to: string | null; source: 'business' | 'savings'; note: string | null }
+// given[month] = given from that month's earnings; fromBiz[month] = paid out of the business during that month; fromSav = out of savings
+let CH: { given: Record<string, number>; fromBiz: Record<string, number>; list: Gift[]; ready: boolean } = { given: {}, fromBiz: {}, list: [], ready: false };
 const PURPOSES = [['business', 'Back into the business'], ['property', 'Property / investment'], ['zakat', 'Zakat / charity'], ['personal', 'Personal'], ['other', 'Other']] as const;
-const loadCfg = (): Cfg => { try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || ''); if (isFinite(c.max) && isFinite(c.rotate)) return { max: c.max, rotate: c.rotate, stretch: isFinite(c.stretch) ? c.stretch : 5 }; } catch { /* */ } return { max: 2.5, rotate: 0, stretch: 5 }; };
+const loadCfg = (): Cfg => { try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || ''); if (isFinite(c.max) && isFinite(c.rotate)) return { max: c.max, rotate: c.rotate, stretch: isFinite(c.stretch) ? c.stretch : 5, fixed: !!c.fixed }; } catch { /* */ } return { max: 2.5, rotate: 0, stretch: 5, fixed: false }; };
 
 /* ---------- derived figures for one month ---------- */
 interface D {
@@ -123,7 +128,8 @@ function planOf(rows: Row[], i: number, cfg: Cfg): Plan {
   const base: Omit<Plan, 'tier' | 'mode'> = { strength: 0, pct: 0, give: 0, keepPct: 0, keep: 0, save: 0, idle: 0, neededCap: C, uRoc, target };
   if (N <= 0) return { ...base, tier: 'loss', mode: 'loss' };
   const strength = isFinite(uRoc) ? clamp01((roc / uRoc - 0.6) / 0.7) : clamp01(roc / 20);
-  const pct = Math.round(strength * cfg.max * 10) / 10;
+  // no profit = nothing due (returned above). Fixed: the same % every profitable month; otherwise it slides with the month's strength
+  const pct = cfg.fixed ? cfg.max : Math.round(strength * cfg.max * 10) / 10;
   const give = N * pct / 100, after = N - give;
   let mode: Mode, keepPct: number, idle = 0, neededCap = C;
   if (g === 'WEAK' || g === 'RISKY') { mode = 'hold'; keepPct = 1; }
@@ -182,12 +188,12 @@ function mentor(rows: Row[], i: number, cfg: Cfg): Verdict {
   const P = planOf(rows, i, cfg);
   const plan: Verdict['plan'] = [];
   if (P.mode === 'loss') {
-    plan.push({ label: 'Zakat / charity 0%', value: 'Rs 0', note: 'no profit' });
+    plan.push({ label: 'Charity 0%', value: 'Rs 0', note: 'no profit — nothing due' });
     plan.push({ label: 'To savings', value: 'Rs 0', note: 'nothing to move' });
     add('bad', 'No profit. Give nothing, move nothing, invest nothing.');
   } else {
     const score = Math.round(P.strength * 10);
-    plan.push({ label: `Zakat / charity ${P.pct.toFixed(1)}%`, value: Rs(P.give), note: `score ${score}/10` });
+    plan.push({ label: `Charity ${P.pct.toFixed(1)}%`, value: Rs(P.give), note: `${cfg.fixed ? 'fixed %' : `score ${score}/10`}${CH.ready ? ` · given ${Rs(CH.given[r.month] || 0)}` : ''}` });
     plan.push({ label: 'Keep in business', value: Rs(P.keep), note: { first: 'cushion', absorbing: 'money is working — compound it', idle: '10% cushion', softer: '30% cushion', hold: 'quiet month — keep it all', loss: '' }[P.mode] });
     plan.push({ label: 'Profit to savings', value: Rs(P.save), note: P.save > 0 ? `${Math.round((P.save / d.net) * 100)}% of profit` : '—' });
     if (P.idle > 0) plan.push({ label: 'Idle capital to savings', value: Rs(P.idle), note: 'not earning this month' });
@@ -223,8 +229,12 @@ function mentor(rows: Row[], i: number, cfg: Cfg): Verdict {
 
   // 4. giving
   if (P.mode !== 'loss') add(P.tier === 'high' ? 'good' : P.tier === 'none' ? 'warn' : 'info', P.pct > 0
-    ? `Zakat / charity ${P.pct.toFixed(1)}% = ${Rs(P.give)} — the month scored ${Math.round(P.strength * 10)}/10${P.tier === 'high' ? ', a month to share' : ''}. Taken from profit only; capital is untouched.`
+    ? `Charity ${P.pct.toFixed(1)}% = ${Rs(P.give)} — ${cfg.fixed ? 'your fixed share of this month\'s earnings' : 'the month scored'} ${cfg.fixed ? '' : ` ${Math.round(P.strength * 10)}/10${P.tier === 'high' ? ', a month to share' : ''}`}. Taken from profit only; capital is untouched.`
     : 'Too thin a month to give from — the business needs this profit.');
+  if (P.mode !== 'loss' && CH.ready && P.give > 0) {
+    const given = CH.given[r.month] || 0, left = P.give - given;
+    add(left <= 0.5 ? 'good' : 'info', left <= 0.5 ? `Charity from ${ml(r.month)} earnings is fully given (${Rs(given)}).` : given > 0 ? `${Rs(given)} given from ${ml(r.month)} earnings, ${Rs(left)} still to give.` : `${Rs(P.give)} still to give from ${ml(r.month)} earnings.`);
+  }
 
   // 5. expenses
   if (r.profit > 0 && r.expenses > 0) {
@@ -288,6 +298,9 @@ export default function Growth() {
   const [savings, setSavings] = useState<Sav[]>([]);
   const [savMissing, setSavMissing] = useState(false);
   const [savForm, setSavForm] = useState<Partial<Sav> | null>(null);
+  const [gifts, setGifts] = useState<Gift[]>([]);
+  const [giftMissing, setGiftMissing] = useState(false);
+  const [giftForm, setGiftForm] = useState<Partial<Gift> | null>(null);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -295,6 +308,11 @@ export default function Growth() {
     setRows(((data ?? []) as Row[]).map((r) => { const o = { ...r } as Row; NUM.forEach((k) => { (o as unknown as Record<string, number>)[k] = Number(r[k]) || 0; }); o.days_to_collect = r.days_to_collect == null ? null : Number(r.days_to_collect); return o; }));
     const sv = await supabase.from('capital_savings').select('*').order('entry_date').order('created_at');
     if (sv.error) setSavMissing(true); else { setSavMissing(false); setSavings(((sv.data ?? []) as Sav[]).map((e) => ({ ...e, amount: Number(e.amount) || 0 }))); }
+    const ch = await supabase.from('capital_charity').select('*').order('entry_date').order('created_at');
+    if (ch.error) setGiftMissing(true); else { setGiftMissing(false); setGifts(((ch.data ?? []) as Gift[]).map((g) => ({ ...g, amount: Number(g.amount) || 0 }))); }
+    // the giving settings are shared by every phone / computer (fall back to this browser's copy)
+    const st = await supabase.from('capital_settings').select('value').eq('key', 'mentor').maybeSingle();
+    if (!st.error && st.data?.value) { const c = st.data.value as Partial<Cfg>; if (isFinite(Number(c.max))) setCfg({ max: Number(c.max), rotate: Number(c.rotate) || 0, stretch: isFinite(Number(c.stretch)) ? Number(c.stretch) : 5, fixed: !!c.fixed }); }
     setLoading(false);
   }
   async function saveSav() {
@@ -315,7 +333,26 @@ export default function Growth() {
     await supabase.from('capital_savings').delete().eq('id', e.id); load();
   }
   const monthEnd = (m: string) => { const [y, mo] = m.split('-').map(Number); const last = new Date(y, mo, 0).getDate(); return `${m}-${String(last).padStart(2, '0')}`; };
-  const saveCfg = (c: Cfg) => { setCfg(c); localStorage.setItem(CFG_KEY, JSON.stringify(c)); };
+  const saveCfg = (c: Cfg) => {
+    setCfg(c); try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch { /* */ }
+    supabase.from('capital_settings').upsert({ key: 'mentor', value: c, updated_at: new Date().toISOString() }).then(() => { /* table may not exist yet */ });
+  };
+  async function saveGift() {
+    const g = giftForm;
+    if (!g?.entry_date || !g.for_month || !(Number(g.amount) > 0)) { alert('Enter the date, the month it is from, and an amount'); return; }
+    if (g.source === 'savings') {
+      const balThen = balanceAt(g.entry_date.slice(0, 7));
+      if (Number(g.amount) > balThen) { alert(`Savings only holds ${Rs(Math.max(0, balThen))} at that date. Choose "From the business", or enter a smaller amount.`); return; }
+    }
+    const { error } = await supabase.from('capital_charity').insert({ entry_date: g.entry_date, for_month: g.for_month, amount: Number(g.amount), given_to: g.given_to || null, source: g.source || 'business', note: g.note || null });
+    if (error) { alert(error.message); return; }
+    setGiftForm(null); load();
+  }
+  async function removeGift(g: Gift) {
+    if (!confirm(`Delete this charity entry?\n\n${Rs(g.amount)} on ${g.entry_date}${g.given_to ? ' to ' + g.given_to : ''}`)) return;
+    const { error } = await supabase.from('capital_charity').delete().eq('id', g.id);
+    if (error) alert(error.message); else load();
+  }
 
   const li = viewMonth ? rows.findIndex((r) => r.month === viewMonth) : -1;
   const idx = li >= 0 ? li : rows.length - 1;
@@ -323,7 +360,9 @@ export default function Growth() {
   const isLatest = idx === rows.length - 1;
   SAV = { dep: {}, back: {}, list: savings, ready: !savMissing };
   savings.forEach((e) => { const m = e.entry_date.slice(0, 7); if (e.kind === 'deposit') SAV.dep[m] = (SAV.dep[m] || 0) + e.amount; else if (e.purpose === 'business') SAV.back[m] = (SAV.back[m] || 0) + e.amount; });
-  const savBal = savings.reduce((t, e) => t + (e.kind === 'deposit' ? e.amount : -e.amount), 0);
+  CH = { given: {}, fromBiz: {}, list: gifts, ready: !giftMissing };
+  gifts.forEach((g) => { CH.given[g.for_month] = (CH.given[g.for_month] || 0) + g.amount; if (g.source === 'business') { const m = g.entry_date.slice(0, 7); CH.fromBiz[m] = (CH.fromBiz[m] || 0) + g.amount; } });
+  const savBal = savings.reduce((t, e) => t + (e.kind === 'deposit' ? e.amount : -e.amount), 0) - gifts.filter((g) => g.source === 'savings').reduce((t, g) => t + g.amount, 0);
   const d = latest ? derive(rows, idx, cfg) : null;
   const P = latest ? planOf(rows, idx, cfg) : null;
   const v = latest ? mentor(rows, idx, cfg) : null;
@@ -345,17 +384,18 @@ export default function Growth() {
     if (viewMonth === r.month) setViewMonth(null);
     load();
   }
-  async function fixGap(how: 'savings' | 'taken' | 'putin' | 'capital') {
+  async function fixGap(how: 'savings' | 'taken' | 'putin' | 'capital' | 'charity') {
     if (idx < 1 || !d || d.capGap === null) return;
     const prev = rows[idx - 1], cur = rows[idx], gap = Math.round(Math.abs(d.capGap));
     if ((how !== 'capital' && prev.closed) || (how === 'capital' && cur.closed)) { alert('That month is closed. Reopen it first (unlock icon).'); return; }
-    const msg = how === 'savings' ? `Record ${Rs(gap)} as put into savings at the end of ${mlong(prev.month)}?`
+    const msg = how === 'charity' ? `Record ${Rs(gap)} as given to charity from the business at the end of ${mlong(prev.month)}?` : how === 'savings' ? `Record ${Rs(gap)} as put into savings at the end of ${mlong(prev.month)}?`
       : how === 'taken' ? `Record ${Rs(gap)} as money taken out in ${mlong(prev.month)}?`
       : how === 'putin' ? `Record ${Rs(gap)} as money put in during ${mlong(prev.month)}?`
       : `Change ${mlong(cur.month)} working capital to ${Rs(Math.round(d.expectedCap!))}?`;
     if (!confirm(msg)) return;
     let error;
-    if (how === 'savings') ({ error } = await supabase.from('capital_savings').insert({ kind: 'deposit', entry_date: monthEnd(prev.month), amount: gap, note: `Profit kept aside from ${mlong(prev.month)}` }));
+    if (how === 'charity') ({ error } = await supabase.from('capital_charity').insert({ entry_date: monthEnd(prev.month), for_month: prev.month, amount: gap, source: 'business', note: 'Recorded from the capital check' }));
+    else if (how === 'savings') ({ error } = await supabase.from('capital_savings').insert({ kind: 'deposit', entry_date: monthEnd(prev.month), amount: gap, note: `Profit kept aside from ${mlong(prev.month)}` }));
     else if (how === 'taken') ({ error } = await supabase.from('growth_months').update({ withdrawn: (prev.withdrawn || 0) + gap }).eq('id', prev.id));
     else if (how === 'putin') ({ error } = await supabase.from('growth_months').update({ capital_added: (prev.capital_added || 0) + gap }).eq('id', prev.id));
     else ({ error } = await supabase.from('growth_months').update({ net_capital: Math.round(d.expectedCap!) }).eq('id', cur.id));
@@ -370,7 +410,7 @@ export default function Growth() {
   }
 
   function exportExcel() {
-    const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => { const x = derive(rows, i, cfg); return { Month: r.month, 'Working capital': r.net_capital, 'Gross profit': r.profit, Expenses: r.expenses, 'Net profit': x.net, 'Expense %': isFinite(x.ratio) ? +x.ratio.toFixed(1) : '', 'Return %': isFinite(x.roc) ? +x.roc.toFixed(1) : '', 'Capital change': x.change ?? '', 'Put in': r.capital_added, 'Taken out': r.withdrawn, 'Zakat / charity': Math.round(planOf(rows, i, cfg).give), 'To savings': Math.round(planOf(rows, i, cfg).save + planOf(rows, i, cfg).idle), 'Target next month': Math.round(targetFor(rows, i, cfg)?.target ?? 0), Note: r.note, Outcome: r.outcome }; }));
+    const ws = XLSX.utils.json_to_sheet(rows.map((r, i) => { const x = derive(rows, i, cfg); return { Month: r.month, 'Working capital': r.net_capital, 'Gross profit': r.profit, Expenses: r.expenses, 'Net profit': x.net, 'Charity due': Math.round(planOf(rows, i, cfg).give), 'Charity given': Math.round(CH.given[r.month] || 0), 'Expense %': isFinite(x.ratio) ? +x.ratio.toFixed(1) : '', 'Return %': isFinite(x.roc) ? +x.roc.toFixed(1) : '', 'Capital change': x.change ?? '', 'Put in': r.capital_added, 'Taken out': r.withdrawn, 'Zakat / charity': Math.round(planOf(rows, i, cfg).give), 'To savings': Math.round(planOf(rows, i, cfg).save + planOf(rows, i, cfg).idle), 'Target next month': Math.round(targetFor(rows, i, cfg)?.target ?? 0), Note: r.note, Outcome: r.outcome }; }));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Capital'); XLSX.writeFile(wb, `capital-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
   function print() {
@@ -432,7 +472,7 @@ export default function Growth() {
           <p className="text-sm text-gray-500">Money exchange — one row a month, and the mentor reads it for the meeting.</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setCfgOpen(true)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1" title="Giving and target settings"><Settings2 className="w-4 h-4" />Giving 0–{cfg.max}% · target up to +{cfg.stretch}%</button>
+          <button onClick={() => setCfgOpen(true)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1" title="Giving and target settings"><Settings2 className="w-4 h-4" />Charity {cfg.fixed ? `${cfg.max}% fixed` : `0–${cfg.max}%`} · target up to +{cfg.stretch}%</button>
           <button onClick={print} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Printer className="w-4 h-4" />Print</button>
           <button onClick={exportExcel} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Download className="w-4 h-4" />Excel</button>
           <button onClick={() => setEdit(newMonth())} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm flex items-center gap-1"><Plus className="w-4 h-4" />Add month</button>
@@ -473,6 +513,9 @@ export default function Growth() {
                     </div>
                   ))}
                 </div>
+                {P && P.give > 0 && !giftMissing && (CH.given[latest.month] || 0) < P.give - 0.5 && (
+                  <button onClick={() => setGiftForm({ entry_date: new Date().toISOString().slice(0, 10), for_month: latest.month, amount: Math.round(P.give - (CH.given[latest.month] || 0)), source: 'business' })} className="mt-3 w-full px-3 py-2 border border-violet-600 text-violet-700 rounded-lg text-xs font-semibold">Record charity given · {Rs(P.give - (CH.given[latest.month] || 0))} left</button>
+                )}
                 {P && P.save + P.idle > 0 && !savMissing && (
                   <button onClick={() => setSavForm({ kind: 'deposit', entry_date: monthEnd(latest.month), amount: Math.round(P.save + P.idle), note: `From ${mlong(latest.month)}${P.idle > 0 ? ' — profit + idle capital' : ' profit'}` })} className="mt-3 w-full px-3 py-2 bg-teal-600 text-white text-sm rounded-lg">Record {Rs(P.save + P.idle)} moved to savings</button>
                 )}
@@ -513,6 +556,7 @@ export default function Growth() {
                     {d.capGap! < 0 ? (<>
                       <button onClick={() => fixGap('savings')} className="px-2.5 py-1.5 bg-teal-600 text-white rounded-lg font-semibold">Moved to savings</button>
                       <button onClick={() => fixGap('taken')} className="px-2.5 py-1.5 border border-gray-300 bg-white rounded-lg font-semibold">Taken out by us</button>
+                      {!giftMissing && <button onClick={() => fixGap('charity')} className="px-2.5 py-1.5 border border-gray-300 bg-white rounded-lg font-semibold">Given to charity</button>}
                     </>) : (
                       <button onClick={() => fixGap('putin')} className="px-2.5 py-1.5 bg-teal-600 text-white rounded-lg font-semibold">We put it in</button>
                     )}
@@ -526,6 +570,7 @@ export default function Growth() {
               {latest.withdrawn > 0 && <div className="flex justify-between"><span className="text-gray-600">− taken out</span><span className="text-red-600">{Rs(latest.withdrawn)}</span></div>}
               {(SAV.dep[latest.month] || 0) > 0 && <div className="flex justify-between"><span className="text-gray-600">− put into savings</span><span className="text-teal-700">{Rs(SAV.dep[latest.month])}</span></div>}
               {(SAV.back[latest.month] || 0) > 0 && <div className="flex justify-between"><span className="text-gray-600">+ back from savings</span><span className="text-teal-700">{Rs(SAV.back[latest.month])}</span></div>}
+              {(CH.fromBiz[latest.month] || 0) > 0 && <div className="flex justify-between"><span className="text-gray-600">− given to charity from the business</span><span className="text-violet-700">{Rs(CH.fromBiz[latest.month])}</span></div>}
               <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold"><span>Carries into next month</span><span>{Rs(carried(latest))}</span></div>
             </div>
           </div>
@@ -554,14 +599,17 @@ export default function Growth() {
                   <table className="w-full text-sm">
                     <thead className="text-[10px] text-gray-500 uppercase"><tr><th className="text-left py-1">Date</th><th className="text-left py-1">What</th><th className="text-right py-1">In</th><th className="text-right py-1">Out</th><th className="text-right py-1">Balance</th><th /></tr></thead>
                     <tbody className="divide-y divide-gray-100">
-                      {(() => { let run = 0; return savings.map((e) => { run += e.kind === 'deposit' ? e.amount : -e.amount; return { e, run }; }); })().reverse().map(({ e, run }) => (
+                      {(() => { let run = 0;
+                        const all: Sav[] = [...savings, ...gifts.filter((g) => g.source === 'savings').map((g) => ({ id: 'gift-' + g.id, entry_date: g.entry_date, kind: 'withdraw' as const, amount: g.amount, purpose: 'zakat', note: `charity${g.given_to ? ' to ' + g.given_to : ''} (from ${ml(g.for_month)} earnings)` }))]
+                          .sort((a, b) => a.entry_date.localeCompare(b.entry_date));
+                        return all.map((e) => { run += e.kind === 'deposit' ? e.amount : -e.amount; return { e, run }; }); })().reverse().map(({ e, run }) => (
                         <tr key={e.id}>
                           <td className="py-1.5 whitespace-nowrap text-gray-600">{new Date(e.entry_date).toLocaleDateString('en-GB')}</td>
                           <td className="py-1.5">{e.kind === 'deposit' ? 'Moved in' : (PURPOSES.find((pp) => pp[0] === e.purpose)?.[1] ?? 'Taken out')}{e.note ? <span className="text-gray-400"> · {e.note}</span> : null}</td>
                           <td className="py-1.5 text-right text-teal-700">{e.kind === 'deposit' ? n0(e.amount) : ''}</td>
                           <td className="py-1.5 text-right text-red-600">{e.kind === 'withdraw' ? n0(e.amount) : ''}</td>
                           <td className="py-1.5 text-right font-medium">{n0(run)}</td>
-                          <td className="py-1.5 text-right"><button onClick={() => removeSav(e)} className="p-1 text-gray-300 hover:text-red-600" title="Delete entry"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                          <td className="py-1.5 text-right">{e.id.startsWith('gift-') ? <span className="text-[10px] text-gray-400">see Charity</span> : <button onClick={() => removeSav(e)} className="p-1 text-gray-300 hover:text-red-600" title="Delete entry"><Trash2 className="w-3.5 h-3.5" /></button>}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -569,6 +617,63 @@ export default function Growth() {
                 )}
               </>
             )}
+          </div>
+
+          {/* ---- charity ---- */}
+          <div className={`${card} p-4 mb-4`}>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+              <div><h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">Charity</h3><p className="text-[11px] text-gray-500 mt-0.5">From each month's earnings only — a month with no profit has nothing due. {cfg.fixed ? `Fixed ${cfg.max}% of every profitable month.` : `0–${cfg.max}% of the month's profit, by how strong the month was.`}</p></div>
+              {!giftMissing && <button onClick={() => setGiftForm({ entry_date: new Date().toISOString().slice(0, 10), for_month: latest.month, source: 'business' })} className="px-3 py-1.5 border border-violet-600 text-violet-700 rounded-lg text-xs font-semibold">+ Record a gift</button>}
+            </div>
+            {giftMissing ? (
+              <p className="text-sm text-amber-700">The charity record is not set up yet — run <b>charity-setup.sql</b> in Supabase once, then refresh.</p>
+            ) : (() => {
+              const due = rows.map((r, i) => ({ r, due: planOf(rows, i, cfg).give, given: CH.given[r.month] || 0 }));
+              const year = latest.month.slice(0, 4);
+              const inYear = due.filter((x) => x.r.month.startsWith(year) && x.r.month <= latest.month);
+              const sum = (xs: typeof due, k: 'due' | 'given') => xs.reduce((t, x) => t + x[k], 0);
+              const owed = due.filter((x) => x.r.month <= latest.month).reduce((t, x) => t + Math.max(0, x.due - x.given), 0);
+              const allGiven = gifts.reduce((t, g) => t + g.amount, 0) + savings.filter((e) => e.kind === 'withdraw' && e.purpose === 'zakat').reduce((t, e) => t + e.amount, 0);
+              return (<>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Due {year}</p><p className="text-lg font-semibold text-gray-900">{Rs(sum(inYear, 'due'))}</p></div>
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Given {year}</p><p className="text-lg font-semibold text-violet-700">{Rs(sum(inYear, 'given'))}</p></div>
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Still to give</p><p className={`text-lg font-semibold ${owed > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{owed > 0.5 ? Rs(owed) : 'All given ✓'}</p></div>
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Given since the start</p><p className="text-lg font-semibold text-gray-900">{Rs(allGiven)}</p></div>
+                </div>
+                <table className="w-full text-sm mb-3">
+                  <thead className="text-[10px] text-gray-500 uppercase"><tr><th className="text-left py-1">Earnings of</th><th className="text-right py-1">Net profit</th><th className="text-right py-1">%</th><th className="text-right py-1">Due</th><th className="text-right py-1">Given</th><th className="text-right py-1">Left</th></tr></thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {due.filter((x) => x.r.month <= latest.month).slice(-12).reverse().map(({ r, due: dv, given }, k) => { const i = rows.indexOf(r); const net = r.profit - r.expenses; const left = dv - given; return (
+                      <tr key={r.month + k}>
+                        <td className="py-1.5">{mlong(r.month)}</td>
+                        <td className={`py-1.5 text-right ${net <= 0 ? 'text-gray-400' : ''}`}>{n0(net)}</td>
+                        <td className="py-1.5 text-right text-gray-500">{net > 0 ? `${planOf(rows, i, cfg).pct.toFixed(1)}%` : '—'}</td>
+                        <td className="py-1.5 text-right">{net > 0 ? n0(dv) : <span className="text-gray-400">no profit</span>}</td>
+                        <td className="py-1.5 text-right text-violet-700">{given ? n0(given) : ''}</td>
+                        <td className={`py-1.5 text-right ${left > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{net > 0 ? (left > 0.5 ? n0(left) : '✓') : ''}</td>
+                      </tr>); })}
+                  </tbody>
+                </table>
+                {gifts.length > 0 && (
+                  <table className="w-full text-sm">
+                    <thead className="text-[10px] text-gray-500 uppercase"><tr><th className="text-left py-1">Date</th><th className="text-left py-1">To</th><th className="text-left py-1">From earnings of</th><th className="text-left py-1">Paid from</th><th className="text-right py-1">Amount</th><th></th></tr></thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {[...gifts].reverse().map((g) => (
+                        <tr key={g.id}>
+                          <td className="py-1.5 whitespace-nowrap text-gray-600">{new Date(g.entry_date).toLocaleDateString('en-GB')}</td>
+                          <td className="py-1.5">{g.given_to || '—'}{g.note ? <span className="text-gray-400"> · {g.note}</span> : null}</td>
+                          <td className="py-1.5">{ml(g.for_month)}</td>
+                          <td className="py-1.5 text-gray-600">{g.source === 'savings' ? 'Savings' : 'Business'}</td>
+                          <td className="py-1.5 text-right font-medium text-violet-700">{n0(g.amount)}</td>
+                          <td className="py-1.5 text-right"><button onClick={() => removeGift(g)} className="p-1 text-gray-300 hover:text-red-600" title="Delete entry"><Trash2 className="w-3.5 h-3.5" /></button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>);
+            })()}
           </div>
 
           {/* ---- decision ---- */}
@@ -643,6 +748,33 @@ export default function Growth() {
         </div>
       )}
 
+      {giftForm && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setGiftForm(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-md p-5">
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Record charity given</h3><button onClick={() => setGiftForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-gray-500">Date given</label><input type="date" className={input} value={giftForm.entry_date ?? ''} onChange={(e) => setGiftForm({ ...giftForm, entry_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">From the earnings of</label>
+                <select className={input} value={giftForm.for_month ?? ''} onChange={(e) => setGiftForm({ ...giftForm, for_month: e.target.value })}>
+                  {[...rows].reverse().map((r, k) => { const i = rows.length - 1 - k; const dv = planOf(rows, i, cfg).give; const left = dv - (CH.given[r.month] || 0); return <option key={r.month} value={r.month}>{mlong(r.month)}{dv > 0 ? ` — ${left > 0.5 ? Rs(left) + ' left' : 'given ✓'}` : ' — no profit'}</option>; })}
+                </select></div>
+              <div><label className="text-xs text-gray-500">Amount (Rs)</label><input type="number" inputMode="decimal" className={input} value={(giftForm.amount as number) || ''} onChange={(e) => setGiftForm({ ...giftForm, amount: e.target.value as unknown as number })} /></div>
+              <div><label className="text-xs text-gray-500">Paid from</label>
+                <select className={input} value={giftForm.source ?? 'business'} onChange={(e) => setGiftForm({ ...giftForm, source: e.target.value as Gift['source'] })}>
+                  <option value="business">The business</option><option value="savings">Savings</option>
+                </select></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Given to (optional)</label><input className={input} value={giftForm.given_to ?? ''} onChange={(e) => setGiftForm({ ...giftForm, given_to: e.target.value })} placeholder="e.g. masjid, family in need, school" /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Note (optional)</label><input className={input} value={giftForm.note ?? ''} onChange={(e) => setGiftForm({ ...giftForm, note: e.target.value })} /></div>
+            </div>
+            <p className="text-[11px] text-gray-500 mt-2">Paid from the business: it comes off the capital that carries into next month, so the capital check stays clean. Paid from savings: it comes off the savings balance.</p>
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setGiftForm(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button>
+              <button onClick={saveGift} className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm flex items-center gap-1"><CheckIcon className="w-4 h-4" />Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {savForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setSavForm(null)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-lg shadow-xl w-full max-w-sm p-5">
@@ -681,8 +813,12 @@ export default function Growth() {
             <h3 className="font-semibold text-gray-900 mb-1">Mentor settings</h3>
             <p className="text-xs text-gray-500 mb-3">Giving is always from the month's net profit — never from the capital. Keep-in or move-to-savings is decided by how hard the money is working each month.</p>
             <div className="space-y-3">
-              <div><label className="text-xs text-gray-500">Giving % in the very best months (top of the scale)</label><input type="number" step="0.1" className={input} value={cfg.max} onChange={(e) => saveCfg({ ...cfg, max: Number(e.target.value) || 0 })} />
-                <p className="text-[11px] text-gray-400 mt-1">Each month slides from 0% up to this, in 0.1% steps, depending on how strong the month is.</p></div>
+              <div className="flex gap-2">
+                <button onClick={() => saveCfg({ ...cfg, fixed: true })} className={`flex-1 px-2 py-2 border rounded-lg text-xs font-semibold ${cfg.fixed ? 'border-violet-600 text-violet-700 bg-violet-50' : 'border-gray-300 text-gray-600'}`}>Same % every month with profit</button>
+                <button onClick={() => saveCfg({ ...cfg, fixed: false })} className={`flex-1 px-2 py-2 border rounded-lg text-xs font-semibold ${!cfg.fixed ? 'border-violet-600 text-violet-700 bg-violet-50' : 'border-gray-300 text-gray-600'}`}>Slide 0% → top with the month</button>
+              </div>
+              <div><label className="text-xs text-gray-500">{cfg.fixed ? 'Charity % of every month with profit' : 'Giving % in the very best months (top of the scale)'}</label><input type="number" step="0.1" className={input} value={cfg.max} onChange={(e) => saveCfg({ ...cfg, max: Number(e.target.value) || 0 })} />
+                <p className="text-[11px] text-gray-400 mt-1">{cfg.fixed ? 'This share of the net profit is due every month that earns. A month with no profit has nothing due.' : 'Each month slides from 0% up to this, in 0.1% steps, depending on how strong the month is. No profit = nothing due.'}</p></div>
               <div><label className="text-xs text-gray-500">Target stretch % in the very best months</label><input type="number" step="0.1" className={input} value={cfg.stretch} onChange={(e) => saveCfg({ ...cfg, stretch: Number(e.target.value) || 0 })} />
                 <p className="text-[11px] text-gray-400 mt-1">Next month's target sits 0.1% to this much above your 3-month average, depending on how well you are doing. Held after a quiet month.</p></div>
             </div>

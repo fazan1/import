@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V99)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V100)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -42,7 +42,7 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 - No public sign-up link; logins are made in Settings -> Users.
 
 ## SQL files already applied to the live database (all in /sql)
-book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v97): security-lock, packing-lines-book, old-collection-only, books-separate. health-check.sql is read-only and verifies all of it.
+book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v100): security-lock, packing-lines-book, old-collection-only, books-separate, charity-setup. health-check.sql is read-only and verifies all of it.
 
 ## Open items
 - security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
@@ -57,6 +57,10 @@ book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipm
 - v99: BLINE SHOP choice remembered per tab only (new visit = own books); companyFor(book) in src/lib/company.ts
   (BLINE Traders for the shop book) on header, CN Home and purchase-side prints; print fixes (package count once
   per PL, costing totals, invoice tax label); index.css "Long prints" rule stops print pop-ups clipping to page 1.
+- v100 Capital (Growth.tsx): charity = share of each month's NET profit only (no profit = nothing due); mode fixed % or
+  sliding by month strength (capital_settings 'mentor', shared across devices). capital_charity records gifts
+  (for_month, source business|savings); business gifts come off carried capital, savings gifts off the savings balance.
+  sql/charity-setup.sql. Not real zakat-on-wealth (owner gives from monthly earnings by choice).
 - No per-LC books: each LC is a shipment in LCL 2026. Shop sees prices/costs (costing-duty in SHOP_MODULES);
   admin corrects shop records by switching to BLINE SHOP.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
