@@ -1,8 +1,17 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { Calculator, RefreshCw, Plus, Trash2, Download, Search, X, History, ChevronDown, Printer, Scale, AlertTriangle } from 'lucide-react';
+import { Calculator, RefreshCw, Plus, Trash2, Download, Search, X, History, ChevronDown, Printer, AlertTriangle, CheckCircle2, Truck } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import CostingDutyPrint from './CostingDutyPrint';
+import CostingDutyPrint, { summarizeCosting, fmt0, fmt2 } from './CostingDutyPrint';
+import type { CostingPrintLine } from './CostingDutyPrint';
+import { fetchAllPages, selectByIds } from '../lib/fetchAll';
+import { syncCostingCharges, loadItemCharges } from '../lib/costingCharges';
+import type { ItemCharge } from '../lib/costingCharges';
+
+/* Costing: landed per unit = (CNY price x rate) + shipping per unit.
+   Shipping per unit comes from Shipping -> Charges (charge of the item / its qty), copied onto the
+   costing line by syncCostingCharges(). Lines not from a packing list can have a MANUAL charge.
+   The database trigger works out cost LKR, landed, profit and totals; we always keep the row it returns. */
 
 interface PackingListItem {
   id: string;
@@ -28,21 +37,60 @@ interface CostingRecord {
   description: string;
   qty: number;
   unit: string;
-  weight_kg: number;
+  weight_kg: number;   // kept in the data (used by Shipping), not shown here
   cbm: number;
   unit_price_cny: number;
   cny_rate: number;
   unit_price_lkr: number;
   type: 'RESALE' | 'FACTORY';
-  duty_basis: 'CBM' | 'KG' | 'PCS';
-  duty_rate: number;
   duty_per_unit: number;
+  charge_per_unit: number;
+  charge_basis: string;
   landed_cost_per_unit: number;
   selling_price: number;
   profit_per_unit: number;
   total_landed_cost: number;
   total_sales: number;
   total_profit: number;
+  book: string | null;
+  created_at: string;
+}
+
+interface ShipInfo { id: string; actual_charges: number; agent_invoice: number; other_charges: number }
+
+const num = (v: unknown) => {
+  const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
+  return Number.isFinite(n) ? n : 0;
+};
+
+/** A database row -> a costing line. Before item-charges-costing.sql, charge_per_unit is missing: use duty_per_unit. */
+function parseRow(row: Record<string, unknown>): CostingRecord {
+  const hasCharge = row.charge_per_unit !== undefined && row.charge_per_unit !== null;
+  return {
+    id: String(row.id),
+    batch_number: (row.batch_number as string) || '',
+    packing_list_item_id: (row.packing_list_item_id as string) || null,
+    description: (row.description as string) || '',
+    qty: num(row.qty),
+    unit: (row.unit as string) || '',
+    weight_kg: num(row.weight_kg),
+    cbm: num(row.cbm),
+    unit_price_cny: num(row.unit_price_cny),
+    cny_rate: num(row.cny_rate),
+    unit_price_lkr: num(row.unit_price_lkr),
+    type: row.type === 'FACTORY' ? 'FACTORY' : 'RESALE',
+    duty_per_unit: num(row.duty_per_unit),
+    charge_per_unit: hasCharge ? num(row.charge_per_unit) : num(row.duty_per_unit),
+    charge_basis: (row.charge_basis as string) || (hasCharge || !num(row.duty_per_unit) ? '' : 'OLD'),
+    landed_cost_per_unit: num(row.landed_cost_per_unit),
+    selling_price: num(row.selling_price),
+    profit_per_unit: num(row.profit_per_unit),
+    total_landed_cost: num(row.total_landed_cost),
+    total_sales: num(row.total_sales),
+    total_profit: num(row.total_profit),
+    book: (row.book as string) ?? null,
+    created_at: (row.created_at as string) || '',
+  };
 }
 
 function sortBatches(batches: string[]): string[] {
@@ -53,6 +101,16 @@ function sortBatches(batches: string[]): string[] {
     return b.localeCompare(a);
   });
 }
+
+const BASIS_TAG: Record<string, string> = {
+  KG: 'bg-sky-100 text-sky-800',
+  CBM: 'bg-indigo-100 text-indigo-800',
+  PCS: 'bg-teal-100 text-teal-800',
+  FIXED: 'bg-gray-200 text-gray-700',
+  MANUAL: 'bg-amber-100 text-amber-800',
+  OLD: 'bg-gray-100 text-gray-500',
+  NONE: 'bg-red-100 text-red-700',
+};
 
 export default function CostingDutySheet() {
   const [records, setRecords] = useState<CostingRecord[]>([]);
@@ -68,21 +126,25 @@ export default function CostingDutySheet() {
   const [showPrintView, setShowPrintView] = useState(false);
   const [selectedPlNo, setSelectedPlNo] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [dutyBasisFilter, setDutyBasisFilter] = useState('');
   const [globalCnyRate, setGlobalCnyRate] = useState(0);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showBatchHistory, setShowBatchHistory] = useState(false);
-  const [lumpsumCharges, setLumpsumCharges] = useState(0);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [shipment, setShipment] = useState<{ id: string; default_basis: 'CBM' | 'KG' | 'PCS'; rate_cbm: number; rate_kg: number; rate_pcs: number; actual_charges: number; mode: string } | null>(null);
-  const [showSplit, setShowSplit] = useState(false);
-  const [splitField, setSplitField] = useState<'cbm' | 'weight_kg'>('cbm');
-  const [splitBasis, setSplitBasis] = useState<'value' | 'quantity' | 'equal'>('value');
-  const [splitTotal, setSplitTotal] = useState('');
+  // null = not checked yet; false = item-charges-costing.sql not run (no charge_per_unit column)
+  const [chargeCols, setChargeCols] = useState<boolean | null>(null);
+  // shipping check for the open batch
+  const [shipLoaded, setShipLoaded] = useState(false);
+  const [shipInfo, setShipInfo] = useState<ShipInfo | null>(null);
+  const [itemCharges, setItemCharges] = useState<Map<string, ItemCharge>>(new Map());
+  const [shipError, setShipError] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const batchToken = useRef('');
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -92,12 +154,12 @@ export default function CostingDutySheet() {
     }
   }, [editingCell]);
 
-  // Update CNY rate display when active batch changes
+  // New batch: CNY rate, clear filters
   useEffect(() => {
     if (!activeBatch) return;
-    const batchRecords = records.filter(r => (r.batch_number || '') === activeBatch);
-    if (batchRecords.length > 0 && batchRecords[0].cny_rate > 0) {
-      setGlobalCnyRate(batchRecords[0].cny_rate);
+    const batchRecs = records.filter(r => (r.batch_number || '') === activeBatch);
+    if (batchRecs.length > 0 && batchRecs[0].cny_rate > 0) {
+      setGlobalCnyRate(batchRecs[0].cny_rate);
     } else {
       // New or unrated batch: carry over the rate from the latest batch that has one
       const lastRated = [...records].reverse().find(r => r.cny_rate > 0);
@@ -107,117 +169,128 @@ export default function CostingDutySheet() {
     setSelectedPlNo('');
     setSearchTerm('');
     setTypeFilter('');
-    setDutyBasisFilter('');
-    setLumpsumCharges(0);
-    setShipment(null);
-    supabase
-      .from('shipments')
-      .select('id, default_basis, rate_cbm, rate_kg, rate_pcs, actual_charges, mode')
-      .eq('shipment_no', activeBatch)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setShipment(data);
-          if (data.actual_charges > 0) setLumpsumCharges(data.actual_charges);
-        }
-      });
+    setSyncMsg('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBatch]);
 
-  // Persist the shipment charges so they survive a reload (only when the batch is a Shipping record)
-  async function saveLumpsum(value: number) {
-    setLumpsumCharges(value);
-    if (!shipment) return;
-    await supabase.from('shipments').update({ actual_charges: value }).eq('id', shipment.id);
+  // New batch (once we know whether the charge columns exist): bring the shipping charges in, then load the check
+  useEffect(() => {
+    if (!activeBatch || chargeCols === null) return;
+    const token = activeBatch;
+    batchToken.current = token;
+    setShipLoaded(false);
+    setShipInfo(null);
+    setItemCharges(new Map());
+    setShipError('');
+    (async () => {
+      if (chargeCols) {
+        const { updated, error } = await syncCostingCharges(token);
+        if (batchToken.current !== token) return;
+        if (error) setShipError(`Could not bring the shipping charges in: ${error}`);
+        else if (updated > 0) await loadRecords();
+      }
+      if (batchToken.current !== token) return;
+      await loadShipmentCheck(token);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBatch, chargeCols]);
+
+  async function loadShipmentCheck(batch: string) {
+    let ship: ShipInfo | null = null;
+    let err = '';
+    const full = await supabase.from('shipments').select('id, actual_charges, agent_invoice, other_charges').eq('shipment_no', batch).maybeSingle();
+    if (full.error) {
+      // older database without the agent invoice columns
+      const basic = await supabase.from('shipments').select('id, actual_charges').eq('shipment_no', batch).maybeSingle();
+      if (basic.error) err = `Could not read the shipment: ${basic.error.message}`;
+      else if (basic.data) ship = { id: basic.data.id, actual_charges: num(basic.data.actual_charges), agent_invoice: 0, other_charges: 0 };
+    } else if (full.data) {
+      ship = { id: full.data.id, actual_charges: num(full.data.actual_charges), agent_invoice: num(full.data.agent_invoice), other_charges: num(full.data.other_charges) };
+    }
+    let map = new Map<string, ItemCharge>();
+    if (ship && chargeCols) {
+      const res = await loadItemCharges(ship.id);
+      if (res.error) err = err || `Could not read the item charges from Shipping: ${res.error}`;
+      map = res.map;
+    }
+    if (batchToken.current !== batch) return;
+    setShipInfo(ship);
+    setItemCharges(map);
+    if (err) setShipError(prev => prev || err);
+    setShipLoaded(true);
   }
 
-  function shipmentRate(basis: 'CBM' | 'KG' | 'PCS') {
-    if (!shipment) return 0;
-    return basis === 'CBM' ? shipment.rate_cbm : basis === 'KG' ? shipment.rate_kg : shipment.rate_pcs;
+  async function updateFromShipping() {
+    if (!activeBatch) return;
+    setSyncing(true);
+    setSyncMsg('');
+    const { updated, error } = await syncCostingCharges(activeBatch);
+    if (error) {
+      alert(`Could not bring the shipping charges in.\n\n${error}`);
+    } else {
+      setShipError('');
+      await loadRecords();
+      setSyncMsg(updated > 0 ? `${updated} line${updated === 1 ? '' : 's'} updated from Shipping` : 'Already up to date');
+    }
+    await loadShipmentCheck(activeBatch);
+    setSyncing(false);
+  }
+
+  async function checkChargeColumns() {
+    const { error } = await supabase.from('costing_duty_sheet').select('id, charge_per_unit, charge_basis').limit(1);
+    if (error && /charge_(per_unit|basis)/i.test(error.message)) setChargeCols(false);
+    else setChargeCols(true);
   }
 
   async function loadData() {
     setLoading(true);
-    await Promise.all([loadRecords(), loadPackingItems()]);
+    await Promise.all([checkChargeColumns(), loadRecords(), loadPackingItems()]);
     setLoading(false);
   }
 
   async function loadRecords() {
-    const { data, error } = await supabase
-      .from('costing_duty_sheet')
-      .select('*')
-      .order('created_at', { ascending: true });
-
+    const { data, error } = await fetchAllPages<Record<string, unknown>>(() =>
+      supabase.from('costing_duty_sheet').select('*').order('id'));
     if (error) {
-      console.error('Error loading costing records:', error);
+      alert(`Could not load the costing lines.\n\n${error}`);
       return;
     }
-
-    const parsed: CostingRecord[] = (data || []).map(row => ({
-      ...row,
-      batch_number: row.batch_number || '',
-      qty: parseFloat(row.qty) || 0,
-      weight_kg: parseFloat(row.weight_kg) || 0,
-      cbm: parseFloat(row.cbm) || 0,
-      unit_price_cny: parseFloat(row.unit_price_cny) || 0,
-      cny_rate: parseFloat(row.cny_rate) || 0,
-      unit_price_lkr: parseFloat(row.unit_price_lkr) || 0,
-      duty_rate: parseFloat(row.duty_rate) || 0,
-      duty_per_unit: parseFloat(row.duty_per_unit) || 0,
-      landed_cost_per_unit: parseFloat(row.landed_cost_per_unit) || 0,
-      selling_price: parseFloat(row.selling_price) || 0,
-      profit_per_unit: parseFloat(row.profit_per_unit) || 0,
-      total_landed_cost: parseFloat(row.total_landed_cost) || 0,
-      total_sales: parseFloat(row.total_sales) || 0,
-      total_profit: parseFloat(row.total_profit) || 0,
-    }));
-
+    const parsed = data.map(parseRow).sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
     setRecords(parsed);
-
-    // Derive batches from packing_list_items (source of truth) — done in loadPackingItems
-    // But also capture any batches from existing costing records
-    const batchSet = new Set<string>();
-    parsed.forEach(r => { if (r.batch_number) batchSet.add(r.batch_number); });
-    // allBatches will be merged in loadPackingItems
-    return batchSet;
   }
 
   async function loadPackingItems() {
-    const { data: plItems, error: plError } = await supabase
-      .from('packing_list_items')
-      .select('id, batch_number, packing_list_no, item_name, quantity, unit, weight_kg, cbm, purchase_bill_item_id')
-      .order('packing_list_no', { ascending: true });
-
+    const { data: items, error: plError } = await fetchAllPages<PackingListItem>(() =>
+      supabase.from('packing_list_items')
+        .select('id, batch_number, packing_list_no, item_name, quantity, unit, weight_kg, cbm, purchase_bill_item_id')
+        .order('id'));
     if (plError) {
-      console.error('Error loading packing list items:', plError);
+      alert(`Could not load the packing list items.\n\n${plError}`);
       return;
     }
-
-    const items = plItems || [];
+    items.sort((a, b) => String(a.packing_list_no || '').localeCompare(String(b.packing_list_no || ''), undefined, { numeric: true }));
     setPackingItems(items);
 
-    // Build bill items map
-    const billItemIds = items
-      .filter(i => i.purchase_bill_item_id)
-      .map(i => i.purchase_bill_item_id as string);
-
+    // CNY prices from the linked purchase bill lines
+    const billItemIds = items.filter(i => i.purchase_bill_item_id).map(i => i.purchase_bill_item_id as string);
     if (billItemIds.length > 0) {
-      const { data: billItems, error: billError } = await supabase
-        .from('purchase_bill_items')
-        .select('id, unit_price_cny')
-        .in('id', billItemIds);
-
-      if (!billError && billItems) {
+      const { data: billItems, error: billError } = await selectByIds<PurchaseBillItem>('purchase_bill_items', 'id, unit_price_cny', 'id', billItemIds);
+      if (billError) {
+        alert(`Could not load the purchase bill prices.\n\n${billError}`);
+      } else {
         const map: Record<string, PurchaseBillItem> = {};
-        billItems.forEach(item => { map[item.id] = item; });
+        billItems.forEach(item => { map[item.id] = { id: item.id, unit_price_cny: num(item.unit_price_cny) }; });
         setBillItemsMap(map);
       }
     }
 
-    // Derive batches from packing list items, plus any shipment created in Shipping
+    // Batches: packing list items plus every shipment created in Shipping
     const batchSet = new Set<string>();
     items.forEach(i => { if (i.batch_number) batchSet.add(i.batch_number); });
-    const { data: ships } = await supabase.from('shipments').select('shipment_no');
-    (ships || []).forEach((sh: { shipment_no: string }) => batchSet.add(sh.shipment_no));
+    const { data: ships, error: shErr } = await fetchAllPages<{ shipment_no: string }>(() =>
+      supabase.from('shipments').select('id, shipment_no').order('id'));
+    if (shErr) alert(`Could not load the shipments list.\n\n${shErr}`);
+    ships.forEach(sh => { if (sh.shipment_no) batchSet.add(sh.shipment_no); });
     const sorted = sortBatches(Array.from(batchSet));
     setAllBatches(sorted);
 
@@ -228,20 +301,17 @@ export default function CostingDutySheet() {
   }
 
   async function importFromPackingList() {
-    const batchPackingItems = packingItems.filter(i => (i.batch_number || '') === activeBatch);
-    if (batchPackingItems.length === 0) {
+    const batchPL = packingItems.filter(i => (i.batch_number || '') === activeBatch);
+    if (batchPL.length === 0) {
       alert(`No packing list rows exist for ${activeBatch} yet.\nGo to Packing List, open the ${activeBatch} tab and create the rows from the bills first.`);
       setShowImportModal(false);
       return;
     }
 
-    const existingPlItemIds = new Set(
-      records
-        .filter(r => r.packing_list_item_id && (r.batch_number || '') === activeBatch)
-        .map(r => r.packing_list_item_id)
+    const existing = new Set(
+      records.filter(r => r.packing_list_item_id && (r.batch_number || '') === activeBatch).map(r => r.packing_list_item_id)
     );
-    const newItems = batchPackingItems.filter(i => !existingPlItemIds.has(i.id));
-
+    const newItems = batchPL.filter(i => !existing.has(i.id));
     if (newItems.length === 0) {
       setShowImportModal(false);
       return;
@@ -260,22 +330,25 @@ export default function CostingDutySheet() {
         unit_price_cny: billItem?.unit_price_cny || 0,
         cny_rate: globalCnyRate,
         type: 'RESALE',
-        duty_basis: shipment ? shipment.default_basis : 'CBM',
-        duty_rate: shipment ? shipmentRate(shipment.default_basis) : 0,
         selling_price: 0,
       };
     });
 
+    setSaving(true);
     const { error } = await supabase.from('costing_duty_sheet').insert(toInsert);
-
     if (error) {
-      console.error('Error importing items:', error);
-      alert('Import failed: ' + error.message);
+      setSaving(false);
+      alert(`Could not import the packing list items.\n\n${error.message}`);
       return;
     }
-
     setShowImportModal(false);
-    loadRecords();
+    if (chargeCols) {
+      const res = await syncCostingCharges(activeBatch);
+      if (res.error) alert(`Items imported, but the shipping charges could not be brought in.\n\n${res.error}`);
+    }
+    await loadRecords();
+    await loadShipmentCheck(activeBatch);
+    setSaving(false);
   }
 
   function toggleSelect(id: string) {
@@ -284,41 +357,6 @@ export default function CostingDutySheet() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  }
-
-  async function applySplit() {
-    const total = parseFloat(splitTotal) || 0;
-    const rows = records.filter(r => selectedIds.has(r.id));
-    if (rows.length < 2 || total <= 0) return;
-
-    const weightOf = (r: CostingRecord) =>
-      splitBasis === 'value' ? r.unit_price_cny * r.qty
-      : splitBasis === 'quantity' ? r.qty
-      : 1;
-    let weights = rows.map(weightOf);
-    let sum = weights.reduce((a, b) => a + b, 0);
-    if (sum <= 0) { // e.g. no prices yet - fall back to equal split
-      weights = rows.map(() => 1);
-      sum = rows.length;
-    }
-    // round to 4 places and push the rounding difference onto the last row so the total is exact
-    const shares = weights.map(w => Math.round((total * w / sum) * 10000) / 10000);
-    const drift = Math.round((total - shares.reduce((a, b) => a + b, 0)) * 10000) / 10000;
-    shares[shares.length - 1] = Math.round((shares[shares.length - 1] + drift) * 10000) / 10000;
-
-    setSaving(true);
-    for (let i = 0; i < rows.length; i++) {
-      const { error } = await supabase
-        .from('costing_duty_sheet')
-        .update({ [splitField]: shares[i] })
-        .eq('id', rows[i].id);
-      if (error) console.error('Error applying split:', error);
-    }
-    setSaving(false);
-    setShowSplit(false);
-    setSplitTotal('');
-    setSelectedIds(new Set());
-    loadRecords();
   }
 
   async function addManualRow() {
@@ -332,61 +370,59 @@ export default function CostingDutySheet() {
       unit_price_cny: 0,
       cny_rate: globalCnyRate,
       type: 'RESALE',
-      duty_basis: shipment ? shipment.default_basis : 'CBM',
-      duty_rate: shipment ? shipmentRate(shipment.default_basis) : 0,
       selling_price: 0,
     });
-
     if (error) {
-      console.error('Error adding row:', error);
+      alert(`Could not add a row.\n\n${error.message}`);
       return;
     }
-
     loadRecords();
   }
 
   async function deleteRecord(id: string) {
     if (!confirm('Delete this row?')) return;
     const { error } = await supabase.from('costing_duty_sheet').delete().eq('id', id);
-    if (error) { console.error('Error deleting:', error); return; }
+    if (error) { alert(`Could not delete the row.\n\n${error.message}`); return; }
     setRecords(prev => prev.filter(r => r.id !== id));
+    setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
   }
 
-  async function updateCell(id: string, field: string, value: number | string) {
-    // Optimistically update local state immediately so selects don't revert
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  async function deleteSelected() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected row${ids.length === 1 ? '' : 's'}?`)) return;
+    setSaving(true);
+    for (let i = 0; i < ids.length; i += 150) {
+      const { error } = await supabase.from('costing_duty_sheet').delete().in('id', ids.slice(i, i + 150));
+      if (error) {
+        alert(`Could not delete the selected rows.\n\n${error.message}`);
+        break;
+      }
+    }
+    setSelectedIds(new Set());
+    await loadRecords();
+    setSaving(false);
+  }
+
+  async function updateCell(id: string, patch: Record<string, number | string>) {
+    // show the change at once so selects don't jump back
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...patch } as CostingRecord : r));
     setEditingCell(null);
 
     setSaving(true);
     const { data, error } = await supabase
       .from('costing_duty_sheet')
-      .update({ [field]: value })
+      .update(patch)
       .eq('id', id)
       .select()
       .single();
 
     if (error) {
-      console.error('Error updating:', error);
+      alert(`Could not save the change.\n\n${error.message}`);
+      await loadRecords();
     } else if (data) {
-      // Merge DB-recalculated fields back into local state for this row only
-      const updated: CostingRecord = {
-        ...data,
-        batch_number: data.batch_number || '',
-        qty: parseFloat(data.qty) || 0,
-        weight_kg: parseFloat(data.weight_kg) || 0,
-        cbm: parseFloat(data.cbm) || 0,
-        unit_price_cny: parseFloat(data.unit_price_cny) || 0,
-        cny_rate: parseFloat(data.cny_rate) || 0,
-        unit_price_lkr: parseFloat(data.unit_price_lkr) || 0,
-        duty_rate: parseFloat(data.duty_rate) || 0,
-        duty_per_unit: parseFloat(data.duty_per_unit) || 0,
-        landed_cost_per_unit: parseFloat(data.landed_cost_per_unit) || 0,
-        selling_price: parseFloat(data.selling_price) || 0,
-        profit_per_unit: parseFloat(data.profit_per_unit) || 0,
-        total_landed_cost: parseFloat(data.total_landed_cost) || 0,
-        total_sales: parseFloat(data.total_sales) || 0,
-        total_profit: parseFloat(data.total_profit) || 0,
-      };
+      // the database works out cost LKR, landed, profit and totals: keep its row
+      const updated = parseRow(data as Record<string, unknown>);
       setRecords(prev => prev.map(r => r.id === id ? updated : r));
     }
     setSaving(false);
@@ -394,198 +430,174 @@ export default function CostingDutySheet() {
 
   async function updateGlobalCnyRate(rate: number) {
     const batchRecs = records.filter(r => (r.batch_number || '') === activeBatch);
-    if (batchRecs.length === 0) {
-      setGlobalCnyRate(rate);
-      return;
-    }
-
-    // Optimistic update
     setGlobalCnyRate(rate);
-    setRecords(prev => prev.map(r =>
-      (r.batch_number || '') === activeBatch ? { ...r, cny_rate: rate } : r
-    ));
+    if (batchRecs.length === 0) return;
+    if (batchRecs.every(r => r.cny_rate === rate)) return;
 
+    setRecords(prev => prev.map(r => (r.batch_number || '') === activeBatch ? { ...r, cny_rate: rate } : r));
     setSaving(true);
     const ids = batchRecs.map(r => r.id);
-    const { data, error } = await supabase
-      .from('costing_duty_sheet')
-      .update({ cny_rate: rate })
-      .in('id', ids)
-      .select();
-
-    if (error) {
-      console.error('Error updating CNY rate:', error);
-    } else if (data) {
-      // Merge recalculated rows back
-      const updatedMap: Record<string, CostingRecord> = {};
-      data.forEach((row: Record<string, unknown>) => {
-        updatedMap[row.id as string] = {
-          ...row,
-          batch_number: (row.batch_number as string) || '',
-          qty: parseFloat(row.qty as string) || 0,
-          weight_kg: parseFloat(row.weight_kg as string) || 0,
-          cbm: parseFloat(row.cbm as string) || 0,
-          unit_price_cny: parseFloat(row.unit_price_cny as string) || 0,
-          cny_rate: parseFloat(row.cny_rate as string) || 0,
-          unit_price_lkr: parseFloat(row.unit_price_lkr as string) || 0,
-          duty_rate: parseFloat(row.duty_rate as string) || 0,
-          duty_per_unit: parseFloat(row.duty_per_unit as string) || 0,
-          landed_cost_per_unit: parseFloat(row.landed_cost_per_unit as string) || 0,
-          selling_price: parseFloat(row.selling_price as string) || 0,
-          profit_per_unit: parseFloat(row.profit_per_unit as string) || 0,
-          total_landed_cost: parseFloat(row.total_landed_cost as string) || 0,
-          total_sales: parseFloat(row.total_sales as string) || 0,
-          total_profit: parseFloat(row.total_profit as string) || 0,
-        } as CostingRecord;
-      });
+    const updatedMap: Record<string, CostingRecord> = {};
+    let failed = '';
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data, error } = await supabase.from('costing_duty_sheet').update({ cny_rate: rate }).in('id', ids.slice(i, i + 150)).select();
+      if (error) { failed = error.message; break; }
+      (data || []).forEach((row: Record<string, unknown>) => { const p = parseRow(row); updatedMap[p.id] = p; });
+    }
+    if (failed) {
+      alert(`Could not save the CNY rate.\n\n${failed}`);
+      await loadRecords();
+    } else {
       setRecords(prev => prev.map(r => updatedMap[r.id] ?? r));
     }
     setSaving(false);
   }
 
-  function handleCellClick(id: string, field: string, currentValue: string | number) {
-    const editableFields = ['description', 'qty', 'unit', 'weight_kg', 'cbm', 'unit_price_cny', 'duty_rate', 'selling_price'];
+  function canEditShipping(r: CostingRecord) {
+    return !r.packing_list_item_id && chargeCols === true;
+  }
+
+  function handleCellClick(r: CostingRecord, field: string, currentValue: string | number) {
+    const editableFields = ['description', 'qty', 'unit', 'unit_price_cny', 'selling_price', 'charge_per_unit'];
     if (!editableFields.includes(field)) return;
-    setEditingCell({ id, field });
+    if (field === 'charge_per_unit' && !canEditShipping(r)) return;
+    setEditingCell({ id: r.id, field });
     setEditingValue(String(currentValue));
   }
 
   function commitEdit(id: string, field: string) {
-    const isNumeric = ['qty', 'weight_kg', 'cbm', 'unit_price_cny', 'duty_rate', 'selling_price'].includes(field);
-    updateCell(id, field, isNumeric ? parseFloat(editingValue) || 0 : editingValue);
+    if (!editingCell || editingCell.id !== id || editingCell.field !== field) return;
+    const isNumeric = ['qty', 'unit_price_cny', 'selling_price', 'charge_per_unit'].includes(field);
+    const value = isNumeric ? parseFloat(editingValue.replace(/,/g, '')) || 0 : editingValue;
+    const current = records.find(r => r.id === id);
+    if (current && (current as unknown as Record<string, unknown>)[field] === value) { setEditingCell(null); return; }
+    if (field === 'charge_per_unit') updateCell(id, { charge_per_unit: value, charge_basis: 'MANUAL' });
+    else updateCell(id, { [field]: value });
   }
 
   function handleKeyDown(e: React.KeyboardEvent, id: string, field: string) {
-    if (e.key === 'Enter') {
-      commitEdit(id, field);
-    } else if (e.key === 'Escape') {
-      setEditingCell(null);
-    }
+    if (e.key === 'Enter') commitEdit(id, field);
+    else if (e.key === 'Escape') setEditingCell(null);
   }
 
-  function exportToExcel() {
-    const wsData: (string | number)[][] = [
-      [`COSTING & DUTY SHEET - Batch ${activeBatch}`],
-      [`CNY Rate: ${globalCnyRate}`],
-      [],
-      ['Description', 'Qty', 'Unit', 'Weight KG', 'CBM', 'Unit Price CNY', 'CNY Rate', 'Unit Price LKR', 'Type', 'Duty Basis', 'Duty Rate', 'Duty/Unit', 'Landed Cost/Unit', 'Selling Price', 'Profit/Unit', 'Total Landed', 'Total Sales', 'Total Profit'],
-    ];
+  // ---------- derived data ----------
+  const batchRecords = records.filter(r => (r.batch_number || '') === activeBatch);
+  const batchPackingItems = packingItems.filter(i => (i.batch_number || '') === activeBatch);
+  const uniquePlNos = [...new Set(batchPackingItems.map(i => i.packing_list_no))];
+  const existingPlItemIds = new Set(batchRecords.filter(r => r.packing_list_item_id).map(r => r.packing_list_item_id as string));
+  const newItemsCount = batchPackingItems.filter(i => !existingPlItemIds.has(i.id)).length;
+  const plItemMap = new Map(packingItems.map(p => [p.id, p]));
+  const plNoOf = (r: CostingRecord) => (r.packing_list_item_id ? plItemMap.get(r.packing_list_item_id)?.packing_list_no || '' : '');
 
-    filteredRecords.forEach(r => {
+  const byPl = (a: CostingRecord, b: CostingRecord) => {
+    const plA = plNoOf(a), plB = plNoOf(b);
+    if (plA !== plB) return plA.localeCompare(plB, undefined, { numeric: true });
+    return a.description.localeCompare(b.description);
+  };
+  const sortedBatch = [...batchRecords].sort(byPl);
+
+  const filtersOn = !!(searchTerm || selectedPlNo || typeFilter);
+  const filteredRecords = sortedBatch.filter(r => {
+    const matchesSearch = r.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesPlNo = !selectedPlNo || plNoOf(r) === selectedPlNo;
+    const matchesType = !typeFilter || r.type === typeFilter;
+    return matchesSearch && matchesPlNo && matchesType;
+  });
+
+  const toLine = (r: CostingRecord): CostingPrintLine => ({
+    id: r.id, pl_no: plNoOf(r), description: r.description, qty: r.qty, unit: r.unit,
+    unit_price_cny: r.unit_price_cny, cny_rate: r.cny_rate, unit_price_lkr: r.unit_price_lkr,
+    charge_per_unit: r.charge_per_unit, charge_basis: r.charge_basis, landed_cost_per_unit: r.landed_cost_per_unit,
+    selling_price: r.selling_price, profit_per_unit: r.profit_per_unit, total_landed_cost: r.total_landed_cost,
+    total_sales: r.total_sales, total_profit: r.total_profit, type: r.type,
+  });
+  const batchLines = sortedBatch.map(toLine);
+  const summary = summarizeCosting(batchLines);           // WHOLE batch, never the filtered rows
+  const shown = summarizeCosting(filteredRecords.map(toLine));
+  const batchBook = batchRecords.find(r => r.book)?.book ?? null;
+
+  // shipping check
+  const itemChargeTotal = [...itemCharges.values()].reduce((s, c) => s + c.amount, 0);
+  const target = shipInfo
+    ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: 'agent invoice' }
+      : shipInfo.actual_charges > 0 ? { amount: shipInfo.actual_charges, label: 'shipment charges' }
+      : { amount: itemChargeTotal, label: 'item charges in Shipping' }
+    : null;
+  const diff = target ? summary.shipping - target.amount : 0;
+  const matches = !!target && target.amount > 0 && Math.abs(diff) < 1;
+  const noChargeLines = shipInfo && chargeCols
+    ? sortedBatch.filter(r => r.packing_list_item_id && !itemCharges.has(r.packing_list_item_id))
+    : [];
+  const chargedNotInCosting = shipInfo
+    ? [...itemCharges.keys()].filter(id => !existingPlItemIds.has(id) && plItemMap.has(id)).length
+    : 0;
+  const hasCharge = (r: CostingRecord) => !r.packing_list_item_id || !shipInfo || !chargeCols || itemCharges.has(r.packing_list_item_id);
+
+  function exportToExcel() {
+    const s = summary;
+    const wsData: (string | number)[][] = [
+      [`COSTING SHEET - Batch ${activeBatch}`],
+      [`CNY Rate: ${globalCnyRate}`, '', `Date: ${new Date().toLocaleDateString('en-GB')}`],
+      [],
+      ['Items cost', Math.round(s.itemsCost), '', 'Expected sales (resale)', Math.round(s.sales)],
+      ['Shipping charges on items', Math.round(s.shipping), '', 'To factory at landed', Math.round(s.factory)],
+      ['Total landed', Math.round(s.landed), '', 'Expected profit', Math.round(s.profit), `Margin ${s.margin.toFixed(1)}%`],
+      [],
+      ['PL No', 'Description', 'Qty', 'Unit', 'Price CNY', 'Rate', 'Cost LKR/unit', 'Shipping/unit', 'Basis', 'Landed/unit', 'Selling price', 'Profit/unit', 'Margin %', 'Total landed', 'Total sales', 'Total profit', 'Type'],
+    ];
+    const headerRow = wsData.length - 1;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    batchLines.forEach(r => {
+      const priced = r.type === 'RESALE' && r.selling_price > 0;
       wsData.push([
-        r.description,
-        r.qty,
-        r.unit,
-        r.weight_kg,
-        r.cbm,
-        r.unit_price_cny,
-        r.cny_rate,
-        parseFloat(r.unit_price_lkr.toFixed(2)),
+        r.pl_no, r.description, r.qty, r.unit,
+        r2(r.unit_price_cny), r.cny_rate, r2(r.unit_price_lkr), r2(r.charge_per_unit), r.charge_basis,
+        r2(r.landed_cost_per_unit),
+        priced ? r2(r.selling_price) : '', priced ? r2(r.profit_per_unit) : '',
+        priced ? Math.round((r.profit_per_unit / r.selling_price) * 1000) / 10 : '',
+        Math.round(r.total_landed_cost), priced ? Math.round(r.total_sales) : '', priced ? Math.round(r.total_profit) : '',
         r.type,
-        r.duty_basis,
-        r.duty_rate,
-        parseFloat(r.duty_per_unit.toFixed(2)),
-        parseFloat(r.landed_cost_per_unit.toFixed(2)),
-        r.selling_price,
-        parseFloat(r.profit_per_unit.toFixed(2)),
-        parseFloat(r.total_landed_cost.toFixed(2)),
-        parseFloat(r.total_sales.toFixed(2)),
-        parseFloat(r.total_profit.toFixed(2)),
       ]);
     });
 
     wsData.push([]);
-    wsData.push([
-      '', '', '', '', '', '', '', '', '', '', '', '', '', 'TOTALS:',
-      '',
-      parseFloat(totals.totalLanded.toFixed(2)),
-      parseFloat(totals.totalSales.toFixed(2)),
-      parseFloat(totals.totalProfit.toFixed(2)),
-    ]);
+    wsData.push(['', 'TOTALS', '', '', '', '', '', '', '', '', '', '', '', Math.round(s.landed), Math.round(s.sales), Math.round(s.profit), '']);
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-
     ws['!cols'] = [
-      { wch: 30 }, { wch: 8 }, { wch: 8 }, { wch: 10 }, { wch: 10 },
-      { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 },
-      { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 12 },
-      { wch: 14 }, { wch: 12 }, { wch: 12 },
+      { wch: 8 }, { wch: 32 }, { wch: 8 }, { wch: 7 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 12 }, { wch: 8 },
+      { wch: 12 }, { wch: 12 }, { wch: 11 }, { wch: 9 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 9 },
     ];
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 17 } }];
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }];
 
     const headerStyle = { fill: { fgColor: { rgb: '1A365D' } }, font: { color: { rgb: 'FFFFFF' }, bold: true }, alignment: { horizontal: 'center' } };
     const priceColStyle = { fill: { fgColor: { rgb: '1E40AF' } }, font: { color: { rgb: 'FFFFFF' }, bold: true } };
-    const dutyColStyle = { fill: { fgColor: { rgb: 'D97706' } }, font: { color: { rgb: 'FFFFFF' }, bold: true } };
+    const shipColStyle = { fill: { fgColor: { rgb: 'D97706' } }, font: { color: { rgb: 'FFFFFF' }, bold: true } };
     const landedColStyle = { fill: { fgColor: { rgb: '047857' } }, font: { color: { rgb: 'FFFFFF' }, bold: true } };
     const salesColStyle = { fill: { fgColor: { rgb: '0D9488' } }, font: { color: { rgb: 'FFFFFF' }, bold: true } };
-    const titleStyle = { font: { bold: true, sz: 16 }, alignment: { horizontal: 'center' } };
-
-    if (ws['A1']) ws['A1'].s = titleStyle;
+    if (ws['A1']) ws['A1'].s = { font: { bold: true, sz: 16 }, alignment: { horizontal: 'center' } };
 
     const headerColors: Record<number, object> = {
-      5: priceColStyle, 6: priceColStyle, 7: priceColStyle,
-      10: dutyColStyle, 11: dutyColStyle,
-      12: landedColStyle, 13: salesColStyle, 14: salesColStyle,
-      15: landedColStyle, 16: salesColStyle, 17: salesColStyle,
+      4: priceColStyle, 5: priceColStyle, 6: priceColStyle,
+      7: shipColStyle, 8: shipColStyle,
+      9: landedColStyle, 10: salesColStyle, 11: salesColStyle, 12: salesColStyle,
+      13: landedColStyle, 14: salesColStyle, 15: salesColStyle,
     };
-
-    for (let c = 0; c < 18; c++) {
-      const cell = XLSX.utils.encode_cell({ r: 3, c });
+    for (let c = 0; c < 17; c++) {
+      const cell = XLSX.utils.encode_cell({ r: headerRow, c });
       if (ws[cell]) ws[cell].s = headerColors[c] || headerStyle;
     }
-
     const totalRow = wsData.length - 1;
-    for (let c = 0; c < 18; c++) {
+    for (let c = 0; c < 17; c++) {
       const cell = XLSX.utils.encode_cell({ r: totalRow, c });
-      if (ws[cell]) {
-        if (c === 15) ws[cell].s = landedColStyle;
-        else if (c >= 16) ws[cell].s = salesColStyle;
-        else ws[cell].s = headerStyle;
-      }
+      if (ws[cell]) ws[cell].s = c === 13 ? landedColStyle : c >= 14 && c <= 15 ? salesColStyle : headerStyle;
     }
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Costing Duty Sheet');
+    XLSX.utils.book_append_sheet(wb, ws, 'Costing Sheet');
     XLSX.writeFile(wb, `costing_batch${activeBatch}_${new Date().toISOString().split('T')[0]}.xlsx`);
   }
-
-  // Batch-scoped derived data
-  const batchRecords = records.filter(r => (r.batch_number || '') === activeBatch);
-  const batchPackingItems = packingItems.filter(i => (i.batch_number || '') === activeBatch);
-  const uniquePlNos = [...new Set(batchPackingItems.map(i => i.packing_list_no))];
-  const existingPlItemIds = new Set(batchRecords.filter(r => r.packing_list_item_id).map(r => r.packing_list_item_id));
-  const newItemsCount = batchPackingItems.filter(i => !existingPlItemIds.has(i.id)).length;
-
-  const plItemMap = new Map(packingItems.map(p => [p.id, p]));
-
-  const filteredRecords = batchRecords.filter(r => {
-    const matchesSearch = r.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const plItem = r.packing_list_item_id ? plItemMap.get(r.packing_list_item_id) : undefined;
-    const matchesPlNo = !selectedPlNo || plItem?.packing_list_no === selectedPlNo;
-    const matchesType = !typeFilter || r.type === typeFilter;
-    const matchesDutyBasis = !dutyBasisFilter || r.duty_basis === dutyBasisFilter;
-    return matchesSearch && matchesPlNo && matchesType && matchesDutyBasis;
-  }).sort((a, b) => {
-    const plA = a.packing_list_item_id ? plItemMap.get(a.packing_list_item_id)?.packing_list_no || '' : '';
-    const plB = b.packing_list_item_id ? plItemMap.get(b.packing_list_item_id)?.packing_list_no || '' : '';
-    if (plA !== plB) return plA.localeCompare(plB, undefined, { numeric: true });
-    return a.description.localeCompare(b.description);
-  });
-
-  const totals = {
-    totalLanded: filteredRecords.reduce((sum, r) => sum + r.total_landed_cost, 0),
-    totalSales: filteredRecords.filter(r => r.type === 'RESALE').reduce((sum, r) => sum + r.total_sales, 0),
-    totalProfit: filteredRecords.filter(r => r.type === 'RESALE').reduce((sum, r) => sum + r.total_profit, 0),
-    totalProductCost: filteredRecords.reduce((sum, r) => sum + (r.unit_price_lkr * r.qty), 0),
-    totalDutyAllocated: filteredRecords.reduce((sum, r) => sum + (r.duty_per_unit * r.qty), 0),
-    // FACTORY rows are goods for the glove factory: counted as transferred at landed cost, not as unsold stock
-    factoryTransfer: filteredRecords.filter(r => r.type === 'FACTORY').reduce((sum, r) => sum + r.total_landed_cost, 0),
-  };
-
-  const totalInvestment = totals.totalProductCost + lumpsumCharges;
-  const expectedProfit = totals.totalSales + totals.factoryTransfer - totalInvestment;
-  const profitMargin = totals.totalSales > 0 ? (expectedProfit / totals.totalSales) * 100 : 0;
-  const isProfitable = expectedProfit > 0;
 
   // Batch history summary
   const batchSummary = allBatches.map(b => {
@@ -602,16 +614,44 @@ export default function CostingDutySheet() {
     );
   }
 
+  // one editable text/number cell
+  function editable(r: CostingRecord, field: string, value: string | number, display: React.ReactNode, cls: string, opts: { type?: 'text' | 'number'; align?: 'left' | 'center' | 'right'; step?: string; disabled?: boolean } = {}) {
+    const isEditing = editingCell?.id === r.id && editingCell?.field === field;
+    const align = opts.align || 'right';
+    return (
+      <td
+        className={`px-2 py-1.5 border border-gray-300 text-${align} ${opts.disabled ? '' : 'cursor-pointer hover:bg-teal-100'} ${isEditing ? 'p-0' : ''} ${cls}`}
+        onClick={() => !opts.disabled && !isEditing && handleCellClick(r, field, value)}
+      >
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type={opts.type || 'number'}
+            step={opts.step}
+            inputMode={opts.type === 'text' ? undefined : 'decimal'}
+            value={editingValue}
+            onChange={(e) => setEditingValue(e.target.value)}
+            className={`w-full h-full px-1 py-1 text-${align} border-2 border-blue-500 outline-none text-xs`}
+            onBlur={() => commitEdit(r.id, field)}
+            onKeyDown={(e) => handleKeyDown(e, r.id, field)}
+          />
+        ) : display}
+      </td>
+    );
+  }
+
+  const thBase = 'px-1 py-1.5 text-center font-semibold border border-slate-700 whitespace-nowrap';
+
   return (
     <>
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Costing & Duty Sheet</h2>
-        <div className="flex items-center space-x-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Costing Sheet</h2>
+        <div className="flex items-center gap-2 flex-wrap">
           {saving && <span className="text-sm text-teal-700">Saving...</span>}
           <button
-            onClick={loadData}
+            onClick={async () => { await loadData(); if (activeBatch && chargeCols !== null) loadShipmentCheck(activeBatch); }}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
             title="Refresh"
           >
@@ -619,7 +659,7 @@ export default function CostingDutySheet() {
           </button>
           <button
             onClick={exportToExcel}
-            disabled={filteredRecords.length === 0}
+            disabled={batchRecords.length === 0}
             className="flex items-center space-x-1 px-3 py-1.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
@@ -627,7 +667,7 @@ export default function CostingDutySheet() {
           </button>
           <button
             onClick={() => setShowPrintView(true)}
-            disabled={filteredRecords.length === 0}
+            disabled={batchRecords.length === 0}
             className="flex items-center space-x-1 px-3 py-1.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm disabled:opacity-50"
           >
             <Printer className="w-4 h-4" />
@@ -650,15 +690,15 @@ export default function CostingDutySheet() {
                 <Plus className="w-4 h-4" />
                 <span>Add Row</span>
               </button>
-              <button
-                onClick={() => setShowSplit(true)}
-                disabled={selectedIds.size < 2}
-                title={selectedIds.size < 2 ? 'Tick 2 or more rows packed together first' : 'Divide one total CBM or weight across the ticked rows'}
-                className="flex items-center space-x-1 px-3 py-1.5 bg-amber-600 text-white text-sm rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <Scale className="w-4 h-4" />
-                <span>Split CBM / Wt{selectedIds.size >= 2 ? ` (${selectedIds.size})` : ''}</span>
-              </button>
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={deleteSelected}
+                  className="flex items-center space-x-1 px-3 py-1.5 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Delete ({selectedIds.size})</span>
+                </button>
+              )}
             </>
           )}
         </div>
@@ -692,8 +732,8 @@ export default function CostingDutySheet() {
 
       {/* Batch History Modal */}
       {showBatchHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Batch History</h3>
@@ -712,9 +752,7 @@ export default function CostingDutySheet() {
                     key={b.batch}
                     onClick={() => { setActiveBatch(b.batch); setShowBatchHistory(false); }}
                     className={`w-full text-left px-4 py-3 rounded-lg border transition-all ${
-                      isActive
-                        ? 'border-slate-900 bg-slate-900/5'
-                        : 'border-gray-200 hover:border-slate-900 hover:bg-gray-50'
+                      isActive ? 'border-slate-900 bg-slate-900/5' : 'border-gray-200 hover:border-slate-900 hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
@@ -730,10 +768,7 @@ export default function CostingDutySheet() {
                     </div>
                     {b.plItemCount > 0 && (
                       <div className="w-full bg-gray-100 rounded-full h-1.5">
-                        <div
-                          className="h-1.5 rounded-full bg-teal-500 transition-all"
-                          style={{ width: `${Math.min(pct, 100)}%` }}
-                        />
+                        <div className="h-1.5 rounded-full bg-teal-500 transition-all" style={{ width: `${Math.min(pct, 100)}%` }} />
                       </div>
                     )}
                   </button>
@@ -755,21 +790,136 @@ export default function CostingDutySheet() {
         </div>
       ) : (
         <>
-          {globalCnyRate <= 0 && batchRecords.length > 0 && (
-            <div className="flex items-center gap-2 bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-2 text-sm">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              <span>CNY rate is 0 for this batch, so landed cost shows duty only. Enter the rate below to include product cost.</span>
+          {chargeCols === false && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-300 text-amber-900 rounded-lg px-4 py-2 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>Run <strong>item-charges-costing.sql</strong> in Supabase to bring shipping charges per item. Until then the shipping column shows the old duty per unit.</span>
             </div>
           )}
 
-          {/* Filters & CNY Rate */}
+          {globalCnyRate <= 0 && batchRecords.length > 0 && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-2 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>CNY rate is 0 for this batch, so landed cost shows shipping only. Enter the rate below to include the item cost.</span>
+            </div>
+          )}
+
+          {/* Batch summary (whole batch) */}
           <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-center gap-4 flex-wrap">
+            <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
+              <Calculator className="w-4 h-4 text-teal-700" />
+              Batch {activeBatch} summary
+              <span className="text-xs font-normal text-gray-500">({summary.lines} line{summary.lines === 1 ? '' : 's'})</span>
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-blue-700">Items cost</p>
+                <p className="text-base font-bold text-blue-900 tabular-nums">Rs {fmt0(summary.itemsCost)}</p>
+              </div>
+              <div className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-amber-700">Shipping charges on items</p>
+                <p className="text-base font-bold text-amber-900 tabular-nums">Rs {fmt0(summary.shipping)}</p>
+              </div>
+              <div className="rounded-lg border border-green-100 bg-green-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-green-700">Total landed</p>
+                <p className="text-base font-bold text-green-900 tabular-nums">Rs {fmt0(summary.landed)}</p>
+              </div>
+              <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-teal-700">Expected sales (resale)</p>
+                <p className="text-base font-bold text-teal-900 tabular-nums">Rs {fmt0(summary.sales)}</p>
+              </div>
+              <div className="rounded-lg border border-purple-100 bg-purple-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-purple-700">To factory at landed</p>
+                <p className="text-base font-bold text-purple-900 tabular-nums">Rs {fmt0(summary.factory)}</p>
+              </div>
+              <div className={`rounded-lg border px-3 py-2 ${summary.profit >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+                <p className={`text-[11px] font-medium ${summary.profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>Expected profit</p>
+                <p className={`text-base font-bold tabular-nums ${summary.profit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
+                  Rs {fmt0(summary.profit)}
+                  {summary.sales > 0 && <span className="ml-1 text-xs font-semibold">({summary.margin.toFixed(1)}%)</span>}
+                </p>
+              </div>
+            </div>
+            {summary.unpriced > 0 && (
+              <p className="mt-2 text-xs text-gray-500">
+                {summary.unpriced} resale line{summary.unpriced === 1 ? ' has' : 's have'} no selling price yet (landed Rs {fmt0(summary.unpricedLanded)}) and {summary.unpriced === 1 ? 'is' : 'are'} not in sales or profit.
+              </p>
+            )}
+
+            {/* Shipping check */}
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5 text-sm">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div className="flex-1 min-w-[220px]">
+                  {!shipLoaded ? (
+                    <p className="text-xs text-gray-400">Checking shipping charges...</p>
+                  ) : !shipInfo ? (
+                    <p className="flex items-start gap-1.5 text-gray-600 text-xs">
+                      <Truck className="w-4 h-4 flex-shrink-0 text-gray-400" />
+                      <span>Batch {activeBatch} is not a Shipping record yet. Shipping charges come from Shipping &rarr; Charges once the shipment exists.</span>
+                    </p>
+                  ) : target && target.amount > 0 ? (
+                    <p className={`flex items-start gap-1.5 ${matches ? 'text-green-700' : 'text-amber-700'}`}>
+                      {matches ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+                      <span>
+                        Shipping charges in costing: <strong>Rs {fmt0(summary.shipping)}</strong> of <strong>Rs {fmt0(target.amount)}</strong> ({target.label})
+                        {matches ? ' ✓' : ` — ${diff < 0 ? 'short by' : 'over by'} Rs ${fmt0(Math.abs(diff))}`}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-1.5 text-amber-700">
+                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                      <span>No shipping charges entered for shipment {activeBatch} yet. Enter them per item in Shipping &rarr; Charges.</span>
+                    </p>
+                  )}
+                  {shipInfo && target && target.label !== 'item charges in Shipping' && itemCharges.size > 0 && Math.abs(itemChargeTotal - target.amount) >= 1 && (
+                    <p className="text-xs text-amber-700 ml-5">Item charges entered in Shipping add up to Rs {fmt0(itemChargeTotal)}.</p>
+                  )}
+                  {shipInfo && shipInfo.other_charges > 0 && (
+                    <p className="text-xs text-gray-500 ml-5">Other charges on the shipment: Rs {fmt0(shipInfo.other_charges)}.</p>
+                  )}
+                </div>
+                {chargeCols && (
+                  <div className="flex items-center gap-2">
+                    {syncMsg && <span className="text-xs text-gray-500">{syncMsg}</span>}
+                    <button
+                      onClick={updateFromShipping}
+                      disabled={syncing}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs text-teal-800 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 disabled:opacity-50"
+                      title="Copy each item's charge from Shipping -> Charges onto its costing line"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                      Update from shipping
+                    </button>
+                  </div>
+                )}
+              </div>
+              {noChargeLines.length > 0 && (
+                <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                  <strong>{noChargeLines.length} item{noChargeLines.length === 1 ? ' has' : 's have'} no shipping charge</strong> &mdash; open Shipping &rarr; Charges.
+                  <span className="text-amber-700">
+                    {' '}{noChargeLines.slice(0, 8).map(r => `${plNoOf(r) ? `#${plNoOf(r)} ` : ''}${r.description || '(no name)'}`).join(', ')}
+                    {noChargeLines.length > 8 ? `, and ${noChargeLines.length - 8} more` : ''}
+                  </span>
+                </div>
+              )}
+              {chargedNotInCosting > 0 && (
+                <p className="text-xs text-amber-700">
+                  {chargedNotInCosting} charged item{chargedNotInCosting === 1 ? ' is' : 's are'} not in this costing yet &mdash; use Import from PL.
+                </p>
+              )}
+              {shipError && <p className="text-xs text-red-700">{shipError}</p>}
+            </div>
+          </div>
+
+          {/* Filters & CNY Rate */}
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700">CNY Rate:</label>
                 <input
                   type="number"
                   step="0.01"
+                  inputMode="decimal"
                   value={globalCnyRate || ''}
                   onChange={(e) => setGlobalCnyRate(parseFloat(e.target.value) || 0)}
                   onBlur={(e) => updateGlobalCnyRate(parseFloat(e.target.value) || 0)}
@@ -778,7 +928,7 @@ export default function CostingDutySheet() {
                 />
                 <span className="text-xs text-gray-500">LKR per CNY</span>
               </div>
-              <div className="relative flex-1 min-w-[200px]">
+              <div className="relative flex-1 min-w-[180px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
@@ -807,19 +957,9 @@ export default function CostingDutySheet() {
                 <option value="RESALE">Resale</option>
                 <option value="FACTORY">Factory</option>
               </select>
-              <select
-                value={dutyBasisFilter}
-                onChange={(e) => setDutyBasisFilter(e.target.value)}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-              >
-                <option value="">All Duty Basis</option>
-                <option value="CBM">CBM</option>
-                <option value="KG">KG</option>
-                <option value="PCS">PCS</option>
-              </select>
-              {(searchTerm || selectedPlNo || typeFilter || dutyBasisFilter) && (
+              {filtersOn && (
                 <button
-                  onClick={() => { setSearchTerm(''); setSelectedPlNo(''); setTypeFilter(''); setDutyBasisFilter(''); }}
+                  onClick={() => { setSearchTerm(''); setSelectedPlNo(''); setTypeFilter(''); }}
                   className="flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <X className="w-4 h-4" />
@@ -827,223 +967,34 @@ export default function CostingDutySheet() {
                 </button>
               )}
             </div>
+            {filtersOn && (
+              <p className="mt-2 text-xs text-gray-600">
+                Showing {filteredRecords.length} of {batchRecords.length} lines (subtotal: landed Rs {fmt0(shown.landed)}, sales Rs {fmt0(shown.sales)}, profit Rs {fmt0(shown.profit)})
+              </p>
+            )}
           </div>
-
-          {/* Shipment Profitability Dashboard */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-start gap-6">
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                  <Calculator className="w-4 h-4 text-teal-700" />
-                  Shipment Profitability
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Shipment Charges - Lumpsum (LKR)
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">
-                      Customs Duty + Ocean Freight + Other Charges (excl. product cost)
-                    </p>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={lumpsumCharges || ''}
-                      onChange={(e) => setLumpsumCharges(parseFloat(e.target.value) || 0)}
-                      onBlur={(e) => saveLumpsum(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter shipment charges..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      Product Cost from Table (LKR)
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">Sum of (Unit Price LKR x Qty) for all items</p>
-                    <div className="w-full px-3 py-2 text-sm bg-gray-100 border border-gray-300 rounded-lg font-semibold text-gray-800">
-                      {totals.totalProductCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="w-px bg-gray-200 self-stretch"></div>
-              <div className="w-80">
-                <h4 className="text-xs font-semibold text-gray-700 mb-3">Profitability Status</h4>
-                {(lumpsumCharges > 0 || totals.totalSales > 0) ? (
-                  <div className={`p-4 rounded-lg border-2 ${
-                    lumpsumCharges === 0
-                      ? 'bg-gray-50 border-gray-200'
-                      : isProfitable
-                        ? 'bg-green-50 border-green-400'
-                        : 'bg-red-50 border-red-400'
-                  }`}>
-                    {lumpsumCharges > 0 && totals.totalSales > 0 && (
-                      <div className={`text-lg font-bold mb-3 flex items-center gap-2 ${isProfitable ? 'text-green-700' : 'text-red-700'}`}>
-                        {isProfitable ? (
-                          <>
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                            PROFITABLE
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
-                            LOSS
-                          </>
-                        )}
-                      </div>
-                    )}
-                    <div className="space-y-1.5 text-sm">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Product Cost:</span>
-                        <span className="font-semibold text-gray-700">{totals.totalProductCost.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Shipment Charges:</span>
-                        <span className="font-semibold text-teal-700">{lumpsumCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center pt-1.5 border-t border-gray-200">
-                        <span className="text-gray-700 font-medium">Total Investment:</span>
-                        <span className="font-bold text-gray-900">{totalInvestment.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600">Expected Sales (resale):</span>
-                        <span className="font-semibold text-teal-700">{totals.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      </div>
-                      {totals.factoryTransfer > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">To factory at landed cost:</span>
-                          <span className="font-semibold text-purple-700">{totals.factoryTransfer.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      )}
-                      <div className={`flex justify-between items-center pt-1.5 border-t ${isProfitable ? 'border-green-300' : 'border-red-300'}`}>
-                        <span className="text-gray-700 font-medium">Expected Profit:</span>
-                        <span className={`font-bold text-lg ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
-                          {expectedProfit > 0 ? '+' : ''}{expectedProfit.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </span>
-                      </div>
-                      {totals.totalSales > 0 && lumpsumCharges > 0 && (
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600">Profit Margin:</span>
-                          <span className={`font-bold ${isProfitable ? 'text-green-600' : 'text-red-600'}`}>
-                            {profitMargin.toFixed(1)}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    {lumpsumCharges > 0 && totals.totalSales > 0 && (
-                      <div className="mt-3 pt-2 border-t border-gray-200">
-                        <p className="text-[11px] text-gray-500">
-                          Duty allocated in table: {totals.totalDutyAllocated.toLocaleString('en-US', { minimumFractionDigits: 2 })} |
-                          Unallocated charges: {(lumpsumCharges - totals.totalDutyAllocated).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    )}
-                    {lumpsumCharges === 0 && (
-                      <p className="mt-2 text-xs text-gray-500">Enter shipment charges to see profitability</p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-lg border border-gray-200 bg-gray-50">
-                    <p className="text-sm text-gray-500">Add items and enter shipment charges to check profitability</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Import Modal */}
-          {showSplit && (() => {
-            const rows = records.filter(r => selectedIds.has(r.id));
-            const total = parseFloat(splitTotal) || 0;
-            const weightOf = (r: CostingRecord) =>
-              splitBasis === 'value' ? r.unit_price_cny * r.qty : splitBasis === 'quantity' ? r.qty : 1;
-            let ws = rows.map(weightOf);
-            let sum = ws.reduce((a, b) => a + b, 0);
-            if (sum <= 0) { ws = rows.map(() => 1); sum = rows.length; }
-            return (
-              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowSplit(false)}>
-                <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-5" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-base font-semibold text-gray-900">Split one total across {rows.length} rows</h3>
-                    <button onClick={() => setShowSplit(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-                  </div>
-                  <p className="text-xs text-gray-500 mb-4">For items packed together where you only know the group total. Each row gets its share; the shares add up to the total you enter.</p>
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">What to split</label>
-                      <select value={splitField} onChange={(e) => setSplitField(e.target.value as 'cbm' | 'weight_kg')} className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
-                        <option value="cbm">CBM</option>
-                        <option value="weight_kg">Weight (kg)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Group total</label>
-                      <input type="number" step="0.0001" autoFocus value={splitTotal} onChange={(e) => setSplitTotal(e.target.value)} className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded" placeholder={splitField === 'cbm' ? 'e.g. 1' : 'e.g. 250'} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Divide by</label>
-                      <select value={splitBasis} onChange={(e) => setSplitBasis(e.target.value as 'value' | 'quantity' | 'equal')} className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded">
-                        <option value="value">Value (CNY × qty)</option>
-                        <option value="quantity">Quantity</option>
-                        <option value="equal">Equal</option>
-                      </select>
-                    </div>
-                  </div>
-                  <table className="w-full text-xs border-collapse mb-4">
-                    <thead><tr className="bg-gray-100 text-gray-700">
-                      <th className="text-left px-2 py-1 border">Item</th><th className="text-right px-2 py-1 border">Qty</th><th className="text-right px-2 py-1 border">CNY</th><th className="text-right px-2 py-1 border">Share</th><th className="text-right px-2 py-1 border">{splitField === 'cbm' ? 'CBM' : 'Kg'}</th>
-                    </tr></thead>
-                    <tbody>
-                      {rows.map((r, i) => (
-                        <tr key={r.id}>
-                          <td className="px-2 py-1 border">{r.description || '-'}</td>
-                          <td className="px-2 py-1 border text-right">{r.qty}</td>
-                          <td className="px-2 py-1 border text-right">{r.unit_price_cny}</td>
-                          <td className="px-2 py-1 border text-right">{(ws[i] / sum * 100).toFixed(1)}%</td>
-                          <td className="px-2 py-1 border text-right font-medium">{total > 0 ? (total * ws[i] / sum).toFixed(4) : '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowSplit(false)} className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-                    <button onClick={applySplit} disabled={total <= 0 || saving} className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-40">Apply split</button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
 
           {showImportModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl p-5 w-full max-w-md">
                 <h3 className="font-semibold text-gray-900 mb-1">Import from Packing List</h3>
                 <p className="text-sm text-gray-500 mb-4">Batch {activeBatch}</p>
                 <p className="text-sm text-gray-600 mb-4">
                   Imports packing list items for this batch that are not yet in the costing sheet.
-                  Unit prices are pulled from linked purchase bills.
+                  Unit prices are pulled from linked purchase bills; shipping charges from Shipping &rarr; Charges.
                 </p>
                 <div className="bg-gray-50 rounded p-3 mb-4 space-y-1">
-                  <p className="text-sm text-gray-700">
-                    <strong>{batchPackingItems.length}</strong> items in Batch {activeBatch} packing list
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    <strong>{batchRecords.length}</strong> already in costing sheet
-                  </p>
-                  <p className="text-sm text-teal-700 font-medium">
-                    <strong>{newItemsCount}</strong> new items to import
-                  </p>
+                  <p className="text-sm text-gray-700"><strong>{batchPackingItems.length}</strong> items in Batch {activeBatch} packing list</p>
+                  <p className="text-sm text-gray-700"><strong>{batchRecords.length}</strong> already in costing sheet</p>
+                  <p className="text-sm text-teal-700 font-medium"><strong>{newItemsCount}</strong> new items to import</p>
                 </div>
                 <div className="flex justify-end space-x-2">
-                  <button
-                    onClick={() => setShowImportModal(false)}
-                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
+                  <button onClick={() => setShowImportModal(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
                     Cancel
                   </button>
                   <button
                     onClick={importFromPackingList}
-                    disabled={newItemsCount === 0}
+                    disabled={newItemsCount === 0 || saving}
                     className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50"
                   >
                     Import {newItemsCount} Items
@@ -1057,7 +1008,7 @@ export default function CostingDutySheet() {
           {filteredRecords.length > 0 ? (
             <div className="border border-gray-400 bg-white overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse" style={{ minWidth: '1200px' }}>
+                <table className="w-full text-xs border-collapse" style={{ minWidth: '1380px' }}>
                   <thead>
                     <tr className="bg-slate-900 text-white">
                       <th className="px-1 py-1.5 text-center border border-slate-700" style={{ width: '28px' }}>
@@ -1068,279 +1019,117 @@ export default function CostingDutySheet() {
                           onChange={(e) => setSelectedIds(e.target.checked ? new Set(filteredRecords.map(r => r.id)) : new Set())}
                         />
                       </th>
-                      <th className="px-2 py-1.5 text-left font-semibold border border-slate-700" style={{ minWidth: '160px' }}>Description</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '50px' }}>QTY</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '40px' }}>Unit</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '55px' }}>Wt KG</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '50px' }}>CBM</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-blue-800" style={{ minWidth: '65px' }}>CNY</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-blue-800" style={{ minWidth: '75px' }}>LKR</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '65px' }}>Type</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '50px' }}>Basis</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-amber-600" style={{ minWidth: '80px' }}>Duty Rate</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-amber-600" style={{ minWidth: '70px' }}>Duty/U</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-green-700" style={{ minWidth: '75px' }}>Landed</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-teal-600" style={{ minWidth: '80px' }}>Selling</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-teal-600" style={{ minWidth: '70px' }}>Profit/U</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-green-700" style={{ minWidth: '85px' }}>Tot Landed</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-teal-600" style={{ minWidth: '80px' }}>Tot Sales</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700 bg-teal-600" style={{ minWidth: '80px' }}>Tot Profit</th>
-                      <th className="px-1 py-1.5 text-center font-semibold border border-slate-700" style={{ minWidth: '30px' }}></th>
+                      <th className={thBase} style={{ minWidth: '50px' }}>PL No</th>
+                      <th className={`${thBase} text-left`} style={{ minWidth: '170px' }}>Description</th>
+                      <th className={thBase} style={{ minWidth: '50px' }}>Qty</th>
+                      <th className={thBase} style={{ minWidth: '40px' }}>Unit</th>
+                      <th className={`${thBase} bg-blue-800`} style={{ minWidth: '65px' }}>Price CNY</th>
+                      <th className={`${thBase} bg-blue-800`} style={{ minWidth: '50px' }}>Rate</th>
+                      <th className={`${thBase} bg-blue-800`} style={{ minWidth: '80px' }}>Cost LKR/unit</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '95px' }}>Shipping/unit</th>
+                      <th className={`${thBase} bg-green-700`} style={{ minWidth: '80px' }}>Landed/unit</th>
+                      <th className={`${thBase} bg-teal-600`} style={{ minWidth: '80px' }}>Selling price</th>
+                      <th className={`${thBase} bg-teal-600`} style={{ minWidth: '70px' }}>Profit/unit</th>
+                      <th className={`${thBase} bg-teal-600`} style={{ minWidth: '55px' }}>Margin %</th>
+                      <th className={`${thBase} bg-green-700`} style={{ minWidth: '90px' }}>Total landed</th>
+                      <th className={`${thBase} bg-teal-600`} style={{ minWidth: '85px' }}>Total sales</th>
+                      <th className={`${thBase} bg-teal-600`} style={{ minWidth: '85px' }}>Total profit</th>
+                      <th className={thBase} style={{ minWidth: '75px' }}>Type</th>
+                      <th className={thBase} style={{ minWidth: '30px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredRecords.map((record, idx) => (
-                      <tr key={record.id} className={`${selectedIds.has(record.id) ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-teal-50`}>
-                        <td className="px-1 py-1.5 text-center border border-gray-300">
-                          <input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleSelect(record.id)} />
-                        </td>
-                        {/* Description */}
-                        <td
-                          className={`px-2 py-1.5 border border-gray-300 cursor-pointer hover:bg-teal-100 ${
-                            editingCell?.id === record.id && editingCell?.field === 'description' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'description', record.description)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'description' ? (
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-2 py-1 border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'description')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'description')}
-                            />
-                          ) : (
-                            <span className="font-medium text-gray-900">{record.description || '-'}</span>
-                          )}
-                        </td>
-                        {/* QTY */}
-                        <td
-                          className={`px-2 py-1.5 text-center border border-gray-300 cursor-pointer hover:bg-teal-100 ${
-                            editingCell?.id === record.id && editingCell?.field === 'qty' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'qty', record.qty)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'qty' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-center border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'qty')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'qty')}
-                            />
-                          ) : record.qty}
-                        </td>
-                        {/* Unit */}
-                        <td
-                          className={`px-2 py-1.5 text-center border border-gray-300 cursor-pointer hover:bg-teal-100 ${
-                            editingCell?.id === record.id && editingCell?.field === 'unit' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'unit', record.unit)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'unit' ? (
-                            <input
-                              ref={inputRef}
-                              type="text"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-center border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'unit')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'unit')}
-                            />
-                          ) : record.unit}
-                        </td>
-                        {/* Weight KG */}
-                        <td
-                          className={`px-2 py-1.5 text-right border border-gray-300 cursor-pointer hover:bg-teal-100 ${
-                            editingCell?.id === record.id && editingCell?.field === 'weight_kg' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'weight_kg', record.weight_kg)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'weight_kg' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              step="0.01"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-right border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'weight_kg')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'weight_kg')}
-                            />
-                          ) : record.weight_kg > 0 ? record.weight_kg.toFixed(2) : '-'}
-                        </td>
-                        {/* CBM */}
-                        <td
-                          className={`px-2 py-1.5 text-right border border-gray-300 cursor-pointer hover:bg-teal-100 ${
-                            editingCell?.id === record.id && editingCell?.field === 'cbm' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'cbm', record.cbm)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'cbm' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              step="0.001"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-right border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'cbm')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'cbm')}
-                            />
-                          ) : record.cbm > 0 ? record.cbm.toFixed(3) : '-'}
-                        </td>
-                        {/* CNY */}
-                        <td
-                          className={`px-2 py-1.5 text-right border border-gray-300 cursor-pointer hover:bg-teal-100 bg-teal-50 ${
-                            editingCell?.id === record.id && editingCell?.field === 'unit_price_cny' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'unit_price_cny', record.unit_price_cny)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'unit_price_cny' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              step="0.01"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-right border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'unit_price_cny')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'unit_price_cny')}
-                            />
-                          ) : record.unit_price_cny > 0 ? record.unit_price_cny.toFixed(2) : '-'}
-                        </td>
-                        {/* LKR (calculated) */}
-                        <td className="px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium">
-                          {record.unit_price_lkr > 0 ? record.unit_price_lkr.toFixed(2) : '-'}
-                        </td>
-                        {/* Type */}
-                        <td className="px-2 py-1.5 text-center border border-gray-300">
-                          <select
-                            value={record.type}
-                            onChange={(e) => updateCell(record.id, 'type', e.target.value)}
-                            className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
-                          >
-                            <option value="RESALE">RESALE</option>
-                            <option value="FACTORY">FACTORY</option>
-                          </select>
-                        </td>
-                        {/* Duty Basis */}
-                        <td className="px-2 py-1.5 text-center border border-gray-300">
-                          <select
-                            value={record.duty_basis}
-                            onChange={(e) => updateCell(record.id, 'duty_basis', e.target.value)}
-                            className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
-                          >
-                            <option value="CBM">CBM</option>
-                            <option value="KG">KG</option>
-                            <option value="PCS">PCS</option>
-                          </select>
-                        </td>
-                        {/* Duty Rate */}
-                        <td
-                          className={`px-2 py-1.5 text-right border border-gray-300 cursor-pointer hover:bg-amber-100 bg-amber-50 ${
-                            editingCell?.id === record.id && editingCell?.field === 'duty_rate' ? 'p-0' : ''
-                          }`}
-                          onClick={() => handleCellClick(record.id, 'duty_rate', record.duty_rate)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'duty_rate' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              step="0.01"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-right border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'duty_rate')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'duty_rate')}
-                            />
-                          ) : (
+                    {filteredRecords.map((record, idx) => {
+                      const resale = record.type === 'RESALE';
+                      const priced = resale && record.selling_price > 0;
+                      const margin = priced ? (record.profit_per_unit / record.selling_price) * 100 : 0;
+                      const charged = hasCharge(record);
+                      const tag = !charged && record.charge_basis !== 'OLD' ? 'NONE' : record.charge_basis || (record.packing_list_item_id ? '' : (record.charge_per_unit > 0 ? 'MANUAL' : ''));
+                      const shipEditable = canEditShipping(record);
+                      return (
+                        <tr key={record.id} className={`${selectedIds.has(record.id) ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-teal-50`}>
+                          <td className="px-1 py-1.5 text-center border border-gray-300">
+                            <input type="checkbox" checked={selectedIds.has(record.id)} onChange={() => toggleSelect(record.id)} />
+                          </td>
+                          <td className="px-2 py-1.5 text-center border border-gray-300 text-gray-600 whitespace-nowrap">
+                            {plNoOf(record) ? `#${plNoOf(record)}` : <span className="text-gray-400">manual</span>}
+                          </td>
+                          {editable(record, 'description', record.description,
+                            <span className="font-medium text-gray-900">{record.description || '-'}</span>, '', { type: 'text', align: 'left' })}
+                          {editable(record, 'qty', record.qty, record.qty.toLocaleString('en-US'), 'tabular-nums', { align: 'center' })}
+                          {editable(record, 'unit', record.unit, record.unit, '', { type: 'text', align: 'center' })}
+                          {editable(record, 'unit_price_cny', record.unit_price_cny,
+                            record.unit_price_cny > 0 ? fmt2(record.unit_price_cny) : '-', 'bg-teal-50 tabular-nums', { step: '0.01' })}
+                          <td className="px-2 py-1.5 text-right border border-gray-300 text-gray-600 tabular-nums">
+                            {record.cny_rate > 0 ? fmt2(record.cny_rate) : '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium tabular-nums">
+                            {record.unit_price_lkr > 0 ? fmt2(record.unit_price_lkr) : '-'}
+                          </td>
+                          {editable(record, 'charge_per_unit', record.charge_per_unit,
                             <div className="flex items-center justify-end gap-1">
-                              <span>{record.duty_rate > 0 ? record.duty_rate.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}</span>
-                              {record.duty_rate > 0 && (
-                                <span className="text-[10px] text-amber-600 font-normal">/{record.duty_basis}</span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        {/* Duty/Unit (calculated) */}
-                        <td className="px-1 py-1.5 text-right border border-gray-300 bg-amber-50 font-medium">
-                          {record.duty_per_unit > 0 ? record.duty_per_unit.toFixed(2) : '-'}
-                        </td>
-                        {/* Landed (calculated) */}
-                        <td className="px-1 py-1.5 text-right border border-gray-300 bg-green-50 font-semibold text-green-800">
-                          {record.landed_cost_per_unit > 0 ? record.landed_cost_per_unit.toFixed(2) : '-'}
-                        </td>
-                        {/* Selling Price */}
-                        <td
-                          className={`px-1 py-1.5 text-right border border-gray-300 cursor-pointer hover:bg-teal-100 bg-teal-50 ${
-                            editingCell?.id === record.id && editingCell?.field === 'selling_price' ? 'p-0' : ''
-                          } ${record.type === 'FACTORY' ? 'opacity-50' : ''}`}
-                          onClick={() => record.type === 'RESALE' && handleCellClick(record.id, 'selling_price', record.selling_price)}
-                        >
-                          {editingCell?.id === record.id && editingCell?.field === 'selling_price' ? (
-                            <input
-                              ref={inputRef}
-                              type="number"
-                              step="0.01"
-                              value={editingValue}
-                              onChange={(e) => setEditingValue(e.target.value)}
-                              className="w-full h-full px-1 py-1 text-right border-2 border-blue-500 outline-none text-xs"
-                              onBlur={() => commitEdit(record.id, 'selling_price')}
-                              onKeyDown={(e) => handleKeyDown(e, record.id, 'selling_price')}
-                            />
-                          ) : record.type === 'RESALE' ? (
-                            record.selling_price > 0 ? record.selling_price.toFixed(2) : '-'
-                          ) : 'N/A'}
-                        </td>
-                        {/* Profit/Unit (calculated) */}
-                        <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium ${
-                          record.profit_per_unit < 0 ? 'text-red-600' : 'text-teal-700'
-                        } ${record.type === 'FACTORY' ? 'opacity-50' : ''}`}>
-                          {record.type === 'RESALE' ? (record.profit_per_unit !== 0 ? record.profit_per_unit.toFixed(2) : '-') : 'N/A'}
-                        </td>
-                        {/* Total Landed (calculated) */}
-                        <td className="px-2 py-1.5 text-right border border-gray-300 bg-green-50 font-semibold text-green-800">
-                          {record.total_landed_cost > 0 ? record.total_landed_cost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'}
-                        </td>
-                        {/* Total Sales (calculated) */}
-                        <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium ${record.type === 'FACTORY' ? 'opacity-50' : ''}`}>
-                          {record.type === 'RESALE' ? (record.total_sales > 0 ? record.total_sales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-') : 'N/A'}
-                        </td>
-                        {/* Total Profit (calculated) */}
-                        <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-semibold ${
-                          record.total_profit < 0 ? 'text-red-600' : 'text-teal-700'
-                        } ${record.type === 'FACTORY' ? 'opacity-50' : ''}`}>
-                          {record.type === 'RESALE' ? (record.total_profit !== 0 ? record.total_profit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-') : 'N/A'}
-                        </td>
-                        {/* Delete */}
-                        <td className="px-1 py-1.5 text-center border border-gray-300">
-                          <button
-                            onClick={() => deleteRecord(record.id)}
-                            className="p-0.5 text-red-500 hover:bg-red-50 rounded transition-colors"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                              {tag && <span className={`px-1 rounded text-[9px] font-semibold leading-4 ${BASIS_TAG[tag] || 'bg-gray-100 text-gray-600'}`}>{tag}</span>}
+                              <span className={tag === 'NONE' ? 'text-red-600' : ''}>{record.charge_per_unit > 0 ? fmt2(record.charge_per_unit) : '-'}</span>
+                            </div>,
+                            `bg-amber-50 font-medium tabular-nums ${shipEditable ? 'hover:bg-amber-100' : ''}`,
+                            { step: '0.01', disabled: !shipEditable })}
+                          <td className="px-2 py-1.5 text-right border border-gray-300 bg-green-50 font-semibold text-green-800 tabular-nums">
+                            {record.landed_cost_per_unit > 0 ? fmt2(record.landed_cost_per_unit) : '-'}
+                          </td>
+                          {editable(record, 'selling_price', record.selling_price,
+                            resale ? (record.selling_price > 0 ? fmt2(record.selling_price) : '-') : 'N/A',
+                            `bg-teal-50 tabular-nums ${resale ? '' : 'opacity-50'}`, { step: '0.01', disabled: !resale })}
+                          <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium tabular-nums ${
+                            record.profit_per_unit < 0 ? 'text-red-600' : 'text-teal-700'
+                          } ${resale ? '' : 'opacity-50'}`}>
+                            {resale ? (priced ? fmt2(record.profit_per_unit) : '-') : 'N/A'}
+                          </td>
+                          <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 tabular-nums ${
+                            margin < 0 ? 'text-red-600' : 'text-teal-700'
+                          } ${resale ? '' : 'opacity-50'}`}>
+                            {resale ? (priced ? `${margin.toFixed(1)}%` : '-') : 'N/A'}
+                          </td>
+                          <td className="px-2 py-1.5 text-right border border-gray-300 bg-green-50 font-semibold text-green-800 tabular-nums">
+                            {record.total_landed_cost > 0 ? fmt0(record.total_landed_cost) : '-'}
+                          </td>
+                          <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium tabular-nums ${resale ? '' : 'opacity-50'}`}>
+                            {resale ? (priced ? fmt0(record.total_sales) : '-') : 'N/A'}
+                          </td>
+                          <td className={`px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-semibold tabular-nums ${
+                            record.total_profit < 0 ? 'text-red-600' : 'text-teal-700'
+                          } ${resale ? '' : 'opacity-50'}`}>
+                            {resale ? (priced ? fmt0(record.total_profit) : '-') : 'N/A'}
+                          </td>
+                          <td className="px-2 py-1.5 text-center border border-gray-300">
+                            <select
+                              value={record.type}
+                              onChange={(e) => updateCell(record.id, { type: e.target.value })}
+                              className="w-full px-1 py-0.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 bg-white"
+                            >
+                              <option value="RESALE">RESALE</option>
+                              <option value="FACTORY">FACTORY</option>
+                            </select>
+                          </td>
+                          <td className="px-1 py-1.5 text-center border border-gray-300">
+                            <button
+                              onClick={() => deleteRecord(record.id)}
+                              className="p-0.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                     <tr className="bg-slate-900 text-white font-bold">
-                      <td colSpan={15} className="px-2 py-2 text-right border border-slate-700">TOTALS:</td>
-                      <td className="px-2 py-2 text-right border border-slate-700 bg-green-700">
-                        {totals.totalLanded.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td colSpan={13} className="px-2 py-2 text-right border border-slate-700">
+                        {filtersOn ? `SHOWN LINES (${filteredRecords.length} of ${batchRecords.length}):` : 'TOTALS:'}
                       </td>
-                      <td className="px-2 py-2 text-right border border-slate-700 bg-teal-600">
-                        {totals.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className={`px-2 py-2 text-right border border-slate-700 ${totals.totalProfit < 0 ? 'bg-red-600' : 'bg-teal-600'}`}>
-                        {totals.totalProfit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-2 py-2 border border-slate-700"></td>
+                      <td className="px-2 py-2 text-right border border-slate-700 bg-green-700 tabular-nums">{fmt0(shown.landed)}</td>
+                      <td className="px-2 py-2 text-right border border-slate-700 bg-teal-600 tabular-nums">{fmt0(shown.sales)}</td>
+                      <td className={`px-2 py-2 text-right border border-slate-700 tabular-nums ${shown.profit < 0 ? 'bg-red-600' : 'bg-teal-600'}`}>{fmt0(shown.profit)}</td>
+                      <td colSpan={2} className="px-2 py-2 border border-slate-700"></td>
                     </tr>
                   </tbody>
                 </table>
@@ -1349,25 +1138,29 @@ export default function CostingDutySheet() {
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
               <Calculator className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-500 text-sm">No costing records for Batch {activeBatch}</p>
-              <p className="text-xs text-gray-400 mt-1">
-                {newItemsCount > 0
-                  ? `Click "Import from PL (${newItemsCount})" above to import packing list items`
-                  : 'Add rows manually or import from packing list'}
+              <p className="text-gray-500 text-sm">
+                {batchRecords.length > 0 ? 'No lines match the filters' : `No costing records for Batch ${activeBatch}`}
               </p>
+              {batchRecords.length === 0 && (
+                <p className="text-xs text-gray-400 mt-1">
+                  {newItemsCount > 0
+                    ? `Click "Import from PL (${newItemsCount})" above to import packing list items`
+                    : 'Add rows manually or import from packing list'}
+                </p>
+              )}
             </div>
           )}
 
           <div className="bg-teal-50 border border-blue-100 rounded-lg p-3 text-xs text-teal-800">
             <div className="flex items-center space-x-1 mb-1">
               <Calculator className="w-3.5 h-3.5" />
-              <span className="font-medium">Calculation Guide:</span>
+              <span className="font-medium">How it is worked out:</span>
             </div>
             <ul className="space-y-0.5 ml-4 list-disc">
-              <li><strong>Unit Price LKR</strong> = Unit Price CNY x CNY Rate</li>
-              <li><strong>Duty per Unit</strong>: CBM basis = (Duty Rate x CBM) / QTY | KG basis = (Duty Rate x Weight) / QTY | PCS = Duty Rate</li>
-              <li><strong>Landed Cost</strong> = Unit Price LKR + Duty per Unit</li>
-              <li><strong>Profit</strong> = Selling Price - Landed Cost (RESALE only)</li>
+              <li><strong>Cost LKR/unit</strong> = Price CNY x CNY rate</li>
+              <li><strong>Shipping/unit</strong> = the item's charge in Shipping &rarr; Charges / its qty (tag shows KG / CBM / PCS / FIXED; MANUAL for rows not from the packing list)</li>
+              <li><strong>Landed/unit</strong> = Cost LKR/unit + Shipping/unit</li>
+              <li><strong>Profit</strong> = Selling price - Landed (RESALE only); FACTORY goods count at landed cost</li>
             </ul>
           </div>
         </>
@@ -1375,8 +1168,11 @@ export default function CostingDutySheet() {
     </div>
       {showPrintView && (
         <CostingDutyPrint
-          records={filteredRecords}
+          records={batchLines}
+          summary={summary}
           batchNumber={activeBatch}
+          book={batchBook}
+          isShipment={!!shipInfo}
           onClose={() => setShowPrintView(false)}
         />
       )}

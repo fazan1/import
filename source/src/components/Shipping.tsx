@@ -279,7 +279,7 @@ export default function Shipping() {
         <div class="box"><div class="l">Forwarder</div><div class="v">${esc(s.forwarder || '—')}</div></div>
         <div class="box"><div class="l">ETD</div><div class="v">${d(s.eta)}</div></div>
         <div class="box"><div class="l">Rate</div><div class="v">${basisRate}</div></div>
-        <div class="box"><div class="l">Charges</div><div class="v">${s.actual_charges > 0 ? `LKR ${n(s.actual_charges, 0)}` : tCharges > 0 ? `LKR ${n(tCharges, 0)} (est)` : '—'}</div></div>
+        <div class="box"><div class="l">Charges</div><div class="v">${s.actual_charges > 0 ? `LKR ${n(s.actual_charges, 0)}` : tCharges > 0 ? `LKR ${n(tCharges, 0)} (on items)` : '—'}</div></div>
         <div class="box"><div class="l">Bills</div><div class="v">${linked.length}</div></div>
         <div class="box"><div class="l">Goods value</div><div class="v">¥${n(tCny, 0)}</div></div>
         <div class="box"><div class="l">Volume / weight</div><div class="v">${n(tCbm, 3)} CBM · ${n(tKg, 1)} kg</div></div>

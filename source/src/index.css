@@ -114,5 +114,5 @@ input:focus, select:focus, textarea:focus { box-shadow: none !important; border-
   [id$="-content"] tfoot { display: table-row-group !important; }
   [id$="-content"] thead { display: table-header-group !important; }
   /* the screen behind the pop-up takes no space, so no blank pages are added */
-  body:has([id$="-content"]) #root > * > :not(:has([id$="-content"])) { display: none !important; }
+  body:has([id$="-content"]) *:has([id$="-content"]) > :not(:has([id$="-content"])):not([id$="-content"]) { display: none !important; }
 }
