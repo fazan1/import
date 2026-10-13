@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V104)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V105)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -68,7 +68,8 @@ charity-setup, bulk-import-admin-only, item-charges-costing. check-everything.sq
 - bulk-import-admin-only.sql wraps bulk_import with an admin check (original kept as bulk_import_unchecked).
 - Warehouse items without cost; hide OLD book later when old customers settle.
 - v104: Shipping Charges are set PER PACKING LIST (his PL weight/CBM sit on the PL's first line only); the PL charge is
-  shared by its items BY QUANTITY (same charge per piece). "Charge items separately" per PL for mixed bases. Each item's
+  shared by its items: v105 = KG charge by each item's own weight, CBM charge by each item's own CBM when every item of the
+  PL has it filled in Packing List (owner now fills each item's kg/CBM for accuracy); otherwise by quantity (with a note). "Charge items separately" per PL for mixed bases. Each item's
   share is still saved in shipment_item_charges, so costing is unchanged.
 - v102 COSTING: shipping charges are entered PER PACKING-LIST ITEM (shipment_item_charges: basis KG/CBM/PCS/FIXED, qty, rate, amount).
   NO spreading/allocation (owner's rule). Costing charge_per_unit = item amount / qty (src/lib/costingCharges.ts syncCostingCharges);

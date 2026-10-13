@@ -7,7 +7,8 @@ import type { ChargeBasis, ItemCharge } from '../lib/costingCharges';
 
 /* Shipping charges for one shipment, PER PACKING LIST: each packing list (PL) gets a type (KG / CBM / PCS / Fixed),
    a qty (its kg / CBM / pieces from the packing list — the PL's weight and CBM are often typed on its first line only)
-   and a rate. The PL's charge is shared by its items by quantity, so every piece in a PL carries the same charge.
+   and a rate. The PL's charge is shared by its items: a KG charge by each item's own weight, a CBM charge by each item's
+   own CBM (when every item of the PL has it filled in in Packing List), otherwise by quantity.
    A PL that mixes bases (bolts per kg, hose per CBM) can be switched to "charge items separately".
    Each item's share is saved in shipment_item_charges; Costing divides it by the item's quantity (charge per unit).
    No spreading: "Other charges" are NOT put on any item.
@@ -180,12 +181,27 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     return m;
   }, [items]);
   const plAmount = (p: PL) => (split[p.key] ? p.items.reduce((t, i) => t + itemEditAmount(i.id), 0) : editAmount(plEdits[p.key]));
-  /** what one item carries: its own charge, or its share (by quantity) of its packing list's charge */
+  /** How a PL's charge is shared by its items: a KG charge by each item's own weight and a CBM charge by each item's
+      own CBM — when every item of the PL has its weight / CBM filled in. Otherwise (and for PCS / Fixed) by quantity. */
+  const shareRule = (p: PL): { by: 'KG' | 'CBM' | 'QTY'; missing: string[] } => {
+    const b = plEdits[p.key]?.basis;
+    if (b !== 'KG' && b !== 'CBM') return { by: 'QTY', missing: [] };
+    const metric = (i: Item) => (b === 'KG' ? i.weight_kg : i.cbm);
+    const missing = p.items.filter((i) => !(metric(i) > 0)).map((i) => i.item_name);
+    return missing.length === 0 ? { by: b, missing } : { by: 'QTY', missing };
+  };
+  const shareOf = (i: Item, p: PL) => {
+    const r = shareRule(p);
+    if (r.by === 'KG') return p.kg > 0 ? i.weight_kg / p.kg : 0;
+    if (r.by === 'CBM') return p.cbm > 0 ? i.cbm / p.cbm : 0;
+    return p.qty > 0 ? i.quantity / p.qty : 0;
+  };
+  /** what one item carries: its own charge, or its share of its packing list's charge */
   const amountOf = (id: string) => {
     const i = items.find((x) => x.id === id); if (!i) return 0;
     const p = pls.get(plKeyOf(i)); if (!p) return 0;
     if (split[p.key]) return itemEditAmount(id);
-    return p.qty > 0 ? editAmount(plEdits[p.key]) * i.quantity / p.qty : 0;
+    return editAmount(plEdits[p.key]) * shareOf(i, p);
   };
 
   const groups = useMemo<Group[]>(() => {
@@ -248,8 +264,8 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
             const e = edits[i.id];
             return { shipment_id: shipment.id, packing_list_item_id: i.id, purchase_bill_id: i.billId, basis: e.basis, qty: e.basis === 'FIXED' ? 0 : num(e.qty), rate: e.basis === 'FIXED' ? 0 : num(e.rate), amount: r2(amountOf(i.id)) };
           }
-          // the item's share (by quantity) of its packing list's charge
-          const e = plEdits[p.key]; const share = p.qty > 0 ? i.quantity / p.qty : 0;
+          // the item's share of its packing list's charge (by its own weight / CBM, or by quantity)
+          const e = plEdits[p.key]; const share = shareOf(i, p);
           return { shipment_id: shipment.id, packing_list_item_id: i.id, purchase_bill_id: i.billId, basis: e.basis, qty: e.basis === 'FIXED' ? 0 : Math.round(num(e.qty) * share * 10000) / 10000, rate: e.basis === 'FIXED' ? 0 : num(e.rate), amount: r2(amountOf(i.id)) };
         });
       for (let k = 0; k < rows.length; k += 500) {
@@ -327,7 +343,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center sm:p-4" onClick={() => !saving && onClose()}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each packing list (per kg, per CBM, per piece or a fixed amount). It is shared by the PL’s items by quantity; Costing shows it per piece.</p></div>
+          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each packing list (per kg, per CBM, per piece or a fixed amount). It is shared by the PL’s items by their own weight / CBM (or by quantity if those are not filled in); Costing shows it per piece.</p></div>
           <button onClick={onClose} className="text-gray-400"><X className="w-5 h-5" /></button>
         </div>
 
@@ -417,7 +433,13 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                                         {!isSplit && pe.basis === 'FIXED'
                                           ? <input className={cell} inputMode="decimal" placeholder="amount" value={pe.fixed} onChange={(ev) => setPlField(p.key, 'fixed', ev.target.value)} />
                                           : <span className="tabular-nums font-semibold">{n0(pa)}</span>}
-                                        {!isSplit && <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece` : 'no qty — can’t divide'}</div>}
+                                        {!isSplit && (() => {
+                                          const r = shareRule(p);
+                                          if (p.items.length === 1) return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per ${p.items[0].unit || 'piece'}` : 'no qty — can’t divide'}</div>;
+                                          if (r.by !== 'QTY') return <div className="text-[10px] text-green-700">shared by each item’s {r.by === 'KG' ? 'weight' : 'CBM'}</div>;
+                                          return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece (by quantity)` : 'no qty — can’t divide'}
+                                            {r.missing.length > 0 && <div className="text-amber-600 whitespace-normal max-w-[190px] ml-auto">Fill the {plEdits[p.key]?.basis === 'KG' ? 'kg' : 'CBM'} of {r.missing.length === p.items.length ? 'each item' : r.missing.slice(0, 3).join(', ') + (r.missing.length > 3 ? ` +${r.missing.length - 3}` : '')} in Packing List to share by {plEdits[p.key]?.basis === 'KG' ? 'weight' : 'CBM'}</div>}</div>;
+                                        })()}
                                       </td>
                                     </tr>
                                     {isSplit && p.items.map((i) => {
