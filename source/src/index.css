@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  color-scheme: light;
+  color: #213547;
+  background-color: #ffffff;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+@media print {
+  /* Prevent table rows breaking across pages */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  /* Hide print button itself */
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
+/* Global layout rules only apply when no print modal is open */
+@media print {
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) nav,
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) aside {
+    display: none !important;
+  }
+
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) #root,
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) .min-h-screen {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) .flex {
+    display: block !important;
+  }
+
+  body:not(:has(#invoice-content)):not(:has(#purchase-bill-content)):not(:has(#sales-order-content)):not(:has(#import-cost-print-content)):not(:has(.print-root)) .flex > div:last-child {
+    padding: 12px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* ---------- Phone layout (Android / iPhone) ---------- */
+@media (max-width: 767px) {
+  /* Wide tables scroll sideways inside their card instead of squashing the page */
+  main table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; max-width: 100%; }
+  /* Multi-column form grids stack on a phone */
+  main .grid-cols-3, main .grid-cols-4, main .grid-cols-5, main .grid-cols-6, main .grid-cols-7, main .grid-cols-8,
+  .fixed .grid-cols-3, .fixed .grid-cols-4, .fixed .grid-cols-5, .fixed .grid-cols-6 { grid-template-columns: repeat(1, minmax(0, 1fr)) !important; }
+  /* Dialogs: use the whole screen, keep their own scroll */
+  .fixed.inset-0 > div[class*="max-w-"] { max-height: 100dvh; max-width: 100vw; width: 100%; border-radius: 0.75rem 0.75rem 0 0; }
+  .fixed.inset-0.p-4 { padding: 0; align-items: flex-end; }
+  /* Page headers with buttons wrap instead of overflowing */
+  main .flex.justify-between { flex-wrap: wrap; gap: 0.5rem; }
+  /* Inputs: iOS zooms in on fields smaller than 16px */
+  input, select, textarea { font-size: 16px !important; }
+}
+
+/* Industrial (light) theme — black strip, warm grey, square panels, orange accent */
+body { background-color: #f4f4f2; font-variant-numeric: tabular-nums; color: #1a1a1a; }
+.bg-gray-50 { background-color: #f4f4f2; }
+.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
+h1 { text-transform: uppercase; letter-spacing: -0.01em; font-weight: 800; color: #0a0a0a; }
+h2 { text-transform: uppercase; letter-spacing: 0; font-weight: 800; color: #0a0a0a; }
+h3 { color: #0a0a0a; }
+/* square panels, hairline borders */
+.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-md { border-radius: 2px !important; }
+.bg-white.border.border-gray-200, .bg-white.border-2.border-gray-200, .bg-white.border.border-gray-300, .bg-white.border.border-slate-200 { border-color: #d8d8d4; }
+.shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+.bg-white.rounded-lg, .bg-white.rounded-xl { border: 1px solid #d8d8d4; }
+/* primary actions: orange, square, uppercase */
+.bg-teal-600, .bg-teal-500 { background-color: #e8552a !important; background-image: none; box-shadow: none; }
+.bg-teal-600:hover, .bg-teal-500:hover, .hover\:bg-teal-700:hover { background-color: #cf4a22 !important; background-image: none; }
+button.bg-teal-600, button.bg-teal-500, button.bg-gray-900, button.bg-red-600, button.bg-green-600, button.bg-emerald-600, button.bg-amber-600 { text-transform: uppercase; letter-spacing: .06em; font-weight: 700; font-size: 11px; }
+button.border.border-gray-300, button.border.border-gray-200 { text-transform: uppercase; letter-spacing: .06em; font-weight: 600; font-size: 11px; background: #fff; }
+/* instrument labels */
+thead.bg-gray-50 th, thead.bg-gray-100 th, tr.bg-gray-50 th, tr.bg-gray-100 th { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; text-transform: uppercase; letter-spacing: .1em; font-size: 9px; color: #6b6b66; font-weight: 400; }
+tr.text-white th, thead.text-white th { color: #fff; }
+.text-xs.text-gray-500, .text-\[11px\].text-gray-500, label.text-xs { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; letter-spacing: .08em; text-transform: uppercase; font-size: 9.5px; }
+table td.text-right, table th.text-right, .text-2xl.font-bold, .text-xl.font-bold, .text-3xl.font-bold { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; letter-spacing: -0.01em; }
+/* status pills: outlined */
+.rounded-full.text-xs:not(.bg-teal-600):not(.bg-gray-900):not(.bg-sky-500), .rounded-full.text-\[10px\] { border-radius: 2px !important; border: 1px solid currentColor; font-family: Consolas, "SF Mono", Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; background-clip: padding-box; }
+/* inputs */
+input, select, textarea { border-radius: 2px !important; }
+input:focus, select:focus, textarea:focus { box-shadow: none !important; border-color: #e8552a !important; outline: none; }
+/* dark table headers (costing, PL, packing) */
+.bg-slate-900 { background-color: #0a0a0a !important; }
