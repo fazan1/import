@@ -1,5 +1,5 @@
 -- =====================================================================
--- CHANGE HISTORY + PACKING LIST -> SHIPPING CHARGES CONNECTION  (v108)
+-- CHANGE HISTORY + CHARGES PER PACKING LIST + PACKING LIST CONNECTION  (v111)
 -- Part 1: history.  Part 2: when an item's kg / CBM / qty changes in Packing List, its shipping
 -- charge is worked out again with the rate saved in Shipping -> Charges, and Costing follows.
 -- The database itself writes down every change to:
@@ -8,7 +8,8 @@
 -- with WHO changed it, WHEN, and each field's OLD -> NEW value.
 -- Nobody can edit or delete the history from the app (it is written by the database only).
 -- Each entry keeps its book, so the shop login only sees the shop's history.
--- Nothing is deleted. Safe to re-run. The "book lock" count goes UP by one.
+-- Part 2: the shipping charge per packing list (bulk amount) gets its own table.
+-- Nothing is deleted. Safe to re-run. The "book lock" count goes UP by two.
 -- Run on your MAIN project only.
 -- =====================================================================
 
@@ -65,6 +66,8 @@ BEGIN
   -- a readable name for lines that don't carry one
   IF TG_TABLE_NAME = 'shipment_item_charges' THEN
     SELECT item_name INTO lbl FROM public.packing_list_items WHERE id = (r ->> 'packing_list_item_id')::uuid;
+  ELSIF TG_TABLE_NAME = 'shipment_pl_charges' THEN
+    lbl := 'PL ' || COALESCE(r ->> 'packing_list_no', '-') || ' — shipping charge';
   ELSIF TG_TABLE_NAME = 'agent_ledger' THEN
     SELECT name INTO lbl FROM public.clearing_agents WHERE id = (r ->> 'agent_id')::uuid;
     lbl := COALESCE(lbl, 'Agent') || ' — ' || COALESCE(r ->> 'kind', '');
@@ -111,62 +114,119 @@ DO $$ BEGIN
 END $$;
 
 -- =====================================================================
--- PART 2: Packing List -> Shipping Charges -> Costing, automatically
---   KG item  : charge = its kg  x the rate saved in Charges
---   CBM item : charge = its CBM x the rate
---   PCS item : charge = its qty x the rate          (Fixed amounts are left as they are)
--- then: the item's costing line, the bill's total, the shipment's total and — only when no
--- agent invoice total was typed — the agent's account line for that shipment.
--- An item without a charge yet takes the type and rate of the other items of its packing list.
+-- PART 2: shipping charge PER PACKING LIST (the bulk amount, v111)
+--   Shipping -> Charges: each packing list's total kg / CBM / pcs (from Packing List) x the rate typed there.
+--   All packing lists added up = the shipment's bulk amount, billed to the clearing agent.
+--   Costing keeps its OWN charge per item (type + rate typed in Costing); the screens show the difference.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS public.shipment_pl_charges (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  shipment_id uuid NOT NULL REFERENCES public.shipments(id) ON DELETE CASCADE,
+  pl_key text NOT NULL,                 -- PL Input id | packing list no  ('-' when empty)
+  pl_input_id uuid,
+  packing_list_no text,
+  basis text NOT NULL DEFAULT 'KG' CHECK (basis IN ('KG', 'CBM', 'PCS', 'FIXED')),
+  qty numeric NOT NULL DEFAULT 0,       -- the packing list's total kg / CBM / pcs
+  rate numeric NOT NULL DEFAULT 0,
+  amount numeric NOT NULL DEFAULT 0,
+  book text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (shipment_id, pl_key)
+);
+-- book = the shipment's book (same rule as the item charges)
+DROP TRIGGER IF EXISTS trg_pl_charge_book ON public.shipment_pl_charges;
+CREATE TRIGGER trg_pl_charge_book BEFORE INSERT OR UPDATE ON public.shipment_pl_charges
+  FOR EACH ROW EXECUTE FUNCTION public.item_charge_book();
+REVOKE ALL ON public.shipment_pl_charges FROM anon;
+ALTER TABLE public.shipment_pl_charges ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "open all" ON public.shipment_pl_charges;
+CREATE POLICY "open all" ON public.shipment_pl_charges FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "book lock" ON public.shipment_pl_charges;
+CREATE POLICY "book lock" ON public.shipment_pl_charges AS RESTRICTIVE FOR ALL TO authenticated
+  USING ((SELECT public.my_locked_book()) IS NULL OR book = (SELECT public.my_locked_book()))
+  WITH CHECK ((SELECT public.my_locked_book()) IS NULL OR book = (SELECT public.my_locked_book()));
+DO $$ BEGIN
+  IF to_regprocedure('public.is_app_member()') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "members only" ON public.shipment_pl_charges;
+    CREATE POLICY "members only" ON public.shipment_pl_charges AS RESTRICTIVE FOR ALL TO anon, authenticated
+      USING ((SELECT public.is_app_member())) WITH CHECK ((SELECT public.is_app_member()));
+  END IF;
+  IF to_regprocedure('public.guard_book_mode()') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS trg_zz_book_mode ON public.shipment_pl_charges;
+    CREATE TRIGGER trg_zz_book_mode BEFORE INSERT OR UPDATE OR DELETE ON public.shipment_pl_charges
+      FOR EACH ROW EXECUTE FUNCTION public.guard_book_mode('other');
+  END IF;
+  DROP TRIGGER IF EXISTS zzzzz_log_changes ON public.shipment_pl_charges;
+  CREATE TRIGGER zzzzz_log_changes AFTER INSERT OR UPDATE OR DELETE ON public.shipment_pl_charges
+    FOR EACH ROW EXECUTE FUNCTION public.log_changes();
+END $$;
+
+-- =====================================================================
+-- PART 3: Packing List kg / CBM / qty change -> everything follows, automatically
+--   Costing side: the item's own charge (its kg / CBM / qty x the rate typed in Costing) -> costing per unit.
+--     An item without a charge yet takes the type and rate of the other items of its packing list.
+--   Bulk side: the packing list's total x the rate in Charges -> the shipment's total -> the agent's
+--     account line (only when no different agent invoice was typed).
 -- =====================================================================
 CREATE OR REPLACE FUNCTION public.packing_to_charges() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE c record; q numeric; tq numeric; tot numeric; s record; sib record;
+DECLARE c record; q numeric; tq numeric; tot numeric; s record; sib record; k text;
 BEGIN
-  IF to_regclass('public.shipment_item_charges') IS NULL THEN RETURN NEW; END IF;
-  -- an item that had no kg / CBM when Charges was saved has no charge yet: give it the type and rate
-  -- of the other items of the same packing list, so any kg / CBM added now is charged straight away
-  IF NOT EXISTS (SELECT 1 FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id) AND NEW.batch_number IS NOT NULL THEN
-    SELECT c2.shipment_id, c2.purchase_bill_id, c2.basis, c2.rate INTO sib
-      FROM public.shipment_item_charges c2
-      JOIN public.packing_list_items p2 ON p2.id = c2.packing_list_item_id
-      JOIN public.shipments sh ON sh.id = c2.shipment_id AND sh.shipment_no = NEW.batch_number
-     WHERE c2.basis IN ('KG', 'CBM') AND p2.id <> NEW.id
-       AND p2.packing_list_no IS NOT DISTINCT FROM NEW.packing_list_no
-       AND p2.pl_input_id IS NOT DISTINCT FROM NEW.pl_input_id
-     ORDER BY c2.updated_at DESC LIMIT 1;
-    IF sib.shipment_id IS NOT NULL THEN
-      INSERT INTO public.shipment_item_charges (shipment_id, packing_list_item_id, purchase_bill_id, basis, qty, rate, amount)
-      VALUES (sib.shipment_id, NEW.id, sib.purchase_bill_id, sib.basis, 0, sib.rate, 0)
-      ON CONFLICT (shipment_id, packing_list_item_id) DO NOTHING;
+  -- ---- costing side: the item's own charge ----
+  IF to_regclass('public.shipment_item_charges') IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id) AND NEW.batch_number IS NOT NULL THEN
+      SELECT c2.shipment_id, c2.purchase_bill_id, c2.basis, c2.rate INTO sib
+        FROM public.shipment_item_charges c2
+        JOIN public.packing_list_items p2 ON p2.id = c2.packing_list_item_id
+        JOIN public.shipments sh ON sh.id = c2.shipment_id AND sh.shipment_no = NEW.batch_number
+       WHERE c2.basis IN ('KG', 'CBM') AND p2.id <> NEW.id
+         AND p2.packing_list_no IS NOT DISTINCT FROM NEW.packing_list_no
+         AND p2.pl_input_id IS NOT DISTINCT FROM NEW.pl_input_id
+       ORDER BY c2.updated_at DESC LIMIT 1;
+      IF sib.shipment_id IS NOT NULL THEN
+        INSERT INTO public.shipment_item_charges (shipment_id, packing_list_item_id, purchase_bill_id, basis, qty, rate, amount)
+        VALUES (sib.shipment_id, NEW.id, sib.purchase_bill_id, sib.basis, 0, sib.rate, 0)
+        ON CONFLICT (shipment_id, packing_list_item_id) DO NOTHING;
+      END IF;
     END IF;
+    FOR c IN SELECT * FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id AND basis IN ('KG', 'CBM', 'PCS') LOOP
+      q := CASE c.basis WHEN 'KG' THEN COALESCE(NEW.weight_kg, 0) WHEN 'CBM' THEN COALESCE(NEW.cbm, 0) ELSE COALESCE(NEW.quantity, 0) END;
+      IF q = COALESCE(c.qty, 0) THEN CONTINUE; END IF;
+      UPDATE public.shipment_item_charges SET qty = q, amount = round(q * COALESCE(rate, 0), 2) WHERE id = c.id;
+      SELECT COALESCE(sum(qty), 0) INTO tq FROM public.costing_duty_sheet WHERE packing_list_item_id = NEW.id;
+      UPDATE public.costing_duty_sheet
+         SET charge_per_unit = CASE WHEN tq > 0 THEN round(q * COALESCE(c.rate, 0) / tq, 4) ELSE 0 END, charge_basis = c.basis
+       WHERE packing_list_item_id = NEW.id;
+      IF c.purchase_bill_id IS NOT NULL AND to_regclass('public.shipment_charges') IS NOT NULL THEN
+        UPDATE public.shipment_charges SET amount = (SELECT COALESCE(sum(amount), 0) FROM public.shipment_item_charges
+                                                      WHERE shipment_id = c.shipment_id AND purchase_bill_id = c.purchase_bill_id)
+         WHERE shipment_id = c.shipment_id AND purchase_bill_id = c.purchase_bill_id;
+      END IF;
+    END LOOP;
   END IF;
-  FOR c IN SELECT * FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id AND basis IN ('KG', 'CBM', 'PCS') LOOP
-    q := CASE c.basis WHEN 'KG' THEN COALESCE(NEW.weight_kg, 0) WHEN 'CBM' THEN COALESCE(NEW.cbm, 0) ELSE COALESCE(NEW.quantity, 0) END;
-    IF q = COALESCE(c.qty, 0) THEN CONTINUE; END IF;
-    UPDATE public.shipment_item_charges SET qty = q, amount = round(q * COALESCE(rate, 0), 2) WHERE id = c.id;
 
-    -- costing line(s) of this item: charge per unit = item charge / its qty
-    SELECT COALESCE(sum(qty), 0) INTO tq FROM public.costing_duty_sheet WHERE packing_list_item_id = NEW.id;
-    UPDATE public.costing_duty_sheet
-       SET charge_per_unit = CASE WHEN tq > 0 THEN round(q * COALESCE(c.rate, 0) / tq, 4) ELSE 0 END, charge_basis = c.basis
-     WHERE packing_list_item_id = NEW.id;
-
-    -- the bill's total (CN Reports)
-    IF c.purchase_bill_id IS NOT NULL AND to_regclass('public.shipment_charges') IS NOT NULL THEN
-      UPDATE public.shipment_charges SET amount = (SELECT COALESCE(sum(amount), 0) FROM public.shipment_item_charges
-                                                    WHERE shipment_id = c.shipment_id AND purchase_bill_id = c.purchase_bill_id)
-       WHERE shipment_id = c.shipment_id AND purchase_bill_id = c.purchase_bill_id;
-    END IF;
-
-    -- the shipment's total, and the agent's line when no agent invoice total was typed
-    SELECT id, COALESCE(agent_invoice, 0) AS inv, COALESCE(other_charges, 0) AS oth INTO s FROM public.shipments WHERE id = c.shipment_id;
-    SELECT COALESCE(sum(amount), 0) + s.oth INTO tot FROM public.shipment_item_charges WHERE shipment_id = c.shipment_id;
-    UPDATE public.shipments SET actual_charges = CASE WHEN s.inv > 0 THEN s.inv ELSE round(tot, 2) END WHERE id = c.shipment_id;
-    IF s.inv = 0 AND tot > 0 AND to_regclass('public.agent_ledger') IS NOT NULL THEN
-      UPDATE public.agent_ledger SET amount = round(tot, 2) WHERE shipment_id = c.shipment_id AND kind = 'charge';
-    END IF;
-  END LOOP;
+  -- ---- bulk side: the packing list's total x the rate in Charges ----
+  IF NEW.batch_number IS NOT NULL THEN
+    k := COALESCE(NEW.pl_input_id::text, '-') || '|' || COALESCE(NULLIF(NEW.packing_list_no, ''), '-');
+    FOR c IN SELECT pc.* FROM public.shipment_pl_charges pc JOIN public.shipments sh ON sh.id = pc.shipment_id
+              WHERE sh.shipment_no = NEW.batch_number AND pc.pl_key = k AND pc.basis IN ('KG', 'CBM', 'PCS') LOOP
+      SELECT COALESCE(sum(CASE c.basis WHEN 'KG' THEN weight_kg WHEN 'CBM' THEN cbm ELSE quantity END), 0) INTO q
+        FROM public.packing_list_items
+       WHERE batch_number = NEW.batch_number AND pl_input_id IS NOT DISTINCT FROM NEW.pl_input_id
+         AND COALESCE(NULLIF(packing_list_no, ''), '-') = COALESCE(NULLIF(NEW.packing_list_no, ''), '-');
+      IF q = COALESCE(c.qty, 0) THEN CONTINUE; END IF;
+      UPDATE public.shipment_pl_charges SET qty = q, amount = round(q * COALESCE(rate, 0), 2) WHERE id = c.id;
+      SELECT id, COALESCE(agent_invoice, 0) AS inv, COALESCE(other_charges, 0) AS oth INTO s FROM public.shipments WHERE id = c.shipment_id;
+      SELECT COALESCE(sum(amount), 0) INTO tot FROM public.shipment_pl_charges WHERE shipment_id = c.shipment_id;
+      IF s.inv = 0 THEN
+        UPDATE public.shipments SET actual_charges = round(tot + s.oth, 2) WHERE id = c.shipment_id;
+        IF tot > 0 AND to_regclass('public.agent_ledger') IS NOT NULL THEN
+          UPDATE public.agent_ledger SET amount = round(tot, 2) WHERE shipment_id = c.shipment_id AND kind = 'charge';
+        END IF;
+      END IF;
+    END LOOP;
+  END IF;
   RETURN NEW;
 END $$;
 DROP TRIGGER IF EXISTS zzzz_packing_to_charges ON public.packing_list_items;
@@ -176,6 +236,7 @@ CREATE TRIGGER zzzz_packing_to_charges AFTER UPDATE OF weight_kg, cbm, quantity 
 NOTIFY pgrst, 'reload schema';
 
 SELECT (SELECT count(*) FROM pg_trigger WHERE tgname = 'zzzzz_log_changes') AS tables_with_history,
+       (SELECT count(*) FROM public.shipment_pl_charges) AS pl_charges,
        (SELECT count(*) FROM pg_trigger WHERE tgname = 'zzzz_packing_to_charges') AS packing_list_connected,
        (SELECT count(*) FROM pg_policy WHERE polname = 'book lock') AS book_locks_total,
        'history and auto charges ready' AS status;

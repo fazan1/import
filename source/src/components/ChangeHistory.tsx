@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 
 interface Entry { id: number; changed_at: string; table_name: string; action: string; label: string | null; changes: Record<string, unknown> | null; user_email: string | null }
 
-const WHERE: Record<string, string> = { packing_list_items: 'Packing list', shipment_item_charges: 'Shipping charge', agent_ledger: 'Agent account', costing_duty_sheet: 'Costing' };
+const WHERE: Record<string, string> = { packing_list_items: 'Packing list', shipment_item_charges: 'Item charge (Costing)', shipment_pl_charges: 'Packing list charge', agent_ledger: 'Agent account', costing_duty_sheet: 'Costing' };
 const FIELD: Record<string, string> = {
   weight_kg: 'Kg', cbm: 'CBM', no_of_pkgs: 'Packages', quantity: 'Qty', qty: 'Qty', unit: 'Unit', item_name: 'Item', description: 'Item',
   packing_list_no: 'PL no', batch_number: 'Batch', basis: 'Type', rate: 'Rate', amount: 'Amount', kind: 'Kind', reference: 'Reference', note: 'Note',

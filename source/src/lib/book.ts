@@ -29,6 +29,7 @@ export const BOOKED_TABLES = new Set([
   'packing_list_items', // lines carry their book too (sql/packing-lines-book.sql) — LCL 2026 never counts OLD lines
   'recycle_bin',        // deleted records keep their book (sql/books-separate.sql)
   'shipment_item_charges', // shipping charge per packing-list item (sql/item-charges-costing.sql)
+  'shipment_pl_charges', // shipping charge per packing list = the bulk amount (sql/history-and-auto-charges.sql)
   'change_log',         // history of changes, each entry keeps its book (sql/history-and-auto-charges.sql)
 ]);
 

@@ -1,9 +1,10 @@
 import { supabase } from './supabase';
 import { fetchAllPages, selectByIds } from './fetchAll';
 
-/* Shipping charges (v109):
-   - Shipping -> Charges holds only the BULK amount of the shipment (the agent's invoice total) and posts it to the agent.
-   - Costing puts the charge on each packing-list item: type (KG / CBM / PCS / FIXED) and rate.
+/* Shipping charges (v111) — two sides, compared on screen:
+   - BULK (Shipping -> Charges): per packing list, its total kg / CBM / pcs from Packing List x the rate typed there
+     (table shipment_pl_charges). All packing lists added up = the shipment's bulk amount, billed to the agent.
+   - COSTING: each packing-list item gets its own type (KG / CBM / PCS / FIXED) and rate, typed in Costing.
      KG / CBM / PCS take the item's kg / CBM / qty fresh from Packing List: item charge = that x rate.
    - The charge per item is kept in shipment_item_charges; Costing divides it by the item's quantity:
        charge per unit = item charge / qty     landed per unit = (CNY price x rate) + charge per unit
@@ -30,6 +31,19 @@ export async function loadItemCharges(shipmentId: string): Promise<{ map: Map<st
   const map = new Map<string, ItemCharge>();
   data.forEach((c) => map.set(c.packing_list_item_id, { ...c, qty: Number(c.qty) || 0, rate: Number(c.rate) || 0, amount: Number(c.amount) || 0 }));
   return { map, error };
+}
+
+/** the key of a packing list inside a shipment: PL Input id | packing list no */
+export const plKeyOf = (i: { pl_input_id: string | null; packing_list_no: string | null }) => `${i.pl_input_id ?? '-'}|${i.packing_list_no || '-'}`;
+export interface PlCharge { id?: string; shipment_id: string; pl_key: string; pl_input_id: string | null; packing_list_no: string | null; basis: ChargeBasis; qty: number; rate: number; amount: number }
+
+/** Charges per packing list (the bulk side). missing = sql not run yet. */
+export async function loadPlCharges(shipmentId: string): Promise<{ map: Map<string, PlCharge>; error: string | null; missing: boolean }> {
+  const { data, error } = await fetchAllPages<PlCharge>(() => supabase.from('shipment_pl_charges').select('*').eq('shipment_id', shipmentId).order('id'));
+  const map = new Map<string, PlCharge>();
+  if (error) return { map, error, missing: /does not exist|schema cache/i.test(error) };
+  data.forEach((c) => map.set(c.pl_key, { ...c, qty: Number(c.qty) || 0, rate: Number(c.rate) || 0, amount: Number(c.amount) || 0 }));
+  return { map, error: null, missing: false };
 }
 
 /** packing-list item -> its purchase bill (through PL Input) */
@@ -78,9 +92,11 @@ export async function saveItemCharges(shipmentId: string, changes: { itemId: str
  * then the per-bill totals (CN Reports) and — when no bulk amount was typed — the shipment's total.
  */
 export async function refreshShipmentCharges(shipmentId: string): Promise<{ error: string | null }> {
+  const pls = await refreshPlCharges(shipmentId);
+  if (pls.error) return { error: pls.error };
   const { map, error } = await loadItemCharges(shipmentId);
   if (error) return { error };
-  if (map.size === 0) return { error: null };
+  if (map.size === 0 && pls.total === null) return { error: null };
   const pl = await selectByIds<PlRow>('packing_list_items', 'id, weight_kg, cbm, quantity, pl_input_id', 'id', [...map.keys()]);
   if (pl.error) return { error: pl.error };
   const plOf = new Map(pl.data.map((p) => [p.id, p]));
@@ -105,17 +121,50 @@ export async function refreshShipmentCharges(shipmentId: string): Promise<{ erro
     if (e && !/shipment_charges/.test(e.message)) return { error: e.message };
   }
 
-  // 3. the shipment's total: the bulk amount when typed, otherwise what is on the items (+ other charges)
+  // 3. the shipment's total: the agent's invoice when typed, else the packing-list charges (bulk), else what is on the items
   const { data: s, error: sErr } = await supabase.from('shipments').select('agent_invoice, other_charges, actual_charges').eq('id', shipmentId).maybeSingle();
   if (!sErr && s) {
     const inv = Number(s.agent_invoice) || 0;
-    const want = r2(inv > 0 ? inv : [...map.values()].reduce((t, c) => t + c.amount, 0) + (Number(s.other_charges) || 0));
+    const base = pls.total !== null ? pls.total : [...map.values()].reduce((t, c) => t + c.amount, 0);
+    const want = r2(inv > 0 ? inv : base + (Number(s.other_charges) || 0));
     if (Math.abs(want - (Number(s.actual_charges) || 0)) >= 0.005) {
       const { error: e } = await supabase.from('shipments').update({ actual_charges: want }).eq('id', shipmentId);
       if (e) return { error: e.message };
     }
+    // the agent's account line follows the packing-list charges (only when no different agent invoice was typed)
+    if (inv === 0 && pls.total !== null && pls.total > 0) {
+      const { error: e } = await supabase.from('agent_ledger').update({ amount: r2(pls.total) }).eq('shipment_id', shipmentId).eq('kind', 'charge').neq('amount', r2(pls.total));
+      if (e && !/agent_ledger/.test(e.message)) return { error: e.message };
+    }
   }
   return { error: null };
+}
+
+/** Bring the packing-list charges up to date with Packing List (PL total kg / CBM / pcs). total = null when there are none. */
+async function refreshPlCharges(shipmentId: string): Promise<{ total: number | null; error: string | null }> {
+  const pc = await loadPlCharges(shipmentId);
+  if (pc.missing) return { total: null, error: null };
+  if (pc.error) return { total: null, error: pc.error };
+  if (pc.map.size === 0) return { total: null, error: null };
+  const { data: ship } = await supabase.from('shipments').select('shipment_no').eq('id', shipmentId).maybeSingle();
+  if (!ship) return { total: null, error: null };
+  type P = { id: string; weight_kg: number | null; cbm: number | null; quantity: number | null; pl_input_id: string | null; packing_list_no: string | null };
+  const { data: items, error } = await fetchAllPages<P>(() => supabase.from('packing_list_items').select('id, weight_kg, cbm, quantity, pl_input_id, packing_list_no').eq('batch_number', ship.shipment_no).order('id'));
+  if (error) return { total: null, error };
+  let total = 0;
+  for (const c of pc.map.values()) {
+    if (c.basis !== 'FIXED') {
+      const q = r4(items.filter((i) => plKeyOf(i) === c.pl_key).reduce((t, i) => t + chargeQty(i, c.basis), 0));
+      const amt = r2(q * c.rate);
+      if (Math.abs(q - c.qty) >= 0.00005 || Math.abs(amt - c.amount) >= 0.005) {
+        const { error: e } = await supabase.from('shipment_pl_charges').update({ qty: q, amount: amt }).eq('shipment_id', shipmentId).eq('pl_key', c.pl_key);
+        if (e) return { total: null, error: e.message };
+        c.qty = q; c.amount = amt;
+      }
+    }
+    total += c.amount;
+  }
+  return { total, error: null };
 }
 
 /**

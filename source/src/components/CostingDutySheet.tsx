@@ -6,7 +6,7 @@ import ChangeHistory from './ChangeHistory';
 import CostingDutyPrint, { summarizeCosting, fmt0, fmt2 } from './CostingDutyPrint';
 import type { CostingPrintLine } from './CostingDutyPrint';
 import { fetchAllPages, selectByIds } from '../lib/fetchAll';
-import { syncCostingCharges, loadItemCharges, saveItemCharges, chargeQty } from '../lib/costingCharges';
+import { syncCostingCharges, loadItemCharges, loadPlCharges, saveItemCharges, chargeQty } from '../lib/costingCharges';
 import type { ItemCharge, ChargeBasis } from '../lib/costingCharges';
 
 /* Costing: landed per unit = (CNY price x rate) + shipping per unit.
@@ -62,7 +62,7 @@ interface CostingRecord {
   created_at: string;
 }
 
-interface ShipInfo { id: string; actual_charges: number; agent_invoice: number; other_charges: number }
+interface ShipInfo { id: string; actual_charges: number; agent_invoice: number; other_charges: number; plTotal: number | null }
 
 const num = (v: unknown) => {
   const n = typeof v === 'number' ? v : parseFloat(String(v ?? ''));
@@ -212,15 +212,17 @@ export default function CostingDutySheet() {
       // older database without the agent invoice columns
       const basic = await supabase.from('shipments').select('id, actual_charges').eq('shipment_no', batch).maybeSingle();
       if (basic.error) err = `Could not read the shipment: ${basic.error.message}`;
-      else if (basic.data) ship = { id: basic.data.id, actual_charges: num(basic.data.actual_charges), agent_invoice: 0, other_charges: 0 };
+      else if (basic.data) ship = { id: basic.data.id, actual_charges: num(basic.data.actual_charges), agent_invoice: 0, other_charges: 0, plTotal: null };
     } else if (full.data) {
-      ship = { id: full.data.id, actual_charges: num(full.data.actual_charges), agent_invoice: num(full.data.agent_invoice), other_charges: num(full.data.other_charges) };
+      ship = { id: full.data.id, actual_charges: num(full.data.actual_charges), agent_invoice: num(full.data.agent_invoice), other_charges: num(full.data.other_charges), plTotal: null };
     }
     let map = new Map<string, ItemCharge>();
     if (ship && chargeCols) {
       const res = await loadItemCharges(ship.id);
       if (res.error) err = err || `Could not read the item charges from Shipping: ${res.error}`;
       map = res.map;
+      const pc = await loadPlCharges(ship.id);           // the bulk side: charges per packing list in Shipping
+      if (!pc.error && pc.map.size > 0) ship.plTotal = [...pc.map.values()].reduce((t, c) => t + c.amount, 0);
     }
     if (batchToken.current !== batch) return;
     setShipInfo(ship);
@@ -584,8 +586,9 @@ export default function CostingDutySheet() {
   // shipping check
   const itemChargeTotal = [...itemCharges.values()].reduce((s, c) => s + c.amount, 0);
   const target = shipInfo
-    ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: 'bulk amount in Shipping' }
-      : { amount: itemChargeTotal, label: 'bulk amount in Shipping' }
+    ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: "agent's invoice" }
+      : shipInfo.plTotal !== null ? { amount: shipInfo.plTotal, label: 'packing lists in Shipping' }
+      : { amount: 0, label: '' }
     : null;
   const diff = target ? summary.shipping - target.amount : 0;
   const matches = !!target && target.amount > 0 && Math.abs(diff) < 1;
@@ -926,14 +929,14 @@ export default function CostingDutySheet() {
                     <p className={`flex items-start gap-1.5 ${matches ? 'text-green-700' : 'text-amber-700'}`}>
                       {matches ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
                       <span>
-                        Bulk <strong>Rs {fmt0(target.amount)}</strong> · On items <strong>Rs {fmt0(summary.shipping)}</strong> ·{' '}
+                        Bulk ({target.label}) <strong>Rs {fmt0(target.amount)}</strong> · On items <strong>Rs {fmt0(summary.shipping)}</strong> ·{' '}
                         {matches ? <strong>Difference 0 ✓</strong> : <strong>{diff < 0 ? `Rs ${fmt0(-diff)} not on any item yet` : `items over by Rs ${fmt0(diff)}`}</strong>}
                       </span>
                     </p>
                   ) : (
                     <p className="flex items-start gap-1.5 text-amber-700">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>No charges yet for shipment {activeBatch} — put the type and rate per packing list in Shipping &rarr; Charges (or per item below). On items now: <strong>Rs {fmt0(summary.shipping)}</strong>.</span>
+                      <span>No bulk charge yet for shipment {activeBatch} — put the rate per packing list in Shipping &rarr; Charges, then compare here. On items now: <strong>Rs {fmt0(summary.shipping)}</strong>.</span>
                     </p>
                   )}
                   {shipInfo && itemCharges.size > 0 && Math.abs(itemChargeTotal - summary.shipping) >= 1 && (
@@ -1269,7 +1272,7 @@ export default function CostingDutySheet() {
               <li><strong>Cost LKR/unit</strong> = Price CNY x CNY rate</li>
               <li><strong>Ship charge</strong> = the item's kg / CBM / qty from Packing List x Rate (or a Fixed amount)</li>
               <li><strong>Shipping/unit</strong> = Ship charge / the item's qty (MANUAL for rows not from the packing list)</li>
-              <li><strong>Bulk</strong> = each packing list's kg / CBM / pcs x rate in Shipping &rarr; Charges (or the agent's invoice when typed); items should add up to it</li>
+              <li><strong>Bulk</strong> = each packing list's total kg / CBM / pcs x rate in Shipping &rarr; Charges (or the agent's invoice when typed); the items here are compared with it</li>
               <li><strong>Landed/unit</strong> = Cost LKR/unit + Shipping/unit</li>
               <li><strong>Profit</strong> = Selling price - Landed (RESALE only); FACTORY goods count at landed cost</li>
             </ul>

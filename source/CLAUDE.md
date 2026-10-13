@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V110)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V111)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -44,7 +44,7 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 ## SQL files already applied to the live database (all in /sql)
 book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop,
 and (confirmed ALL TRUE by check-everything.sql on 13 Oct 2026) security-lock, packing-lines-book, old-collection-only, books-separate,
-charity-setup, bulk-import-admin-only, item-charges-costing. To run: history-and-auto-charges (v108). check-everything.sql (read-only, 13 rows) and health-check.sql verify it.
+charity-setup, bulk-import-admin-only, item-charges-costing. To run: history-and-auto-charges (v111: history + shipment_pl_charges + packing list trigger). check-everything.sql (read-only, 13 rows) and health-check.sql verify it.
 
 ## Open items
 - Books decided (v96): LCL 2026 is the only new book; it must never count OLD. OLD stays open until old customers are paid
@@ -83,7 +83,14 @@ charity-setup, bulk-import-admin-only, item-charges-costing. To run: history-and
   bar applies a type+rate to the shown (filtered) items. Kg/CBM/qty always come from Packing List (costingCharges.ts
   saveItemCharges / refreshShipmentCharges / syncCostingCharges). Check strip: Bulk vs On items vs Difference (no spreading).
   ShipmentCharges refreshes the Shipping list only when it closes (refreshing earlier remounted it and reset the form).
-- v110: Shipping -> Charges is PER PACKING LIST again: PL total kg / CBM / pcs (sum of its items in Packing List) shown,
+- v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
+  kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
+  Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
+  type + rate typed in Costing (shipment_item_charges). Each PL card shows its Costing amount and the difference; Costing's
+  check strip shows Bulk vs On items. Charges screen also shows Billed / Paid / Still to pay and a "Pay agent" form
+  (agent_ledger kind payment, shipment_id). DB trigger + refreshShipmentCharges keep PL totals, shipment total and the
+  agent bill (when no agent invoice) in step with Packing List.
+- (superseded) v110: Shipping -> Charges is PER PACKING LIST again: PL total kg / CBM / pcs (sum of its items in Packing List) shown,
   owner picks KG/CBM/PCS + rate; bulk = sum of PL charges. Save gives every item of the PL that type+rate (item = own
   kg/CBM/qty x rate, so PL total x rate = items total). Items charged differently in Costing (other type/rate or Fixed)
   are kept. Optional "Agent's invoice" only when the agent billed a different total (then that is posted).
