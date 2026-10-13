@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { Users, Clock, Shield, Star } from 'lucide-react';
 
@@ -29,29 +31,40 @@ export default function CustomerCollectionTracker() {
   async function loadCollectionData() {
     setLoading(true);
 
-    const [invoicesResult, customersResult] = await Promise.all([
-      supabase
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
+    const [invoicesResult, customersResult, paymentsResult] = await Promise.all([
+      fetchAllPages<{ customer_id: string | null; customer_name: string; total_amount: number; amount_paid: number; amount_due: number; status: string; invoice_date: string }>(() => supabase
         .from('busy_sales_invoices')
-        .select('customer_id, customer_name, total_amount, amount_paid, amount_due, status, invoice_date'),
-      supabase
+        .select('id, customer_id, customer_name, total_amount, amount_paid, amount_due, status, invoice_date')
+        .order('id')),
+      fetchAllPages<{ id: string; name: string; opening_balance: number | null; credit_score: number | null; average_days_to_pay: number | null; security_provided: boolean | null }>(() => supabase
         .from('customers')
-        .select('id, name, opening_balance, credit_score, average_days_to_pay, security_provided'),
+        .select('id, name, opening_balance, credit_score, average_days_to_pay, security_provided')
+        .order('id')),
+      fetchAllPages<{ customer_name: string | null; sales_invoice_id: string | null; amount: number; cheque_status: string | null }>(() => supabase
+        .from('busy_sales_payments')
+        .select('id, customer_name, sales_invoice_id, amount, cheque_status')
+        .order('id')),
     ]);
 
-    const invoices = invoicesResult.data || [];
-    const allCustomers = customersResult.data || [];
+    const invoices = invoicesResult.data;
+    const allCustomers = customersResult.data;
+    // same rule as Customer Outstanding: opening (OLD only) less money received on account; one entry per custKey()
+    const onAccount = onAccountByCustomer(paymentsResult.data);
 
     const customerMap = new Map<string, CustomerCollection>();
 
     for (const c of allCustomers) {
-      if (openingBal(c.opening_balance) > 0) {
-        customerMap.set(c.id, {
+      const key = custKey(c.name);
+      if (openingBal(c.opening_balance) > 0 && !customerMap.has(key)) {
+        const net = netOpening(key, c.opening_balance, onAccount);
+        customerMap.set(key, {
           id: c.id,
           name: c.name,
-          totalOwed: c.opening_balance || 0,
-          totalPaid: 0,
-          outstanding: c.opening_balance || 0,
-          openingBalance: c.opening_balance || 0,
+          totalOwed: openingBal(c.opening_balance),
+          totalPaid: onAccount.get(key) || 0,
+          outstanding: net,
+          openingBalance: net,
           invoiceCount: 0,
           oldestDays: 0,
           creditScore: c.credit_score,
@@ -64,7 +77,7 @@ export default function CustomerCollectionTracker() {
     const today = new Date();
 
     for (const inv of invoices) {
-      const key = inv.customer_id || inv.customer_name;
+      const key = custKey(inv.customer_name);
       const existing = customerMap.get(key);
 
       const invDate = new Date(inv.invoice_date);
@@ -145,7 +158,7 @@ export default function CustomerCollectionTracker() {
     );
   }
 
-  const totalOutstanding = customers.reduce((s, c) => s + c.outstanding, 0);
+  const totalOutstanding = customers.reduce((s, c) => s + Math.max(0, c.outstanding), 0); // credits don't reduce others' dues (same as Customer Outstanding)
   const totalCollected = customers.reduce((s, c) => s + c.totalPaid, 0);
   const collectionRate = (totalCollected + totalOutstanding) > 0
     ? Math.round((totalCollected / (totalCollected + totalOutstanding)) * 100)

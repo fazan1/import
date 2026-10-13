@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, User, Phone, Award, DollarSign, FileText, TrendingUp, CreditCard, Calendar, CircleCheck as CheckCircle2, Clock, CircleAlert as AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
+import { onAccountByCustomer, netOpening } from '../lib/receivables';
 
 interface Invoice {
   id: string;
@@ -47,6 +48,7 @@ export default function CustomerDetailModal({ customerId, customerName, onClose 
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [onAccount, setOnAccount] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('invoices');
 
@@ -75,7 +77,7 @@ export default function CustomerDetailModal({ customerId, customerName, onClose 
         .order('invoice_date', { ascending: false }),
       supabase
         .from('busy_sales_payments')
-        .select('id, payment_number, payment_date, amount, payment_mode, reference_number, notes, sales_invoice_id')
+        .select('id, customer_name, payment_number, payment_date, amount, payment_mode, reference_number, notes, sales_invoice_id, cheque_status')
         .eq('customer_name', customerName)
         .order('payment_date', { ascending: false }),
       supabase
@@ -94,6 +96,8 @@ export default function CustomerDetailModal({ customerId, customerName, onClose 
     ].sort((a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime());
 
     setPayments(merged);
+    // money received on account (busy_sales_payments, not against an invoice, not returned) reduces the opening balance
+    setOnAccount(onAccountByCustomer(busyPayments || []));
     setLoading(false);
   }
 
@@ -137,7 +141,9 @@ export default function CustomerDetailModal({ customerId, customerName, onClose 
   }
 
   const totalSales = invoices.reduce((s, i) => s + Number(i.total_amount), 0);
-  const totalDue = invoices.reduce((s, i) => s + Number(i.amount_due), 0) + openingBal(customer?.opening_balance);
+  // same rule as Customer Outstanding: unpaid dues + opening (OLD only) less on-account receipts
+  const netOpeningBal = netOpening(customerName, customer?.opening_balance, onAccount);
+  const totalDue = invoices.filter((i) => i.status !== 'paid' && Number(i.amount_due) > 0).reduce((s, i) => s + Number(i.amount_due), 0) + netOpeningBal;
   const totalPaid = invoices.reduce((s, i) => s + Number(i.amount_paid), 0);
   const scoreInfo = getCreditScoreColor(customer?.credit_score || 0);
 
@@ -210,7 +216,7 @@ export default function CustomerDetailModal({ customerId, customerName, onClose 
                   <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Outstanding</span>
                 </div>
                 <p className={`text-xl font-bold ${totalDue > 0 ? 'text-rose-600' : 'text-green-600'}`}>{formatCurrency(totalDue)}</p>
-                {openingBal(customer?.opening_balance) > 0 && (
+                {netOpeningBal > 0 && (
                   <p className="text-xs text-orange-500 mt-0.5">Incl. opening bal</p>
                 )}
               </div>

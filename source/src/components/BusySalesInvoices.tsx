@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Check, FileText, ChevronDown, ChevronUp, CreditCard, Pencil, Eye, Printer, Users, Settings } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { openingBal } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { replaceLines } from '../lib/lines';
 import InvoicePrint from './InvoicePrint';
@@ -98,6 +99,7 @@ interface BusySalesInvoicesProps {
 export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId, onClearPreselection }: BusySalesInvoicesProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
+  const [onAccount, setOnAccount] = useState<Map<string, number>>(new Map());
   const [pendingOrders, setPendingOrders] = useState<SalesOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -191,6 +193,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
     if (customersRes.data) setCustomers(customersRes.data);
     if (invoicesRes.data) setInvoices(invoicesRes.data);
+    // money received on account (this book) for the credit check
+    fetchAllPages<{ customer_name: string | null; sales_invoice_id: string | null; amount: number; cheque_status: string | null }>(() =>
+      supabase.from('busy_sales_payments').select('id, customer_name, sales_invoice_id, amount, cheque_status').order('id'))
+      .then(({ data }) => setOnAccount(onAccountByCustomer(data)));
     if (itemsRes.data) setAllItems(itemsRes.data);
     supabase.from('wh_products').select('id, name, master_item_id, is_active, avg_cost').then(async ({ data: wp }) => {
       const { data: st } = await supabase.from('wh_stock').select('product_id, qty');
@@ -283,8 +289,9 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
   function creditCheck(customerId: string): { outstanding: number; limit: number; overdueDays: number; creditDays: number; messages: string[] } | null {
     const c = customers.find((x) => x.id === customerId);
     if (!c) return null;
-    const unpaid = invoices.filter((i) => i.customer_id === customerId && i.status !== 'paid' && (i.amount_due || 0) > 0);
-    const outstanding = unpaid.reduce((s, i) => s + (i.amount_due || 0), 0) + openingBal(c.opening_balance);
+    // same rule as Customer Outstanding: unpaid dues + opening (OLD only) less on-account receipts
+    const unpaid = invoices.filter((i) => (i.customer_id === customerId || custKey(i.customer_name) === custKey(c.name)) && i.status !== 'paid' && (i.amount_due || 0) > 0);
+    const outstanding = unpaid.reduce((s, i) => s + (i.amount_due || 0), 0) + netOpening(c.name, c.opening_balance, onAccount);
     const today = Date.now();
     const overdueDays = unpaid.reduce((m, i) => Math.max(m, Math.floor((today - new Date(i.invoice_date).getTime()) / 86400000)), 0);
     const limit = c.credit_amount || 0;

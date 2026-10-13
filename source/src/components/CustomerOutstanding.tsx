@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { esc } from '../lib/html';
 import { openingBal } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { Users, DollarSign, RefreshCw, ChevronDown, ChevronRight, Search, ListFilter as Filter, FileText, Phone, Calendar, CreditCard, Printer } from 'lucide-react';
 import CustomerDetailModal from './CustomerDetailModal';
 import CollectPaymentModal from './CollectPaymentModal';
@@ -63,100 +65,102 @@ export default function CustomerOutstanding() {
   async function loadOutstanding() {
     setLoading(true);
 
-    const [{ data: customerData }, { data: invoices }, { data: payments }] = await Promise.all([
-      supabase.from('customers').select('id, name, phone, opening_balance'),
-      supabase
-        .from('busy_sales_invoices')
-        .select('id, invoice_number, invoice_date, customer_name, customer_id, total_amount, amount_paid, amount_due, status')
-        .neq('status', 'paid')
-        .gt('amount_due', 0)
-        .order('invoice_date', { ascending: true }),
-      supabase
-        .from('busy_sales_payments')
-        .select('customer_id, customer_name, sales_invoice_id, amount, payment_mode, cheque_status'),
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
+    const [{ data: customerData }, { data: invoiceRows }, { data: payments }] = await Promise.all([
+      fetchAllPages<{ id: string; name: string; phone: string | null; opening_balance: number | null }>(() =>
+        supabase.from('customers').select('id, name, phone, opening_balance').order('id')),
+      fetchAllPages<{ id: string; invoice_number: string; invoice_date: string; customer_name: string; customer_id: string | null; total_amount: number; amount_paid: number; amount_due: number; status: string }>(() =>
+        supabase
+          .from('busy_sales_invoices')
+          .select('id, invoice_number, invoice_date, customer_name, customer_id, total_amount, amount_paid, amount_due, status')
+          .neq('status', 'paid')
+          .gt('amount_due', 0)
+          .order('id')),
+      fetchAllPages<{ customer_id: string | null; customer_name: string | null; sales_invoice_id: string | null; amount: number; payment_mode: string | null; cheque_status: string | null }>(() =>
+        supabase
+          .from('busy_sales_payments')
+          .select('id, customer_id, customer_name, sales_invoice_id, amount, payment_mode, cheque_status')
+          .order('id')),
     ]);
+    const invoices = [...invoiceRows].sort((a, b) => (a.invoice_date || '').localeCompare(b.invoice_date || ''));
 
     // money received "on account" (not against an invoice) reduces the opening balance; returned cheques don't count
-    const onAccount = new Map<string, number>();
+    const onAccount = onAccountByCustomer(payments);
     const pendingCheque = new Map<string, number>();
-    (payments || []).forEach((p) => {
-      const key = (p.customer_name || '').trim().toLowerCase();
-      if (!p.sales_invoice_id && p.cheque_status !== 'returned') onAccount.set(key, (onAccount.get(key) || 0) + Number(p.amount || 0));
+    payments.forEach((p) => {
+      const key = custKey(p.customer_name);
       if (p.payment_mode === 'cheque' && p.cheque_status === 'pending') pendingCheque.set(key, (pendingCheque.get(key) || 0) + Number(p.amount || 0));
     });
-    // may go negative: money received on account beyond the opening balance is a credit against the invoices
-    const netOpening = (name: string, gross: number) => gross - (onAccount.get(name.trim().toLowerCase()) || 0);
 
-    const customerMap = new Map<string, { id: string; name: string; phone: string | null; opening_balance: number }>();
-    customerData?.forEach((c) => {
-      customerMap.set(c.name.trim().toLowerCase(), {
+    const customerMap = new Map<string, { id: string; name: string; phone: string | null; opening_balance: number | null }>();
+    customerData.forEach((c) => {
+      customerMap.set(custKey(c.name), {
         id: c.id,
         name: c.name,
         phone: c.phone,
-        opening_balance: openingBal(c.opening_balance),
+        opening_balance: c.opening_balance,
       });
     });
 
+    // keyed by custKey(): "ABC Traders" and "abc traders " are one customer (opening balance counted once)
     const outstandingMap = new Map<string, CustomerOutstandingData>();
     const today = new Date();
 
-    if (invoices) {
-      invoices.forEach((invoice) => {
-        const key = invoice.customer_name?.trim().toLowerCase() || invoice.customer_name;
-        const customerInfo = customerMap.get(key);
-        const existing = outstandingMap.get(invoice.customer_name);
+    invoices.forEach((invoice) => {
+      const key = custKey(invoice.customer_name);
+      const customerInfo = customerMap.get(key);
+      const existing = outstandingMap.get(key);
 
-        const invoiceData: Invoice = {
-          id: invoice.id,
-          invoice_id: invoice.id,
-          voucher_no: invoice.invoice_number,
-          date: invoice.invoice_date,
-          total_amount: Number(invoice.total_amount) || 0,
-          total_paid: Number(invoice.amount_paid) || 0,
-          sell_due: Number(invoice.amount_due) || 0,
-          payment_status: invoice.status,
-        };
+      const invoiceData: Invoice = {
+        id: invoice.id,
+        invoice_id: invoice.id,
+        voucher_no: invoice.invoice_number,
+        date: invoice.invoice_date,
+        total_amount: Number(invoice.total_amount) || 0,
+        total_paid: Number(invoice.amount_paid) || 0,
+        sell_due: Number(invoice.amount_due) || 0,
+        payment_status: invoice.status,
+      };
 
-        if (existing) {
-          existing.total_sales += Number(invoice.total_amount) || 0;
-          existing.total_paid += Number(invoice.amount_paid) || 0;
-          existing.total_due += Number(invoice.amount_due) || 0;
-          existing.invoices.push(invoiceData);
-          if (!existing.oldest_unpaid_date || invoice.invoice_date < existing.oldest_unpaid_date) {
-            existing.oldest_unpaid_date = invoice.invoice_date;
-          }
-        } else {
-          outstandingMap.set(invoice.customer_name, {
-            customer_id: customerInfo?.id || invoice.customer_id || null,
-            customer_name: invoice.customer_name,
-            phone: customerInfo?.phone || null,
-            total_sales: Number(invoice.total_amount) || 0,
-            total_paid: Number(invoice.amount_paid) || 0,
-            total_due: Number(invoice.amount_due) || 0,
-            opening_balance: netOpening(invoice.customer_name, openingBal(customerInfo?.opening_balance)),
-            opening_balance_gross: openingBal(customerInfo?.opening_balance),
-            on_account_paid: onAccount.get(key) || 0,
-            pending_cheques: pendingCheque.get(key) || 0,
-            aging: { current: 0, d31: 0, d61: 0, d90: 0 },
-            invoices: [invoiceData],
-            oldest_unpaid_date: invoice.invoice_date,
-            days_outstanding: 0,
-          });
+      if (existing) {
+        existing.total_sales += Number(invoice.total_amount) || 0;
+        existing.total_paid += Number(invoice.amount_paid) || 0;
+        existing.total_due += Number(invoice.amount_due) || 0;
+        existing.invoices.push(invoiceData);
+        if (!existing.oldest_unpaid_date || invoice.invoice_date < existing.oldest_unpaid_date) {
+          existing.oldest_unpaid_date = invoice.invoice_date;
         }
-      });
-    }
+      } else {
+        outstandingMap.set(key, {
+          customer_id: customerInfo?.id || invoice.customer_id || null,
+          customer_name: customerInfo?.name || invoice.customer_name,
+          phone: customerInfo?.phone || null,
+          total_sales: Number(invoice.total_amount) || 0,
+          total_paid: Number(invoice.amount_paid) || 0,
+          total_due: Number(invoice.amount_due) || 0,
+          opening_balance: netOpening(key, customerInfo?.opening_balance, onAccount),
+          opening_balance_gross: openingBal(customerInfo?.opening_balance),
+          on_account_paid: onAccount.get(key) || 0,
+          pending_cheques: pendingCheque.get(key) || 0,
+          aging: { current: 0, d31: 0, d61: 0, d90: 0 },
+          invoices: [invoiceData],
+          oldest_unpaid_date: invoice.invoice_date,
+          days_outstanding: 0,
+        });
+      }
+    });
 
-    customerData?.forEach((c) => {
-      if (netOpening(c.name, openingBal(c.opening_balance)) > 0 && !outstandingMap.has(c.name)) {
-        const key = c.name.trim().toLowerCase();
-        outstandingMap.set(c.name, {
+    customerData.forEach((c) => {
+      const key = custKey(c.name);
+      if (netOpening(key, c.opening_balance, onAccount) > 0 && !outstandingMap.has(key)) {
+        outstandingMap.set(key, {
           customer_id: c.id,
           customer_name: c.name,
           phone: c.phone,
           total_sales: 0,
           total_paid: 0,
           total_due: 0,
-          opening_balance: netOpening(c.name, openingBal(c.opening_balance)),
+          opening_balance: netOpening(key, c.opening_balance, onAccount),
           opening_balance_gross: openingBal(c.opening_balance),
           on_account_paid: onAccount.get(key) || 0,
           pending_cheques: pendingCheque.get(key) || 0,

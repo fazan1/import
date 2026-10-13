@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, X, Check, CreditCard, Search, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { esc } from '../lib/html';
 
 interface SalesInvoice {
@@ -101,23 +103,23 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
 
   async function loadData() {
     setLoading(true);
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically); display order is sorted below
     const [paymentsRes, invoicesRes, customersRes] = await Promise.all([
-      supabase
+      fetchAllPages<SalesPayment>(() => supabase
         .from('busy_sales_payments')
         .select('*, busy_sales_invoices (invoice_number, total_amount, amount_due)')
-        .order('payment_date', { ascending: false })
-        .order('created_at', { ascending: false }),
-      supabase
+        .order('id')),
+      fetchAllPages<SalesInvoice & { invoice_date?: string }>(() => supabase
         .from('busy_sales_invoices')
-        .select('id, invoice_number, customer_id, customer_name, total_amount, amount_paid, amount_due, status')
+        .select('id, invoice_number, invoice_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status')
         .neq('status', 'paid')
         .gt('amount_due', 0)
-        .order('invoice_date', { ascending: false }),
-      supabase.from('customers').select('id, name, opening_balance').order('name'),
+        .order('id')),
+      fetchAllPages<Customer>(() => supabase.from('customers').select('id, name, opening_balance').order('id')),
     ]);
-    if (paymentsRes.data) setPayments(paymentsRes.data as SalesPayment[]);
-    if (invoicesRes.data) setUnpaidInvoices(invoicesRes.data);
-    if (customersRes.data) setCustomers(customersRes.data);
+    setPayments([...paymentsRes.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '') || (b.created_at || '').localeCompare(a.created_at || '')));
+    setUnpaidInvoices([...invoicesRes.data].sort((a, b) => (b.invoice_date || '').localeCompare(a.invoice_date || '')));
+    setCustomers([...customersRes.data].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     setLoading(false);
   }
 
@@ -140,14 +142,8 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
   const selectedInvoiceData = useMemo(() => unpaidInvoices.find(i => i.id === selectedInvoice) || null, [unpaidInvoices, selectedInvoice]);
   const selectedCustomerData = useMemo(() => customers.find(c => c.id === selectedCustomer) || null, [customers, selectedCustomer]);
 
-  // on-account money already received per customer (excluding returned cheques)
-  const onAccountByCustomer = useMemo(() => {
-    const m: Record<string, number> = {};
-    for (const p of payments) {
-      if (!p.sales_invoice_id && p.customer_id && p.cheque_status !== 'returned') m[p.customer_id] = (m[p.customer_id] || 0) + p.amount;
-    }
-    return m;
-  }, [payments]);
+  // on-account money already received per customer (key = custKey(name); excludes returned cheques) — same rule as Customer Outstanding
+  const onAccount = useMemo(() => onAccountByCustomer(payments), [payments]);
 
   function handleSelectInvoice(invoiceId: string) {
     setSelectedInvoice(invoiceId);
@@ -349,7 +345,7 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
                   <select value={selectedCustomer} onChange={(e) => setSelectedCustomer(e.target.value)} className={input}>
                     <option value="">Select customer...</option>
                     {customers.map(c => {
-                      const left = openingBal(c.opening_balance) - (onAccountByCustomer[c.id] || 0);
+                      const left = netOpening(c.name, c.opening_balance, onAccount);
                       return (
                         <option key={c.id} value={c.id}>
                           {c.name}{openingBal(c.opening_balance) > 0 ? ` | Opening bal. left: LKR ${Math.max(0, left).toLocaleString()}` : ''}
@@ -362,9 +358,9 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
                   <div className="md:col-span-2 p-4 bg-teal-50 border border-blue-200 rounded-lg text-sm">
                     <span className="text-teal-700 font-medium">Opening balance:</span> LKR {openingBal(selectedCustomerData.opening_balance).toLocaleString()}
                     <span className="mx-2 text-blue-300">|</span>
-                    <span className="text-green-700 font-medium">Received on account:</span> LKR {(onAccountByCustomer[selectedCustomer] || 0).toLocaleString()}
+                    <span className="text-green-700 font-medium">Received on account:</span> LKR {(onAccount.get(custKey(selectedCustomerData.name)) || 0).toLocaleString()}
                     <span className="mx-2 text-blue-300">|</span>
-                    <span className="text-red-700 font-medium">Still owed:</span> LKR {Math.max(0, openingBal(selectedCustomerData.opening_balance) - (onAccountByCustomer[selectedCustomer] || 0)).toLocaleString()}
+                    <span className="text-red-700 font-medium">Still owed:</span> LKR {Math.max(0, netOpening(selectedCustomerData.name, selectedCustomerData.opening_balance, onAccount)).toLocaleString()}
                   </div>
                 )}
               </>

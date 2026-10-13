@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { openingBal as bookOpening } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { Users, Clock, CircleCheck as CheckCircle, DollarSign, RefreshCw, ChevronDown, ChevronRight, CircleAlert as AlertCircle, FileText, Search, ListFilter as Filter } from 'lucide-react';
 
 interface Invoice {
@@ -54,77 +55,79 @@ export default function SLReceivables() {
   async function loadReceivables() {
     setLoading(true);
 
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id, name, opening_balance');
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
+    const [{ data: customers }, { data: invoiceRows }, { data: payments }] = await Promise.all([
+      fetchAllPages<{ id: string; name: string; opening_balance: number | null }>(() =>
+        supabase.from('customers').select('id, name, opening_balance').order('id')),
+      fetchAllPages<{ id: string; invoice_number: string; invoice_date: string; due_date: string | null; customer_id: string | null; customer_name: string; total_amount: number; amount_paid: number; amount_due: number; status: string }>(() =>
+        supabase
+          .from('busy_sales_invoices')
+          .select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status')
+          .neq('status', 'paid')
+          .gt('amount_due', 0)
+          .order('id')),
+      fetchAllPages<{ customer_name: string | null; sales_invoice_id: string | null; amount: number; cheque_status: string | null }>(() =>
+        supabase.from('busy_sales_payments').select('id, customer_name, sales_invoice_id, amount, cheque_status').order('id')),
+    ]);
+    const invoices = [...invoiceRows].sort((x, y) => (x.invoice_date || '').localeCompare(y.invoice_date || ''));
 
-    const customerOpeningBalances = new Map<string, number>();
-    const customerIdByName = new Map<string, string>();
-    customers?.forEach((c) => {
-      customerOpeningBalances.set(c.id, bookOpening(c.opening_balance));
-      customerIdByName.set(c.name, c.id);
-    });
-
-    const { data: invoices } = await supabase
-      .from('busy_sales_invoices')
-      .select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status')
-      .in('status', ['sent', 'partial', 'overdue'])
-      .order('invoice_date', { ascending: true });
+    // same rule as Customer Outstanding: unpaid dues + opening (OLD only) less on-account receipts, one entry per custKey()
+    const onAccount = onAccountByCustomer(payments);
+    const customerByKey = new Map<string, { id: string; name: string; opening_balance: number | null }>();
+    customers.forEach((c) => { if (!customerByKey.has(custKey(c.name))) customerByKey.set(custKey(c.name), c); });
 
     const customerMap = new Map<string, CustomerReceivable>();
     const today = new Date();
 
-    if (invoices) {
-      invoices.forEach((invoice) => {
-        const customerId = invoice.customer_id || invoice.customer_name;
-        const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
-        const daysOverdue = dueDate ? Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+    invoices.forEach((invoice) => {
+      const key = custKey(invoice.customer_name);
+      const cust = customerByKey.get(key);
+      const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+      const daysOverdue = dueDate ? Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))) : 0;
 
-        const invoiceData: Invoice = {
-          id: invoice.id,
-          invoice_number: invoice.invoice_number,
-          invoice_date: invoice.invoice_date,
-          due_date: invoice.due_date,
-          total_amount: invoice.total_amount || 0,
-          amount_paid: invoice.amount_paid || 0,
-          amount_due: invoice.amount_due || 0,
-          status: invoice.status,
-        };
+      const invoiceData: Invoice = {
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        invoice_date: invoice.invoice_date,
+        due_date: invoice.due_date,
+        total_amount: invoice.total_amount || 0,
+        amount_paid: invoice.amount_paid || 0,
+        amount_due: invoice.amount_due || 0,
+        status: invoice.status,
+      };
 
-        const existing = customerMap.get(customerId);
-        const openingBal = invoice.customer_id ? (customerOpeningBalances.get(invoice.customer_id) || 0) : 0;
+      const existing = customerMap.get(key);
 
-        if (existing) {
-          existing.total_invoiced += invoice.total_amount || 0;
-          existing.total_paid += invoice.amount_paid || 0;
-          existing.total_pending += invoice.amount_due || 0;
-          existing.invoices.push(invoiceData);
-          if (invoice.invoice_date < existing.oldest_invoice_date) {
-            existing.oldest_invoice_date = invoice.invoice_date;
-          }
-          if (daysOverdue > existing.days_overdue) {
-            existing.days_overdue = daysOverdue;
-          }
-        } else {
-          customerMap.set(customerId, {
-            customer_id: invoice.customer_id || '',
-            customer_name: invoice.customer_name,
-            total_invoiced: invoice.total_amount || 0,
-            total_paid: invoice.amount_paid || 0,
-            total_pending: invoice.amount_due || 0,
-            opening_balance: openingBal,
-            invoices: [invoiceData],
-            oldest_invoice_date: invoice.invoice_date,
-            days_overdue: daysOverdue,
-          });
+      if (existing) {
+        existing.total_invoiced += invoice.total_amount || 0;
+        existing.total_paid += invoice.amount_paid || 0;
+        existing.total_pending += invoice.amount_due || 0;
+        existing.invoices.push(invoiceData);
+        if (invoice.invoice_date < existing.oldest_invoice_date) {
+          existing.oldest_invoice_date = invoice.invoice_date;
         }
-      });
-    }
+        if (daysOverdue > existing.days_overdue) {
+          existing.days_overdue = daysOverdue;
+        }
+      } else {
+        customerMap.set(key, {
+          customer_id: cust?.id || invoice.customer_id || '',
+          customer_name: cust?.name || invoice.customer_name,
+          total_invoiced: invoice.total_amount || 0,
+          total_paid: invoice.amount_paid || 0,
+          total_pending: invoice.amount_due || 0,
+          opening_balance: netOpening(key, cust?.opening_balance, onAccount),
+          invoices: [invoiceData],
+          oldest_invoice_date: invoice.invoice_date,
+          days_overdue: daysOverdue,
+        });
+      }
+    });
 
-    customers?.forEach((c) => {
-        const openingBal = bookOpening(c.opening_balance);
-        if (openingBal > 0 && !customerMap.has(c.id)) {
-          customerMap.set(c.id, {
+    customerByKey.forEach((c, key) => {
+        const openingBal = netOpening(key, c.opening_balance, onAccount);
+        if (openingBal > 0 && !customerMap.has(key)) {
+          customerMap.set(key, {
             customer_id: c.id,
             customer_name: c.name,
             total_invoiced: 0,

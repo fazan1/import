@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { selectByIds } from '../lib/fetchAll';
-import { openingBal } from '../lib/book';
+import { selectByIds, fetchAllPages } from '../lib/fetchAll';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
 import { RefreshCw, DollarSign, TrendingUp, Wallet, AlertTriangle, ChevronRight, FileText, CreditCard } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell, ComposedChart, Line } from "recharts";
 
 interface Invoice { id: string; invoice_number: string; invoice_date: string; due_date: string | null; customer_id: string | null; customer_name: string; total_amount: number; amount_paid: number; amount_due: number; status: string; }
-interface Payment { id: string; payment_date: string; customer_id: string | null; customer_name: string; amount: number; payment_mode: string; sales_invoice_id: string | null; }
+interface Payment { id: string; payment_date: string; customer_id: string | null; customer_name: string; amount: number; payment_mode: string; sales_invoice_id: string | null; cheque_status: string | null; }
 interface Customer { id: string; name: string; opening_balance: number; credit_days: number | null; credit_amount: number | null; }
 
 interface Props { onNavigate?: (view: string, filter?: { status?: string; customerId?: string }) => void; }
@@ -31,17 +31,18 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
 
   async function load() {
     setLoading(true);
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
     const [i, p, c, o] = await Promise.all([
-      supabase.from('busy_sales_invoices').select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status'),
-      supabase.from('busy_sales_payments').select('id, payment_date, customer_id, customer_name, amount, payment_mode, sales_invoice_id').order('payment_date', { ascending: false }),
-      supabase.from('customers').select('id, name, opening_balance, credit_days, credit_amount'),
+      fetchAllPages<Invoice>(() => supabase.from('busy_sales_invoices').select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status').order('id')),
+      fetchAllPages<Payment>(() => supabase.from('busy_sales_payments').select('id, payment_date, customer_id, customer_name, amount, payment_mode, sales_invoice_id, cheque_status').order('id')),
+      fetchAllPages<Customer>(() => supabase.from('customers').select('id, name, opening_balance, credit_days, credit_amount').order('id')),
       supabase.from('busy_sales_orders').select('id', { count: 'exact', head: true }),
     ]);
     // only the lines of this book's invoices (reading every line of every book also stops at 1000 rows)
     const li = await selectByIds<{ invoice_id: string; quantity: number; unit_price: number; cost_price: number }>('busy_sales_invoice_items', 'invoice_id, quantity, unit_price, cost_price', 'invoice_id', ((i.data || []) as { id: string }[]).map((x) => x.id));
     setLines((li.data || []) as { invoice_id: string; quantity: number; unit_price: number; cost_price: number }[]);
     setInvoices((i.data || []) as Invoice[]);
-    setPayments((p.data || []) as Payment[]);
+    setPayments([...p.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '')));
     setCustomers((c.data || []) as Customer[]);
     setOrderCount(o.count || 0);
     setLoading(false);
@@ -54,13 +55,11 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
 
   // ---- per customer outstanding (same rule as Customer Outstanding page) ----
   const perCustomer = useMemo(() => {
-    const onAccount: Record<string, number> = {};
-    const key = (n: string) => (n || '').trim().toLowerCase();
-    for (const p of payments) if (!p.sales_invoice_id) onAccount[key(p.customer_name)] = (onAccount[key(p.customer_name)] || 0) + p.amount;
+    const onAccount = onAccountByCustomer(payments);
     const m: Record<string, { name: string; id: string | null; invoices: number; due: number; opening: number; b0: number; b30: number; b60: number; b90: number; oldest: number; credit_days: number | null; credit_amount: number | null; lastInvoice: string }> = {};
-    const get = (name: string, id: string | null) => (m[name] ||= { name, id, invoices: 0, due: 0, opening: 0, b0: 0, b30: 0, b60: 0, b90: 0, oldest: 0, credit_days: null, credit_amount: null, lastInvoice: '' });
+    const get = (name: string, id: string | null) => (m[custKey(name)] ||= { name, id, invoices: 0, due: 0, opening: 0, b0: 0, b30: 0, b60: 0, b90: 0, oldest: 0, credit_days: null, credit_amount: null, lastInvoice: '' });
     for (const c of customers) {
-      const net = openingBal(c.opening_balance) - (onAccount[key(c.name)] || 0);
+      const net = netOpening(c.name, c.opening_balance, onAccount);
       const x = get(c.name, c.id); x.credit_days = c.credit_days; x.credit_amount = c.credit_amount;
       if (net > 0) { x.opening = net; x.b90 += net; x.oldest = Math.max(x.oldest, 91); } else if (net < 0) { x.opening = net; x.b0 += net; }
     }

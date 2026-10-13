@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V96)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V97)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -42,7 +42,7 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 - No public sign-up link; logins are made in Settings -> Users.
 
 ## SQL files already applied to the live database (all in /sql)
-book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95/v96): security-lock, packing-lines-book, old-collection-only. health-check.sql is read-only and verifies all of it.
+book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v97): security-lock, packing-lines-book, old-collection-only, books-separate. health-check.sql is read-only and verifies all of it.
 
 ## Open items
 - security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
@@ -51,10 +51,12 @@ book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipm
 - v96 sql/old-collection-only.sql: table book_settings (open/collection/closed), trigger trg_zz_book_mode
   (guard_book_mode) on booked tables; OLD = collection (no NEW documents; payments/edits/Recycle Bin restore ok).
   Close OLD later: UPDATE public.book_settings SET mode='closed' WHERE book='OLD'. Client mirrors it in supabase.ts writeRefusal().
+- v97: ONE customer-balance rule (src/lib/receivables.ts) on every screen; totals load all pages (fetchAllPages);
+  recycle_bin is booked (sql/books-separate.sql) and the shop login is kept out of every table its screens don't use;
+  Backup exports all books (each row keeps its book; old backups restore into OLD).
 - No per-LC books: each LC is a shipment in LCL 2026. Shop sees prices/costs (costing-duty in SHOP_MODULES);
   admin corrects shop records by switching to BLINE SHOP.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
-- Not fixed yet: customer balance rules differ between screens; some totals stop at 1000 rows; Backup exports only the current book;
-  SECURITY DEFINER bulk_import is callable by any member.
+- Not fixed yet: SECURITY DEFINER bulk_import (code not in repo) is callable by any member - needs its definition.
 - Warehouse items without cost; hide OLD book later when old customers settle.
 - Shipping cost per bill is in CN Reports but not yet pulled into Costing & Duty landed cost.

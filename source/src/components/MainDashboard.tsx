@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { openingBal } from '../lib/book';
+import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
+import { fetchAllPages } from '../lib/fetchAll';
 import { Globe, Store, Package, Receipt, DollarSign, TrendingUp, ShoppingCart, FileText, CreditCard, ClipboardList, Ship, FileStack, ClipboardCheck, ListChecks, FileSpreadsheet, RefreshCw, ArrowRight, Layers } from 'lucide-react';
 import BatchGrowthChart from './BatchGrowthChart';
 import SalesPipeline from './SalesPipeline';
@@ -116,40 +117,48 @@ export default function MainDashboard({ onNavigate }: MainDashboardProps) {
 
   async function loadSLStats() {
     try {
+      // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
       const [ordersResult, invoicesResult, paymentsResult, customersResult] = await Promise.all([
         supabase.from('busy_sales_orders').select('id', { count: 'exact', head: true }),
-        supabase.from('busy_sales_invoices').select('total_amount, amount_paid, amount_due, status'),
-        supabase.from('busy_sales_payments').select('amount, customer_name, sales_invoice_id'),
-        supabase.from('customers').select('name, opening_balance'),
+        fetchAllPages<{ customer_name: string | null; total_amount: number; amount_paid: number; amount_due: number; status: string }>(() =>
+          supabase.from('busy_sales_invoices').select('id, customer_name, total_amount, amount_paid, amount_due, status').order('id')),
+        fetchAllPages<{ amount: number; customer_name: string | null; sales_invoice_id: string | null; cheque_status: string | null }>(() =>
+          supabase.from('busy_sales_payments').select('id, amount, customer_name, sales_invoice_id, cheque_status').order('id')),
+        fetchAllPages<{ name: string; opening_balance: number | null }>(() =>
+          supabase.from('customers').select('id, name, opening_balance').order('id')),
       ]);
 
-      let totalReceivables = 0;
       let totalCollected = 0;
       let totalSales = 0;
 
-      if (invoicesResult.data) {
-        invoicesResult.data.forEach((invoice) => {
-          if (invoice.status === 'draft') return;
-          totalSales += invoice.total_amount || 0;
-          if (invoice.status !== 'paid') {
-            totalReceivables += invoice.amount_due || 0;
-          }
-        });
-      }
-
-      // On-account payments reduce opening balances (same rule as Customer Outstanding)
-      const onAccount = new Map<string, number>();
-      (paymentsResult.data || []).forEach((p) => {
-        totalCollected += p.amount || 0;
-        if (!p.sales_invoice_id) { const k = (p.customer_name || '').trim().toLowerCase(); onAccount.set(k, (onAccount.get(k) || 0) + (p.amount || 0)); }
+      // Receivables: same rule as Customer Outstanding — per customer, unpaid dues + netOpening; count customers whose total > 0
+      const dueByCustomer = new Map<string, number>();
+      invoicesResult.data.forEach((invoice) => {
+        if (invoice.status === 'draft') return;
+        totalSales += invoice.total_amount || 0;
+        if (invoice.status !== 'paid' && Number(invoice.amount_due) > 0) {
+          const k = custKey(invoice.customer_name);
+          dueByCustomer.set(k, (dueByCustomer.get(k) || 0) + Number(invoice.amount_due));
+        }
       });
-      const totalOpeningBalance = (customersResult.data || []).reduce((s, c) => s + (openingBal(c.opening_balance) - (onAccount.get((c.name || '').trim().toLowerCase()) || 0)), 0);
+
+      paymentsResult.data.forEach((p) => { totalCollected += p.amount || 0; });
+      const onAccount = onAccountByCustomer(paymentsResult.data);
+      const openingByCustomer = new Map<string, number | null>();
+      customersResult.data.forEach((c) => { if (!openingByCustomer.has(custKey(c.name))) openingByCustomer.set(custKey(c.name), c.opening_balance); });
+      const totalByCustomer = new Map<string, number>(dueByCustomer);
+      openingByCustomer.forEach((_, k) => { if (!totalByCustomer.has(k)) totalByCustomer.set(k, 0); });
+      let totalReceivables = 0;
+      totalByCustomer.forEach((due, k) => {
+        const total = due + netOpening(k, openingByCustomer.get(k), onAccount);
+        if (total > 0) totalReceivables += total;
+      });
 
       setSlStats({
         total_orders: ordersResult.count || 0,
-        total_invoices: invoicesResult.data?.length || 0,
-        total_payments: paymentsResult.data?.length || 0,
-        total_receivables: totalReceivables + totalOpeningBalance,
+        total_invoices: invoicesResult.data.length,
+        total_payments: paymentsResult.data.length,
+        total_receivables: totalReceivables,
         total_collected: totalCollected,
         total_sales: totalSales,
       });

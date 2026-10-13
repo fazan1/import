@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, Check, Users, Search, ChevronLeft, FileText, CreditCard, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
-import { openingBal } from '../lib/book';
+import { onAccountByCustomer, netOpening } from '../lib/receivables';
 
 interface Customer {
   id: string;
@@ -59,6 +59,7 @@ interface SalesPayment {
   reference_number: string | null;
   notes: string | null;
   sales_invoice_id: string;
+  cheque_status?: string | null;
   busy_sales_invoices: { invoice_number: string }[] | null;
 }
 
@@ -128,7 +129,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
         .from('busy_sales_payments')
         .select(`
           id, payment_number, payment_date, payment_mode, amount,
-          reference_number, notes, sales_invoice_id,
+          reference_number, notes, sales_invoice_id, cheque_status,
           busy_sales_invoices (invoice_number)
         `)
         .or(`customer_id.eq.${customer.id},customer_name.eq.${quotedName}`)
@@ -153,8 +154,9 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
 
   const totalBilled = invoices.reduce((s, i) => s + i.total_amount, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.amount_paid, 0);
-  const totalDue = invoices.reduce((s, i) => s + i.amount_due, 0);
-  const openingBalance = openingBal(customer.opening_balance);
+  const totalDue = invoices.filter((i) => i.status !== 'paid' && i.amount_due > 0).reduce((s, i) => s + i.amount_due, 0);
+  // same rule as Customer Outstanding: opening (OLD only) less money received on account (payments loaded above are this customer's)
+  const openingBalance = netOpening(customer.name, customer.opening_balance, onAccountByCustomer(payments.map((p) => ({ ...p, customer_name: customer.name }))));
   const netOutstanding = totalDue + openingBalance;
 
   if (loading) {
