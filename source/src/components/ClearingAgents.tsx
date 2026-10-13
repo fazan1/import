@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Truck, Plus, Pencil, Trash2, X, Check, ArrowLeft, Printer, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
+import { companyFor } from '../lib/company';
 import { getBook, BOOK_ALL, isBookLocked } from '../lib/book';
 
 /* Clearing / shipping agents: a simple list (name + phone) and an account per agent.
@@ -90,14 +92,13 @@ export default function ClearingAgents() {
   }
   function printStatement() {
     if (!agent) return;
-    const w = window.open('', '_blank'); if (!w) return;
-    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     const owe = myLines.filter((l) => l.kind === 'charge').reduce((t, l) => t + l.amount, 0);
     const paid = myLines.filter((l) => l.kind === 'payment').reduce((t, l) => t + l.amount, 0);
     w.document.write(`<html><head><title>${esc(agent.name)} statement</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:28px}h2{margin:0}p{color:#555;margin:2px 0 14px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:6px}th{background:#f3f4f6;text-align:left;font-size:10px;text-transform:uppercase}.r{text-align:right}tfoot td{font-weight:bold;border-top:2px solid #333}</style></head><body>
-      <h2>${esc(agent.name)} — account statement</h2><p>${agent.phone ? esc(agent.phone) + ' · ' : ''}${esc(book)} · printed ${today()}</p>
+      <div style="font-weight:bold;font-size:14px">${esc(companyFor().name)}</div><h2>${esc(agent.name)} — account statement</h2><p>${agent.phone ? esc(agent.phone) + ' · ' : ''}${esc(book)} · printed ${today()}</p>
       <table><thead><tr><th>Date</th><th>Details</th><th class="r">Charge</th><th class="r">Paid</th><th class="r">Balance</th></tr></thead><tbody>
-      ${myLines.map((l) => `<tr><td>${l.entry_date}</td><td>${esc([l.reference, l.payment_mode, l.note].filter(Boolean).join(' · '))}</td><td class="r">${l.kind === 'charge' ? n0(l.amount) : ''}</td><td class="r">${l.kind === 'payment' ? n0(l.amount) : ''}</td><td class="r">${n0(l.bal)}</td></tr>`).join('')}
+      ${myLines.map((l) => `<tr><td>${new Date(l.entry_date).toLocaleDateString('en-GB')}</td><td>${esc([l.reference, l.payment_mode, l.note].filter(Boolean).join(' · '))}</td><td class="r">${l.kind === 'charge' ? n0(l.amount) : ''}</td><td class="r">${l.kind === 'payment' ? n0(l.amount) : ''}</td><td class="r">${n0(l.bal)}</td></tr>`).join('')}
       </tbody><tfoot><tr><td></td><td>Total</td><td class="r">${n0(owe)}</td><td class="r">${n0(paid)}</td><td class="r">${n0(owe - paid)}</td></tr></tfoot></table>
       <p style="margin-top:14px">${owe - paid > 0 ? 'Balance we owe: Rs ' + n0(owe - paid) : owe - paid < 0 ? 'Advance with the agent: Rs ' + n0(paid - owe) : 'Account settled.'}</p>
       <script>window.onload=()=>window.print()</script></body></html>`);

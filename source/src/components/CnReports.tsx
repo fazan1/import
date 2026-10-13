@@ -3,6 +3,7 @@ import { BarChart3, Download, Printer, RefreshCw, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { getBook, BOOK_ALL } from '../lib/book';
+import { companyFor } from '../lib/company';
 
 /* CN Reports — purchase side only. Every query goes through the book filter,
    so a login locked to one book only ever reports on that book. */
@@ -61,7 +62,7 @@ export default function CnReports() {
       const total = (x.purchase_bill_items ?? []).reduce((t, i) => t + (Number(i.quantity_received) || 0) * (Number(i.unit_price_cny) || 0), 0);
       const paid = Number(x.amount_paid) || 0, bal = total - paid;
       return {
-        id: x.id, no: x.bill_number || x.cnv_invoice_number || '—', date: x.bill_date, batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '(no supplier)',
+        id: x.id, no: [x.bill_number, x.cnv_invoice_number].filter(Boolean).join(' / ') || '—', date: x.bill_date, batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '(no supplier)',
         total, paid, bal, rate: Number(x.exchange_rate) || 0,
         status: total <= 0 ? 'Empty' : bal > 0.5 ? (paid > 0.5 ? 'Part paid' : 'Unpaid') : bal < -0.5 ? 'Overpaid' : 'Paid',
       };
@@ -184,7 +185,7 @@ export default function CnReports() {
       const list = ships.filter((s) => inRange(s.eta || s.created) && (!status || s.status === status) && (!mode || s.mode === mode) && (!q || `${s.no} ${s.forwarder}`.toLowerCase().includes(q))).sort((a, b) => b.created.localeCompare(a.created));
       return {
         title: 'Shipments',
-        head: ['Shipment', 'Mode', 'Forwarder', 'Created', 'ETA', 'Status', 'Charges (LKR)'],
+        head: ['Shipment', 'Mode', 'Forwarder', 'Created', 'ETD', 'Status', 'Charges (LKR)'],
         num: [false, false, false, false, false, false, true],
         rows: list.map((s) => [s.no, s.mode, s.forwarder, s.created, s.eta, s.status, s.charges ? n0(s.charges) : '']),
         total: ['TOTAL', `${list.length} shipments`, '', '', '', '', n0(list.reduce((t, s) => t + s.charges, 0))],
@@ -241,11 +242,11 @@ export default function CnReports() {
     XLSX.writeFile(wb, `${report.title.replace(/[^\w]+/g, '-').toLowerCase()}-${today()}.xlsx`);
   }
   function print() {
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     const esc = (v: Cell) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const td = (v: Cell, i: number, tag = 'td') => `<${tag} style="text-align:${report.num[i] ? 'right' : 'left'}">${esc(v)}</${tag}>`;
     w.document.write(`<html><head><title>${esc(report.title)}</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:24px}h2{margin:0 0 2px}p{color:#666;margin:0 0 12px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:5px 6px;white-space:nowrap}th{background:#f3f4f6;font-size:10px;text-transform:uppercase}tfoot td{font-weight:bold;border-top:2px solid #333}</style></head><body>
-      <h2>${esc(report.title)}</h2><p>${esc(bookName)} · printed ${today()}${filterLine ? ' · ' + esc(filterLine) : ''}</p>
+      <div style="font-weight:bold;font-size:13px">${esc(companyFor().name)}</div><h2>${esc(report.title)}</h2><p>${esc(bookName)} · printed ${today()}${filterLine ? ' · ' + esc(filterLine) : ''}</p>
       <table><thead><tr>${report.head.map((h, i) => td(h, i, 'th')).join('')}</tr></thead><tbody>${report.rows.map((r) => `<tr>${r.map((c, i) => td(c, i)).join('')}</tr>`).join('')}</tbody>${report.total ? `<tfoot><tr>${report.total.map((c, i) => td(c, i)).join('')}</tr></tfoot>` : ''}</table>
       <script>window.onload=()=>window.print()</script></body></html>`);
     w.document.close();

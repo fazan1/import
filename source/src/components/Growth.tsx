@@ -375,7 +375,7 @@ export default function Growth() {
   }
   function print() {
     if (!latest || !d || !v) return;
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     w.document.write(`<html><head><title>Capital — ${mlong(latest.month)}</title><style>
       body{font-family:ui-monospace,Menlo,monospace;padding:28px;color:#111;max-width:900px}h1{font-size:18px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}h3{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.08em}
       .grade{display:inline-block;padding:3px 10px;border:2px solid #111;font-weight:700;margin-bottom:8px}.head{font-size:14px;margin:0 0 10px}

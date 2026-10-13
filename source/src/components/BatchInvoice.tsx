@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { esc } from '../lib/html';
+import { companyFor } from '../lib/company';
 import { Package, ChevronDown, ChevronRight, Search, Printer, X, Building2, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
 
@@ -235,10 +236,11 @@ export default function BatchInvoice() {
     tempDiv.style.width = '800px';
     tempDiv.innerHTML = `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <div style="font-weight: bold; font-size: 14px;">${esc(companyFor().name)}</div>
         <h1 style="color: #1a365d; margin-bottom: 5px;">BATCH ${esc(batch.batch_number)}</h1>
         <div style="color: #666; margin-bottom: 20px;">
           <p>Suppliers: ${batch.suppliers.map(esc).join(', ')}</p>
-          <p>Total Items: ${batch.items.length}</p>
+          <p>Total Items: ${batch.items.length} · Printed ${new Date().toLocaleDateString('en-GB')}</p>
         </div>
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <thead>
@@ -246,8 +248,8 @@ export default function BatchInvoice() {
               <th style="background: #1a365d; color: white; padding: 10px; text-align: left; font-size: 12px;">FULL DESCRIPTION OF GOODS</th>
               <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">QTY</th>
               <th style="background: #1a365d; color: white; padding: 10px; text-align: left; font-size: 12px;">UNIT OF MEASURE</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">UNIT PRICE</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">TOTAL</th>
+              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">UNIT PRICE (CNY)</th>
+              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">TOTAL (CNY)</th>
             </tr>
           </thead>
           <tbody>
@@ -278,7 +280,7 @@ export default function BatchInvoice() {
 
   function printBatch(batch: BatchGroup) {
     const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    if (!printWindow) { alert('Allow pop-ups to print'); return; }
 
     const html = `
       <!DOCTYPE html>
@@ -300,10 +302,11 @@ export default function BatchInvoice() {
         </style>
       </head>
       <body>
+        <div style="font-weight: bold; font-size: 14px;">${esc(companyFor().name)}</div>
         <h1>BATCH ${esc(batch.batch_number)}</h1>
         <div class="header-info">
           <p>Suppliers: ${batch.suppliers.map(esc).join(', ')}</p>
-          <p>Total Items: ${batch.items.length}</p>
+          <p>Total Items: ${batch.items.length} · Printed ${new Date().toLocaleDateString('en-GB')}</p>
         </div>
         <table>
           <thead>
@@ -311,8 +314,8 @@ export default function BatchInvoice() {
               <th>FULL DESCRIPTION OF GOODS</th>
               <th class="text-right">QTY</th>
               <th>UNIT OF MEASURE</th>
-              <th class="text-right">UNIT PRICE</th>
-              <th class="text-right">TOTAL</th>
+              <th class="text-right">UNIT PRICE (CNY)</th>
+              <th class="text-right">TOTAL (CNY)</th>
             </tr>
           </thead>
           <tbody>

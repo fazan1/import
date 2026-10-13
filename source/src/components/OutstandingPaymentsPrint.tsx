@@ -1,5 +1,6 @@
 import { X, Printer, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
+import { companyFor } from '../lib/company';
 
 interface BillDetail {
   id: string;
@@ -88,6 +89,7 @@ export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClo
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
           <div className="p-6 print:p-4" id="outstanding-payments-content" style={{ fontFamily: 'Arial, sans-serif' }}>
             <div className="text-center mb-5">
+              <div className="text-base font-bold text-gray-900">{companyFor().name}</div>
               <h1 className="text-xl font-bold text-gray-900">SUPPLIER OUTSTANDING PAYMENTS</h1>
               {batchFilter && <div className="text-sm text-gray-600">Batch: {batchFilter}</div>}
               <div className="text-xs text-gray-500">As of: {new Date().toLocaleDateString('en-GB')}</div>

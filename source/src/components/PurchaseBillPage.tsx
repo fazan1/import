@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Trash2, Receipt, Calendar, Package, Plus, CreditCard, X, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { companyFor } from '../lib/company';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { deletePurchaseBill } from '../lib/bills';
 import PurchaseBillPrint from './PurchaseBillPrint';
@@ -1052,6 +1053,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
             unit_price_cny: parseFloat(item.unit_price_cny) || 0
           }))}
           supplier={purchaseOrder?.suppliers || null}
+          companyName={companyFor((existingBill as { book?: string | null }).book).name}
+          companyAddress={companyFor((existingBill as { book?: string | null }).book).address}
           onClose={() => setShowPrint(false)}
         />
       )}

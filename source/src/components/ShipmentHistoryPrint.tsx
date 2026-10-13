@@ -1,5 +1,6 @@
 import { X, Printer, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
+import { companyFor } from '../lib/company';
 
 interface PackingListItem {
   id: string;
@@ -80,6 +81,7 @@ export default function ShipmentHistoryPrint({ shipments, batchFilter, totals, o
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
           <div className="p-6 print:p-4" id="shipment-history-content" style={{ fontFamily: 'Arial, sans-serif' }}>
             <div className="text-center mb-5">
+              <div className="text-base font-bold text-gray-900">{companyFor().name}</div>
               <h1 className="text-xl font-bold text-gray-900">SHIPMENT HISTORY</h1>
               {batchFilter && <div className="text-sm text-gray-600">Batch: {batchFilter}</div>}
               <div className="text-xs text-gray-500">Generated: {new Date().toLocaleDateString('en-GB')}</div>
@@ -119,7 +121,7 @@ export default function ShipmentHistoryPrint({ shipments, batchFilter, totals, o
                       <div className="flex items-center gap-3 text-xs">
                         <span className="font-medium">PL# {pl.packing_list_no}</span>
                         {pl.batch_number && <span className="text-gray-500">Batch: {pl.batch_number}</span>}
-                        <span className="text-gray-500">{new Date(pl.date).toLocaleDateString('en-GB')}</span>
+                        {pl.date && <span className="text-gray-500">{new Date(pl.date).toLocaleDateString('en-GB')}</span>}
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                           pl.status === 'received' ? 'bg-green-100 text-green-700' :
                           pl.status === 'shipped' ? 'bg-cyan-100 text-cyan-700' :
@@ -145,7 +147,7 @@ export default function ShipmentHistoryPrint({ shipments, batchFilter, totals, o
                         {pl.items.map((item, idx) => (
                           <tr key={item.id} className={idx % 2 === 0 ? '' : 'bg-gray-50'}>
                             <td className="p-1.5 pl-6">{item.item_name}</td>
-                            <td className="p-1.5 text-right">{item.quantity.toLocaleString()}</td>
+                            <td className="p-1.5 text-right">{Number(item.quantity || 0).toLocaleString()}</td>
                             <td className="p-1.5 text-center">{item.unit}</td>
                             <td className="p-1.5 text-right">{item.no_of_pkgs || '-'}</td>
                             <td className="p-1.5 text-right">{item.weight_kg > 0 ? item.weight_kg.toFixed(2) : '-'}</td>

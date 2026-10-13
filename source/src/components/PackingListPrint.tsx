@@ -1,5 +1,6 @@
 import { X, Printer, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
+import { companyFor } from '../lib/company';
 
 interface PackingListItem {
   id: string;
@@ -23,7 +24,12 @@ interface PackingListPrintProps {
 }
 
 export default function PackingListPrint({ items, batchNumber, supplierName, onClose }: PackingListPrintProps) {
-  const totalPkgs = items.reduce((sum, item) => sum + (item.no_of_pkgs || 0), 0);
+  const company = companyFor((items[0] as { book?: string | null } | undefined)?.book);
+  // Packages are entered once per PL number (on its first row), same as the screen — count them once
+  const firstRowByPlNo = new Map<string, string>();
+  items.forEach((item) => { if (!firstRowByPlNo.has(item.packing_list_no)) firstRowByPlNo.set(item.packing_list_no, item.id); });
+  const isFirstOfPl = (item: PackingListItem) => firstRowByPlNo.get(item.packing_list_no) === item.id;
+  const totalPkgs = items.reduce((sum, item) => sum + (isFirstOfPl(item) ? (item.no_of_pkgs || 0) : 0), 0);
   const totalQty = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
   const totalWeight = items.reduce((sum, item) => sum + (item.weight_kg || 0), 0);
   const totalCbm = items.reduce((sum, item) => sum + (item.cbm || 0), 0);
@@ -70,6 +76,8 @@ export default function PackingListPrint({ items, batchNumber, supplierName, onC
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
           <div className="p-6 print:p-4" id="packing-list-content" style={{ fontFamily: 'Arial, sans-serif' }}>
             <div className="text-center mb-6">
+              <div className="text-lg font-bold text-gray-900">{company.name}</div>
+              <div className="text-xs text-gray-600 mb-2">{company.address}</div>
               <h1 className="text-2xl font-bold text-gray-900">PACKING LIST</h1>
               <div className="text-sm text-gray-600 mt-1">Batch: {batchNumber}</div>
             </div>
@@ -106,9 +114,9 @@ export default function PackingListPrint({ items, batchNumber, supplierName, onC
                   <tr key={item.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                     <td className="border border-gray-300 p-2 text-center">{index + 1}</td>
                     <td className="border border-gray-300 p-2">{item.packing_list_no}</td>
-                    <td className="border border-gray-300 p-2 text-center">{item.no_of_pkgs || '-'}</td>
+                    <td className="border border-gray-300 p-2 text-center">{isFirstOfPl(item) ? (item.no_of_pkgs || '-') : ''}</td>
                     <td className="border border-gray-300 p-2">{item.item_name}</td>
-                    <td className="border border-gray-300 p-2 text-right">{item.quantity.toLocaleString()}</td>
+                    <td className="border border-gray-300 p-2 text-right">{Number(item.quantity || 0).toLocaleString()}</td>
                     <td className="border border-gray-300 p-2 text-center">{item.unit}</td>
                     <td className="border border-gray-300 p-2 text-right">{item.weight_kg > 0 ? item.weight_kg.toFixed(2) : '-'}</td>
                     <td className="border border-gray-300 p-2 text-right">{item.cbm > 0 ? item.cbm.toFixed(4) : '-'}</td>

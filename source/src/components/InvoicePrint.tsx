@@ -78,7 +78,7 @@ export default function InvoicePrint({
   const now = new Date();
   const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-  const totalQuantity = invoice.busy_sales_invoice_items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const totalQuantity = invoice.busy_sales_invoice_items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) || 0;
   const totalInWords = numberToWords(invoice.total_amount) + ' Only';
 
   function handlePrint() {
@@ -199,7 +199,7 @@ export default function InvoicePrint({
                   <div className="p-1 text-right font-medium">{invoice.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                 </div>
                 <div className="grid grid-cols-6 text-sm border-t border-black">
-                  <div className="col-span-4 border-r border-black p-1 text-center italic">Less : Discount</div>
+                  <div className="col-span-4 border-r border-black p-1 text-center italic">Add : Tax</div>
                   <div className="border-r border-black p-1"></div>
                   <div className="p-1 text-right">{invoice.tax_amount > 0 ? invoice.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</div>
                 </div>
@@ -212,7 +212,7 @@ export default function InvoicePrint({
             </div>
 
             <div className="mt-2 text-sm">
-              <div>VAT Exempted</div>
+              {!(invoice.tax_amount > 0) && <div>VAT Exempted</div>}
               <div className="font-medium">LKR {totalInWords}</div>
             </div>
 

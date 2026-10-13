@@ -219,7 +219,7 @@ export default function CustomerOutstanding() {
 
   function printStatement(c: CustomerOutstandingData) {
     const w = window.open('', '_blank', 'width=800,height=1000');
-    if (!w) return;
+    if (!w) { alert('Allow pop-ups to print'); return; }
     const total = c.total_due + c.opening_balance;
     const rows = c.invoices.map((inv) => `<tr><td>${new Date(inv.date).toLocaleDateString('en-GB')}</td><td>${esc(inv.voucher_no)}</td><td class="r">${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.total_paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.sell_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`).join('');
     const opening = c.opening_balance > 0 ? `<tr><td></td><td>Opening balance b/f${c.on_account_paid > 0 ? ` (after ${c.on_account_paid.toLocaleString()} received on account)` : ''}</td><td class="r"></td><td class="r"></td><td class="r">${c.opening_balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`

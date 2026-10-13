@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { companyFor } from '../lib/company';
 import { esc } from '../lib/html';
 import { useAuth } from '../contexts/AuthContext';
 import { Ship, Plus, Pencil, Trash2, X, RefreshCw, Container, Boxes, Printer, Banknote } from 'lucide-react';
@@ -258,7 +259,9 @@ export default function Shipping() {
     const crow = (cost || []) as { description: string; qty: number; unit_price_cny: number; cny_rate: number; duty_per_unit: number; landed_cost_per_unit: number; total_landed_cost: number; type: string }[];
     const n = (v: number, d = 2) => (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
     const d = (v: string | null) => (v ? new Date(v).toLocaleDateString('en-GB') : '—');
-    const tCbm = rows.reduce((a, r) => a + (Number(r.cbm) || 0), 0), tKg = rows.reduce((a, r) => a + (Number(r.weight_kg) || 0), 0), tPk = rows.reduce((a, r) => a + (Number(r.no_of_pkgs) || 0), 0);
+    // packages are entered once per PL number (its first row), same as the Packing List screen
+    const firstOfPl = (r: { packing_list_no: string }, i: number) => rows.findIndex((x) => x.packing_list_no === r.packing_list_no) === i;
+    const tCbm = rows.reduce((a, r) => a + (Number(r.cbm) || 0), 0), tKg = rows.reduce((a, r) => a + (Number(r.weight_kg) || 0), 0), tPk = rows.reduce((a, r, i) => a + (firstOfPl(r, i) ? Number(r.no_of_pkgs) || 0 : 0), 0);
     const tCny = linked.reduce((a, b) => a + b.total_cny, 0);
     const tLanded = crow.reduce((a, r) => a + (Number(r.total_landed_cost) || 0), 0);
     const tCharges = crow.reduce((a, r) => a + (Number(r.duty_per_unit) || 0) * (Number(r.qty) || 0), 0);
@@ -270,7 +273,7 @@ export default function Shipping() {
       table{width:100%;border-collapse:collapse;font-size:11.5px} th,td{padding:5px 7px;border-bottom:1px solid #e5e5e5;text-align:left} th{background:#f3f4f6;font-weight:600} .r{text-align:right} tfoot td{font-weight:700;border-top:2px solid #333}
       .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e6fffa;color:#0f766e;font-weight:600;font-size:11px} .note{margin-top:18px;color:#555;font-size:11px} @media print{body{padding:0}}
     </style></head><body>
-      <div class="head"><div><h1>HDR &amp; CO</h1><div class="sub">NO 149/5 New Chetty Street Col 11</div></div>
+      <div class="head"><div><h1>${esc(companyFor((s as { book?: string | null }).book).name)}</h1><div class="sub">${esc(companyFor((s as { book?: string | null }).book).address)}</div></div>
       <div style="text-align:right"><div style="font-size:16px;font-weight:700">${esc(s.shipment_no)}</div><div class="sub">${s.mode === 'LCL' ? 'Loose cargo (LCL)' : 'Container (FCL)'} · <span class="badge">${esc(s.status)}</span></div><div class="sub">Printed ${new Date().toLocaleDateString('en-GB')}</div></div></div>
       <div class="grid">
         <div class="box"><div class="l">Forwarder</div><div class="v">${esc(s.forwarder || '—')}</div></div>
@@ -288,7 +291,7 @@ export default function Shipping() {
       <tfoot><tr><td colspan="3">Total</td><td class="r">${n(tCny)}</td></tr></tfoot></table>
       <h2>Packing list</h2>
       <table><thead><tr><th>PL</th><th>Item</th><th class="r">Qty</th><th>Unit</th><th class="r">Pkgs</th><th class="r">Kg</th><th class="r">CBM</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr><td>${esc(r.packing_list_no)}</td><td>${esc(r.item_name)}</td><td class="r">${n(r.quantity, 0)}</td><td>${esc(r.unit || '')}</td><td class="r">${n(r.no_of_pkgs, 0)}</td><td class="r">${n(r.weight_kg, 1)}</td><td class="r">${n(r.cbm, 3)}</td></tr>`).join('') || '<tr><td colspan="7">No packing list rows yet</td></tr>'}</tbody>
+      <tbody>${rows.map((r, i) => `<tr><td>${esc(r.packing_list_no)}</td><td>${esc(r.item_name)}</td><td class="r">${n(r.quantity, 0)}</td><td>${esc(r.unit || '')}</td><td class="r">${firstOfPl(r, i) ? n(r.no_of_pkgs, 0) : ''}</td><td class="r">${n(r.weight_kg, 1)}</td><td class="r">${n(r.cbm, 3)}</td></tr>`).join('') || '<tr><td colspan="7">No packing list rows yet</td></tr>'}</tbody>
       <tfoot><tr><td colspan="4">Total</td><td class="r">${n(tPk, 0)}</td><td class="r">${n(tKg, 1)}</td><td class="r">${n(tCbm, 3)}</td></tr></tfoot></table>
       ${crow.length > 0 ? `<h2>Landed cost</h2>
       <table><thead><tr><th>Item</th><th>Type</th><th class="r">Qty</th><th class="r">CNY</th><th class="r">Rate</th><th class="r">Charges/unit</th><th class="r">Landed/unit</th><th class="r">Total landed</th></tr></thead>

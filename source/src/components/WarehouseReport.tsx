@@ -86,7 +86,7 @@ export default function WarehouseReport({ startDate = '' }: { startDate?: string
     XLSX.writeFile(wb, `warehouse-${from}-to-${to}.xlsx`);
   }
   function print() {
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i ? 'r' : ''}">${esc(x)}</td>`).join('')}</tr>`;
     const tbl = (t: string, h: string[], b: string) => `<h3>${t}</h3><table><thead><tr>${h.map((x, i) => `<th class="${i ? 'r' : ''}">${x}</th>`).join('')}</tr></thead><tbody>${b}</tbody></table>`;
     w.document.write(`<html><head><title>Warehouse report</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:13px;color:#555;margin:2px 0 12px;font-weight:normal}h3{font-size:13px;margin:14px 0 4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#f3f4f6;font-size:11px}.r{text-align:right}</style></head><body>

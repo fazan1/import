@@ -1,5 +1,6 @@
 import { X, Printer, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
+import { companyFor } from '../lib/company';
 
 interface CostingRecord {
   id: string;
@@ -37,8 +38,10 @@ export default function CostingDutyPrint({ records, batchNumber, onClose }: Cost
   const totalLandedCost = records.reduce((sum, r) => sum + (r.total_landed_cost || 0), 0);
   const totalSales = resaleRecords.reduce((sum, r) => sum + (r.total_sales || 0), 0);
   const totalProfit = resaleRecords.reduce((sum, r) => sum + (r.total_profit || 0), 0);
-  const totalWeight = records.reduce((sum, r) => sum + (r.weight_kg || 0) * (r.qty || 0), 0);
-  const totalCbm = records.reduce((sum, r) => sum + (r.cbm || 0) * (r.qty || 0), 0);
+  // weight_kg and cbm are already the line totals (from the packing list / split), not per piece
+  const totalWeight = records.reduce((sum, r) => sum + (r.weight_kg || 0), 0);
+  const totalCbm = records.reduce((sum, r) => sum + (r.cbm || 0), 0);
+  const company = companyFor((records[0] as { book?: string | null } | undefined)?.book);
 
   function handlePrint() {
     window.print();
@@ -167,6 +170,7 @@ export default function CostingDutyPrint({ records, batchNumber, onClose }: Cost
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
           <div className="p-6 print:p-4" id="costing-duty-content" style={{ fontFamily: 'Arial, sans-serif' }}>
             <div className="text-center mb-5">
+              <div className="text-base font-bold text-gray-900">{company.name}</div>
               <h1 className="text-xl font-bold text-gray-900">COSTING & DUTY SHEET</h1>
               <div className="text-sm text-gray-600 mt-1">Batch: {batchNumber}</div>
               <div className="text-xs text-gray-500">Generated: {new Date().toLocaleDateString('en-GB')}</div>

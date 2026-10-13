@@ -63,7 +63,7 @@ export default function ExpensePool() {
   const mSpent = mExps.reduce((t, e) => t + e.amount, 0);
   const mIn = mDeps.reduce((t, d) => t + d.amount, 0);
   const byCat = cats.filter((c) => c.is_active).map((c) => ({ c, spent: mExps.filter((e) => e.category === c.name).reduce((t, e) => t + e.amount, 0) })).concat(
-    Array.from(new Set(mExps.map((e) => e.category))).filter((n) => !cats.some((c) => c.name === n)).map((n) => ({ c: { id: n, name: n, budget: 0, sort_order: 999, is_active: true }, spent: mExps.filter((e) => e.category === n).reduce((t, e) => t + e.amount, 0) })));
+    Array.from(new Set(mExps.map((e) => e.category))).filter((n) => !cats.some((c) => c.is_active && c.name === n)).map((n) => ({ c: { id: n, name: n, budget: 0, sort_order: 999, is_active: true }, spent: mExps.filter((e) => e.category === n).reduce((t, e) => t + e.amount, 0) })));
   const totalBudget = cats.filter((c) => c.is_active).reduce((t, c) => t + c.budget, 0);
   const months = useMemo(() => Array.from(new Set([...exps, ...deps].map((x) => x.entry_date.slice(0, 7)))).sort().reverse(), [exps, deps]);
   const last6 = useMemo(() => { const out: { key: string; in: number; out: number }[] = []; const d = new Date(month + '-01'); for (let i = 5; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); const k = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`; out.push({ key: k, in: deps.filter((p) => p.entry_date.startsWith(k)).reduce((t, p) => t + p.amount, 0), out: exps.filter((e) => e.entry_date.startsWith(k)).reduce((t, e) => t + e.amount, 0) }); } return out; }, [month, deps, exps]);
@@ -81,7 +81,7 @@ export default function ExpensePool() {
     XLSX.writeFile(wb, `expense-pool-${today()}.xlsx`);
   }
   function printMonth() {
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i >= c.length - 1 || typeof x === 'number' ? 'r' : ''}">${esc(x)}</td>`).join('')}</tr>`;
     w.document.write(`<html><head><title>Expense pool — ${monthName(month)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}h3{font-size:13px;margin:14px 0 4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#f3f4f6;font-size:11px}.r{text-align:right}.tot td{font-weight:bold;background:#f9fafb}</style></head><body>
       <h1>Expense pool — ${monthName(month)}</h1><h2>printed ${new Date().toLocaleDateString('en-GB')}</h2>

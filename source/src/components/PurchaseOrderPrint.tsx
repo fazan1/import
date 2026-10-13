@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { X, Printer, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
 import { supabase } from '../lib/supabase';
+import { companyFor } from '../lib/company';
 
 interface POItem {
   id: string;
@@ -18,6 +19,7 @@ interface PurchaseOrder {
   order_date: string;
   status: string;
   notes: string | null;
+  book?: string | null;
   total_weight_kg: number;
   total_cbm: number;
   suppliers?: { name: string; currency: string };
@@ -81,10 +83,11 @@ export default function PurchaseOrderPrint({ orderId, onClose }: PurchaseOrderPr
 
   if (!order) return null;
 
+  const company = companyFor(order.book);
   const currency = order.suppliers?.currency || 'CNY';
   const items = order.purchase_order_items || [];
   const totalQty = items.reduce((s, i) => s + Number(i.quantity), 0);
-  const totalValue = items.reduce((s, i) => s + i.quantity * i.unit_price_cny, 0);
+  const totalValue = items.reduce((s, i) => s + Number(i.quantity) * (Number(i.unit_price_cny) || 0), 0);
   const totalWeight = items.reduce((s, i) => s + (Number(i.weight_kg) || 0), 0);
   const totalCbm = items.reduce((s, i) => s + (Number(i.cbm) || 0), 0);
   const bill = order.purchase_bills?.[0];
@@ -127,6 +130,8 @@ export default function PurchaseOrderPrint({ orderId, onClose }: PurchaseOrderPr
         <div className="p-8 pb-4 border-b-2 border-gray-900 print:p-6">
           <div className="flex items-start justify-between">
             <div>
+              <p className="text-lg font-bold text-gray-900">{company.name}</p>
+              <p className="text-gray-500 text-xs mb-2">{company.address}</p>
               <h1 className="text-3xl font-bold text-gray-900 tracking-tight">PURCHASE ORDER</h1>
               <p className="text-gray-500 mt-1 text-sm">CN Portal — Internal Document</p>
             </div>
@@ -207,13 +212,13 @@ export default function PurchaseOrderPrint({ orderId, onClose }: PurchaseOrderPr
                   <td className="px-3 py-2.5 text-center text-gray-600">{item.unit}</td>
                   <td className="px-3 py-2.5 text-right text-gray-700">{Number(item.quantity).toLocaleString()}</td>
                   <td className="px-3 py-2.5 text-right text-gray-700">
-                    {item.unit_price_cny.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {Number(item.unit_price_cny || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-3 py-2.5 text-right text-gray-500">
                     {Number(item.weight_kg) > 0 ? Number(item.weight_kg).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                   </td>
                   <td className="px-3 py-2.5 text-right font-semibold text-gray-900">
-                    {(item.quantity * item.unit_price_cny).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {(Number(item.quantity) * Number(item.unit_price_cny || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                 </tr>
               ))}

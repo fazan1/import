@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Landmark, Plus, Printer, Download, Pencil, Trash2, X, Check, Banknote } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { companyFor } from '../lib/company';
 import { esc } from '../lib/html';
 import { getBook, BOOK_ALL, MAIN_BOOKS } from '../lib/book';
 
@@ -17,7 +18,6 @@ const yen = (n: number) => '¥' + n.toLocaleString('en-US', { minimumFractionDig
 const fmtD = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
 const KIND: Record<Line['kind'], string> = { supplier_payment: 'Bill payment', settlement: 'Paid to investor', manual: 'Manual', opening: 'Opening balance' };
 const MODES = ['BANK', 'CASH', 'CHEQUE', 'OTHER'];
-const COMPANY = 'HDR & CO';
 
 type Draft = { id?: string; entry_date: string; direction: 'owe' | 'paid'; currency: 'RMB' | 'LKR'; rmb: string; rate: string; lkr: string; reference: string; note: string; payment_mode: string; kind: Line['kind'] };
 
@@ -101,13 +101,13 @@ export default function InvestorLedger() {
   }
   function print() {
     const rows = shown.map((l) => `<tr><td>${fmtD(l.entry_date)}</td><td>${KIND[l.kind]}</td><td>${esc(l.reference ?? '')}</td><td>${esc(l.note ?? '')}</td><td class="r">${l.rmb != null ? yen(l.rmb) : ''}</td><td class="r">${l.rate ?? ''}</td><td class="r">${l.direction === 'owe' ? rs(l.lkr) : ''}</td><td class="r">${l.direction === 'paid' ? rs(l.lkr) : ''}</td><td class="r">${rs(l.bal)}</td></tr>`).join('');
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     w.document.write(`<html><head><title>Investor statement</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px}h1{font-size:18px;margin:0}h2{font-size:14px;margin:2px 0 12px;color:#555}table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#f3f4f6}.r{text-align:right}.tot td{font-weight:bold;background:#f9fafb}.bal{margin-top:16px;font-size:14px;font-weight:bold}.sig{margin-top:40px;display:flex;justify-content:space-between}.sig div{width:40%;border-top:1px solid #333;padding-top:4px;text-align:center}</style></head><body>
-      <h1>${COMPANY} — Investor statement</h1><h2>${esc(investor?.name ?? '')} · ${month === 'all' ? 'All entries' : esc(month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
+      <h1>${esc(companyFor().name)} — Investor statement</h1><h2>${esc(investor?.name ?? '')} · ${month === 'all' ? 'All entries' : esc(month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
       <table><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th>Note</th><th class="r">RMB</th><th class="r">Rate</th><th class="r">LKR owed</th><th class="r">LKR paid</th><th class="r">Balance</th></tr></thead><tbody>${rows}
       <tr class="tot"><td colspan="6">Totals (${month === 'all' ? 'all' : esc(month)})</td><td class="r">${rs(mOwe)}</td><td class="r">${rs(mPaid)}</td><td></td></tr></tbody></table>
       <p class="bal">Balance owed to ${esc(investor?.name ?? 'investor')} as at ${new Date().toLocaleDateString('en-GB')}: Rs ${rs(balance)}</p>
-      <div class="sig"><div>${COMPANY}</div><div>${esc(investor?.name ?? 'Investor')} — confirmed</div></div>
+      <div class="sig"><div>${esc(companyFor().name)}</div><div>${esc(investor?.name ?? 'Investor')} — confirmed</div></div>
       <script>window.print()</script></body></html>`);
     w.document.close();
   }

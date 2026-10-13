@@ -101,7 +101,8 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
 
       packingLists.forEach((pl) => {
         const items = pl.packing_list_items as PackingListItem[] || [];
-        const plCartons = items.reduce((sum, item) => sum + (item.no_of_pkgs || 0), 0);
+        // the package count is saved on every row of the packing list (same number), so count it once
+        const plCartons = items.reduce((m, item) => Math.max(m, item.no_of_pkgs || 0), 0);
         const plCbm = items.reduce((sum, item) => sum + (item.cbm || 0), 0);
         const plWeight = items.reduce((sum, item) => sum + (item.weight_kg || 0), 0);
 

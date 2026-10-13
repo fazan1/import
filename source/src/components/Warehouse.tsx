@@ -71,9 +71,9 @@ export default function Warehouse() {
   function printPriceList() {
     const rows = products.filter((p) => p.is_active && (p.sell_price ?? 0) > 0 && total(p.id) > 0).sort((a, b) => a.name.localeCompare(b.name));
     if (!rows.length) { alert('No products in stock with a selling price yet. Add prices in Setup → Products.'); return; }
-    const w = window.open('', '_blank'); if (!w) return;
+    const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
     w.document.write(`<html><head><title>Price list</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f6;font-size:11px;text-transform:uppercase}.r{text-align:right}.foot{font-size:10px;color:#666;margin-top:12px}</style></head><body>
-      <h1>BLINE Traders (Pvt) Ltd — Price list</h1><h2>No. 73, Quarry Road, Colombo 12 · 0777 177 344 / 074 343 4772 · ${new Date().toLocaleDateString('en-GB')}</h2>
+      <h1>${COMPANY.name} — Price list</h1><h2>${COMPANY.address} · ${COMPANY.phone} · ${new Date().toLocaleDateString('en-GB')}</h2>
       <table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th class="r">Price (Rs)</th><th class="r">In stock</th></tr></thead><tbody>
       ${rows.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.unit || "")}</td><td class="r"><b>${fmtQ(p.sell_price ?? 0)}</b></td><td class="r">${fmtQ(total(p.id))}</td></tr>`).join('')}
       </tbody></table><p class="foot">Prices exclude delivery and may change without notice. Stock as at time of printing.</p>
@@ -99,7 +99,7 @@ export default function Warehouse() {
     const ls = lines.filter((l) => l.note_id === n.id);
     const k = KIND[n.kind];
     const rows = ls.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(prod(l.product_id)?.name ?? '')}</td><td class="r">${fmtQ(Number(l.qty))}</td><td>${esc(prod(l.product_id)?.unit ?? '')}</td><td>${esc(l.remark ?? '')}</td></tr>`).join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${n.note_no}</title><style>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(n.note_no)}</title><style>
       body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;margin:24px}
       h1{font-size:22px;margin:0}.muted{color:#555}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
       .box{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:14px}.box b{display:inline-block;width:110px;color:#555;font-weight:normal}
@@ -108,7 +108,7 @@ export default function Warehouse() {
       @media print{body{margin:12mm}}
     </style></head><body>
       <div class="hdr"><div><h1>${esc(COMPANY.name)}</h1><div class="muted">${esc(COMPANY.address)} · ${esc(COMPANY.phone)}</div></div>
-      <div style="text-align:right"><div style="font-size:18px;font-weight:bold">${k.label.toUpperCase()}</div><div style="font-size:16px">${n.note_no}</div><div class="muted">${fmtD(n.note_date)}</div></div></div>
+      <div style="text-align:right"><div style="font-size:18px;font-weight:bold">${k.label.toUpperCase()}</div><div style="font-size:16px">${esc(n.note_no)}</div><div class="muted">${fmtD(n.note_date)}</div></div></div>
       <div class="box">
         ${n.kind === 'in' ? `<div><b>Into</b>${esc(locName(n.to_location_id))}</div>` : ''}
         ${n.kind === 'issue' ? `<div><b>From</b>${esc(locName(n.from_location_id))}</div><div><b>Issued to</b>${esc(n.issued_to ?? '')}</div>` : ''}
