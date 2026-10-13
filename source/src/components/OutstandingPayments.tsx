@@ -49,6 +49,12 @@ interface OutstandingPaymentsProps {
   onRecordPayment?: (billId: string) => void;
 }
 
+// today's date on this device (toISOString gives the UTC date, i.e. yesterday before 5:30 am in Sri Lanka)
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const PAYMENT_MODES = ['CASH', 'Ali Pay', 'WeChat Pay', 'Bank Transfer', 'Credit Card', 'Other'];
 
 export default function OutstandingPayments({ initialSupplierId, onRecordPayment }: OutstandingPaymentsProps) {
@@ -66,7 +72,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
   const [paymentModal, setPaymentModal] = useState<PaymentModal | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     voucher_number: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: localToday(),
     payment_mode: 'CASH',
     amount: '',
     narration: '',
@@ -210,7 +216,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
     });
     setPaymentForm({
       voucher_number: '',
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: localToday(),
       payment_mode: 'CASH',
       amount: String(bill.pending_amount.toFixed(2)),
       narration: '',
@@ -681,7 +687,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-6 flex-wrap">
                     <div className="text-right">
                       <p className="text-xs text-gray-500">Total Amount</p>
                       <p className="text-sm font-semibold text-gray-700">{formatCurrency(supplier.bills.reduce((s, b) => s + b.total_amount, 0))}</p>

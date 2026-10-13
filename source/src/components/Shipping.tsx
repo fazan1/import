@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { companyFor } from '../lib/company';
 import { esc } from '../lib/html';
@@ -69,6 +69,8 @@ const emptyForm = {
 };
 
 const fmt = (n: number, d = 0) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+// 'YYYY-MM-DD' -> dd/mm/yyyy without going through UTC (new Date('2026-10-13') can show the day before in some time zones)
+const dmy = (v: string | null) => (!v ? '' : /^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : new Date(v).toLocaleDateString('en-GB'));
 
 export default function Shipping() {
   const { user } = useAuth();
@@ -103,13 +105,15 @@ export default function Shipping() {
     setShipItems({}); // re-read items of opened shipments too
     setLoading(true);
     setError('');
+    // every page (Supabase stops at 1000 rows per call), so CBM / kg / landed totals are complete
     const [sRes, bRes, plRes, cRes] = await Promise.all([
       supabase.from('shipments').select('*').order('created_at', { ascending: false }),
-      supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)'),
-      supabase.from('packing_list_items').select('batch_number, cbm, weight_kg'),
-      supabase.from('costing_duty_sheet').select('batch_number, total_landed_cost, total_sales, total_profit, type, landed_cost_per_unit, qty'),
+      fetchAllPages<unknown>(() => supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('packing_list_items').select('batch_number, cbm, weight_kg').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('costing_duty_sheet').select('batch_number, total_landed_cost, total_sales, total_profit, type, landed_cost_per_unit, qty').order('id')),
     ]);
-    if (sRes.error) setError(sRes.error.message);
+    const loadErr = sRes.error?.message || bRes.error || plRes.error || cRes.error;
+    if (loadErr) setError('Could not load everything: ' + loadErr);
     setShipments((sRes.data || []) as Shipment[]);
 
     type RawBill = {
@@ -201,7 +205,7 @@ export default function Shipping() {
         const { data } = await supabase.rpc('next_shipment_no', { p_mode: form.mode });
         shipmentNo = data as string;
       }
-      const payload = {
+      const payload: Record<string, unknown> = {
         user_id: user.id,
         shipment_no: shipmentNo,
         mode: form.mode,
@@ -215,6 +219,9 @@ export default function Shipping() {
         actual_charges: parseFloat(form.actual_charges) || 0,
         notes: form.notes,
       };
+      // The Charges screen / Packing List keep actual_charges up to date (agent invoice or bulk). Only write it
+      // when it was typed here, so editing ETD/status/notes does not put back an old amount.
+      if (editing && form.actual_charges === (editing.actual_charges ? String(editing.actual_charges) : '')) delete payload.actual_charges;
       const res = editing
         ? await supabase.from('shipments').update(payload).eq('id', editing.id)
         : await supabase.from('shipments').insert(payload);
@@ -239,11 +246,14 @@ export default function Shipping() {
   async function setBillsBatch(billIds: string[], batch: string | null) {
     const r1 = await supabase.from('purchase_bills').update({ batch_number: batch }).in('id', billIds);
     if (r1.error) throw new Error(r1.error.message);
-    const { data: pls } = await supabase.from('pl_input').select('id').in('purchase_bill_id', billIds);
+    const { data: pls, error: e2 } = await supabase.from('pl_input').select('id').in('purchase_bill_id', billIds);
+    if (e2) throw new Error(e2.message);
     const plIds = (pls || []).map((p) => p.id);
     if (plIds.length) {
-      await supabase.from('pl_input').update({ batch_number: batch || '' }).in('id', plIds);
-      await supabase.from('packing_list_items').update({ batch_number: batch }).in('pl_input_id', plIds);
+      const r3 = await supabase.from('pl_input').update({ batch_number: batch || '' }).in('id', plIds);
+      if (r3.error) throw new Error(r3.error.message);
+      const r4 = await supabase.from('packing_list_items').update({ batch_number: batch }).in('pl_input_id', plIds);
+      if (r4.error) throw new Error(r4.error.message);
     }
   }
 
@@ -256,21 +266,17 @@ export default function Shipping() {
   // Shipment summary → new window → browser Print / Save as PDF
   async function printShipment(s: Shipment) {
     const linked = bills.filter((b) => b.batch_number === s.shipment_no);
-    const { data: items } = await supabase
-      .from('packing_list_items')
-      .select('packing_list_no, item_name, quantity, unit, no_of_pkgs, weight_kg, cbm')
-      .eq('batch_number', s.shipment_no)
-      .order('packing_list_no', { ascending: true });
-    const { data: cost } = await supabase
-      .from('costing_duty_sheet')
-      .select('description, qty, unit_price_cny, cny_rate, duty_per_unit, landed_cost_per_unit, total_landed_cost, type')
-      .eq('batch_number', s.shipment_no);
     const w = window.open('', '_blank', 'width=900,height=1000');
     if (!w) { alert('Pop-up blocked — allow pop-ups for this site to print.'); return; }
+    const [{ data: items, error: e1 }, { data: cost, error: e2 }] = await Promise.all([
+      fetchAllPages<unknown>(() => supabase.from('packing_list_items').select('packing_list_no, item_name, quantity, unit, no_of_pkgs, weight_kg, cbm').eq('batch_number', s.shipment_no).order('packing_list_no', { ascending: true }).order('id')),
+      fetchAllPages<unknown>(() => supabase.from('costing_duty_sheet').select('description, qty, unit_price_cny, cny_rate, duty_per_unit, landed_cost_per_unit, total_landed_cost, type').eq('batch_number', s.shipment_no).order('id')),
+    ]);
+    if (e1 || e2) { w.close(); alert('Could not load the shipment for printing: ' + (e1 || e2)); return; }
     const rows = (items || []) as { packing_list_no: string; item_name: string; quantity: number; unit: string; no_of_pkgs: number; weight_kg: number; cbm: number }[];
     const crow = (cost || []) as { description: string; qty: number; unit_price_cny: number; cny_rate: number; duty_per_unit: number; landed_cost_per_unit: number; total_landed_cost: number; type: string }[];
     const n = (v: number, d = 2) => (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
-    const d = (v: string | null) => (v ? new Date(v).toLocaleDateString('en-GB') : '—');
+    const d = (v: string | null) => (v ? dmy(v) : '—');
     // packages are entered once per PL number (its first row), same as the Packing List screen
     const firstOfPl = (r: { packing_list_no: string }, i: number) => rows.findIndex((x) => x.packing_list_no === r.packing_list_no) === i;
     const tCbm = rows.reduce((a, r) => a + (Number(r.cbm) || 0), 0), tKg = rows.reduce((a, r) => a + (Number(r.weight_kg) || 0), 0), tPk = rows.reduce((a, r, i) => a + (firstOfPl(r, i) ? Number(r.no_of_pkgs) || 0 : 0), 0);
@@ -317,15 +323,16 @@ export default function Shipping() {
 
   async function remove(s: Shipment) {
     const linked = bills.filter((b) => b.batch_number === s.shipment_no);
-    const msg = linked.length
+    const msg = (linked.length
       ? `Delete shipment ${s.shipment_no}? Its ${linked.length} bill(s) will be unlinked (not deleted) and their packing lists will lose the batch number.`
-      : `Delete shipment ${s.shipment_no}?`;
+      : `Delete shipment ${s.shipment_no}?`) + ' The shipping charges typed for it (Charges screen and Costing) are deleted too.';
     if (!confirm(msg)) return;
     setSaving(true);
     try {
-      if (linked.length) await setBillsBatch(linked.map((b) => b.id), null);
+      // delete first: if the delete is refused, the bills stay linked (unlinking first left them loose)
       const { error } = await supabase.from('shipments').delete().eq('id', s.id);
       if (error) throw new Error(error.message);
+      if (linked.length) await setBillsBatch(linked.map((b) => b.id), null);
       await loadAll();
     } catch (e) {
       setError((e as Error).message);
@@ -382,7 +389,7 @@ export default function Shipping() {
           No shipments yet. Create one, tick the bills going in it, and the batch number is set for you.
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600 text-xs uppercase">
               <tr>
@@ -405,8 +412,8 @@ export default function Shipping() {
                 const linked = bills.filter((b) => b.batch_number === s.shipment_no);
                 const open = expanded === s.id;
                 return (
-                  <>
-                    <tr key={s.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(open ? null : s.id)}>
+                  <Fragment key={s.id}>
+                    <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(open ? null : s.id)}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {s.mode === 'FCL' ? <Container className="w-4 h-4 text-teal-600" /> : <Boxes className="w-4 h-4 text-amber-600" />}
@@ -434,7 +441,7 @@ export default function Shipping() {
                           {STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
                         </select>
                       </td>
-                      <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{s.eta ? new Date(s.eta).toLocaleDateString('en-GB') : '—'}</td>
+                      <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{s.eta ? dmy(s.eta) : '—'}</td>
                       <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <button onClick={() => setCharging(s as unknown as ChargeShipment)} className="px-2 py-1 mr-1 text-xs font-semibold border border-teal-600 text-teal-700 rounded hover:bg-teal-50 inline-flex items-center gap-1" title="Bulk shipping amount and the agent account"><Banknote className="w-3.5 h-3.5" />Charges</button>
                         <button onClick={() => printShipment(s)} className="p-1.5 text-gray-500 hover:text-teal-700" title="Print / Save as PDF"><Printer className="w-4 h-4" /></button>
@@ -443,7 +450,7 @@ export default function Shipping() {
                       </td>
                     </tr>
                     {open && (
-                      <tr key={`${s.id}-x`} className="bg-gray-50">
+                      <tr className="bg-gray-50">
                         <td colSpan={11} className="px-6 py-3">
                           {linked.length === 0 ? (
                             <p className="text-sm text-gray-500">No bills linked yet — click Edit and tick the bills going in this shipment.</p>
@@ -455,7 +462,7 @@ export default function Shipping() {
                                   <tr key={b.id} className="border-t border-gray-200">
                                     <td className="py-1 font-medium">{b.cnv_invoice_number || b.bill_number}</td>
                                     <td className="py-1">{b.supplier_name}</td>
-                                    <td className="py-1">{b.bill_date ? new Date(b.bill_date).toLocaleDateString('en-GB') : ''}</td>
+                                    <td className="py-1">{dmy(b.bill_date)}</td>
                                     <td className="py-1 text-right">{fmt(b.total_cny, 2)}</td>
                                   </tr>
                                 ))}
@@ -497,7 +504,7 @@ export default function Shipping() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -590,7 +597,7 @@ export default function Shipping() {
                         <span className="font-medium sm:w-28">{b.cnv_invoice_number || b.bill_number}</span>
                         {b.batch_number && !shipmentNos.has(b.batch_number) && <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">old batch {b.batch_number}</span>}
                         <span className="flex-1 text-gray-700 truncate">{b.supplier_name}</span>
-                        <span className="text-xs text-gray-500">{b.bill_date ? new Date(b.bill_date).toLocaleDateString('en-GB') : ''}</span>
+                        <span className="text-xs text-gray-500">{dmy(b.bill_date)}</span>
                         <span className="text-xs text-gray-700 sm:w-24 text-right ml-auto">¥{fmt(b.total_cny, 0)}</span>
                       </label>
                     ))}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import { esc } from '../lib/html';
 import { companyFor } from '../lib/company';
 import { Package, ChevronDown, ChevronRight, Search, Printer, X, Building2, FileDown } from 'lucide-react';
@@ -51,7 +52,9 @@ export default function BatchInvoice() {
     void supabase;
 
     if (error) {
-      const { data: fallbackData, error: fallbackError } = await supabase
+      // every page (Supabase stops at 1000 rows per call)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: fallbackData, error: fallbackError } = await fetchAllPages<any>(() => supabase
         .from('purchase_bills')
         .select(`
           batch_number,
@@ -70,11 +73,12 @@ export default function BatchInvoice() {
           )
         `)
         .not('batch_number', 'is', null)
-        .order('batch_number');
+        .order('batch_number')
+        .order('id'));
 
       if (fallbackError) {
         console.error('Error loading batch data:', fallbackError);
-        alert('Batch Invoice could not load bills: ' + fallbackError.message);
+        alert('Batch Invoice could not load bills: ' + fallbackError);
         setLoading(false);
         return;
       }
@@ -83,11 +87,14 @@ export default function BatchInvoice() {
 
       for (const bill of fallbackData || []) {
         const batchNum = bill.batch_number || 'Unknown';
-        const po = bill.purchase_orders as unknown as { suppliers: { name: string }, total_weight_kg: number, total_cbm: number, purchase_order_items: Array<{ item_name: string, quantity: number, unit: string, unit_price_cny: number }> };
+        type Po = { suppliers: { name: string } | { name: string }[] | null, total_weight_kg: number, total_cbm: number, purchase_order_items: Array<{ item_name: string, quantity: number, unit: string, unit_price_cny: number }> };
+        const poRaw = bill.purchase_orders as unknown as Po | Po[] | null;
+        const po = Array.isArray(poRaw) ? poRaw[0] : poRaw;
 
         if (!po) continue;
 
-        const supplierName = po.suppliers?.name || 'Unknown Supplier';
+        const sup = Array.isArray(po.suppliers) ? po.suppliers[0] : po.suppliers;
+        const supplierName = sup?.name || 'Unknown Supplier';
         const poItems = po.purchase_order_items || [];
         // prefer what was actually billed; fall back to the PO lines
         const billed = (bill.purchase_bill_items as unknown as Array<{ item_name: string; quantity_received: number; unit_price_cny: number }> | null) || [];
@@ -452,17 +459,17 @@ export default function BatchInvoice() {
       <div className="space-y-3">
         {filteredBatches.map((batch) => (
           <div key={batch.batch_number} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-visible">
-            <div className="px-4 py-3 flex items-center justify-between bg-gray-50 border-b border-gray-200 overflow-visible">
+            <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 bg-gray-50 border-b border-gray-200 overflow-visible">
               <button
                 onClick={() => toggleBatch(batch.batch_number)}
-                className="flex items-center space-x-3 flex-1"
+                className="flex items-center space-x-3 flex-1 min-w-0"
               >
                 {expandedBatches.has(batch.batch_number) ? (
                   <ChevronDown className="w-5 h-5 text-gray-400" />
                 ) : (
                   <ChevronRight className="w-5 h-5 text-gray-400" />
                 )}
-                <div className="flex items-center space-x-3">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 text-left">
                   <span className="font-bold text-teal-700 text-lg">BATCH {batch.batch_number}</span>
                   <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-sm rounded-full">
                     {batch.items.length} items

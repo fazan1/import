@@ -222,6 +222,7 @@ export default function CostingDutySheet() {
       if (res.error) err = err || `Could not read the item charges from Shipping: ${res.error}`;
       map = res.map;
       const pc = await loadPlCharges(ship.id);           // the bulk side: charges per packing list in Shipping
+      if (pc.error && !pc.missing) err = err || `Could not read the packing list charges from Shipping: ${pc.error}`;
       if (!pc.error && pc.map.size > 0) ship.plTotal = [...pc.map.values()].reduce((t, c) => t + c.amount, 0);
     }
     if (batchToken.current !== batch) return;
@@ -395,8 +396,11 @@ export default function CostingDutySheet() {
     if (!confirm('Delete this row?')) return;
     const { error } = await supabase.from('costing_duty_sheet').delete().eq('id', id);
     if (error) { alert(`Could not delete the row.\n\n${error.message}`); return; }
+    const gone = records.find(r => r.id === id);
     setRecords(prev => prev.filter(r => r.id !== id));
     setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
+    // a split item's other lines now carry its whole charge
+    if (gone && isCharged(gone)) await resyncCharges();
   }
 
   async function deleteSelected() {
@@ -412,6 +416,7 @@ export default function CostingDutySheet() {
       }
     }
     setSelectedIds(new Set());
+    if (records.some(r => ids.includes(r.id) && isCharged(r))) await resyncCharges();
     await loadRecords();
     setSaving(false);
   }
@@ -436,8 +441,23 @@ export default function CostingDutySheet() {
       // the database works out cost LKR, landed, profit and totals: keep its row
       const updated = parseRow(data as Record<string, unknown>);
       setRecords(prev => prev.map(r => r.id === id ? updated : r));
+      // qty changed on a charged item: its charge per unit (item charge / costing qty) must be worked out again
+      if ('qty' in patch && isCharged(updated)) await resyncCharges();
     }
     setSaving(false);
+  }
+
+  /** a packing-list line whose item has a shipping charge (its per-unit depends on the costing qty) */
+  function isCharged(r: CostingRecord) {
+    return !!r.packing_list_item_id && !!shipInfo && chargeCols === true && itemCharges.has(r.packing_list_item_id);
+  }
+
+  /** work the charge per unit out again (after a qty change or a deleted line of a split item) */
+  async function resyncCharges() {
+    if (!activeBatch || !chargeCols || !shipInfo) return;
+    const res = await syncCostingCharges(activeBatch);
+    if (res.error) setShipError(`Could not bring the shipping charges in: ${res.error}`);
+    else if (res.updated > 0) await loadRecords();
   }
 
   async function updateGlobalCnyRate(rate: number) {
@@ -518,7 +538,7 @@ export default function CostingDutySheet() {
     const editableFields = ['description', 'qty', 'unit', 'unit_price_cny', 'selling_price', 'charge_per_unit', 'ship_rate', 'ship_fixed'];
     if (!editableFields.includes(field)) return;
     if (field === 'charge_per_unit' && !canEditShipping(r)) return;
-    if ((field === 'ship_rate' || field === 'ship_fixed') && !chargeable(r)) return;
+    if ((field === 'ship_rate' || field === 'ship_fixed') && (!chargeable(r) || saving)) return;   // wait for the last charge to save
     setEditingCell({ id: r.id, field });
     setEditingValue(String(currentValue));
   }

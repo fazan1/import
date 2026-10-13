@@ -77,10 +77,12 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   }
 
   async function loadCharges() {
-    await refreshShipmentCharges(shipment.id);           // kg / CBM may have changed in Packing List
+    const fr = await refreshShipmentCharges(shipment.id);           // kg / CBM may have changed in Packing List
     const [pc, ic] = await Promise.all([loadPlCharges(shipment.id), loadItemCharges(shipment.id)]);
     if (pc.missing) setNoPlTable(true);
     else if (pc.error) throw new Error(`Could not load the charges: ${pc.error}`);
+    if (ic.error) throw new Error(`Could not load the costing charges: ${ic.error}`);
+    if (fr.error && !pc.missing) setMsg(`The charges could not be brought up to date with Packing List: ${fr.error}`);
     setPlCharges(pc.map);
     setItemCharges(ic.map);
     return { pc: pc.map, ic: ic.map };
@@ -177,7 +179,8 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       }
 
       // 2. the shipment: total billed = the agent's invoice when typed, else the packing lists
-      const up: Record<string, unknown> = { agent_id: agentId || null, agent_invoice: invoiceV, actual_charges: r2(billAmount) };
+      // (same rule as refreshShipmentCharges: other charges are added when there is no agent's invoice)
+      const up: Record<string, unknown> = { agent_id: agentId || null, agent_invoice: invoiceV, actual_charges: r2(invoiceV > 0 ? invoiceV : bulk + (Number(shipment.other_charges) || 0)) };
       if (agent) up.forwarder = agent.name;
       const { error: e3 } = await supabase.from('shipments').update(up).eq('id', shipment.id);
       if (e3) throw new Error(e3.message);
@@ -227,7 +230,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
 
   const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm';
   return (
-    <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4" onClick={() => !saving && close()}>
+    <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4">
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-4xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
           <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Kg / CBM / pieces come from Packing List. Pick the type and type the rate for each packing list. Costing is done separately and compared here.</p></div>

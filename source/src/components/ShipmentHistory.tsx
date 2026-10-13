@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import { Package, Building2, Calendar, ChevronDown, ChevronRight, Search, ListFilter as Filter, Truck, CircleCheck as CheckCircle, Clock, Ship, Box, Hash, FileText, RefreshCw, Printer } from 'lucide-react';
 import ShipmentHistoryPrint from './ShipmentHistoryPrint';
 
@@ -64,7 +65,9 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
   async function loadShipmentHistory() {
     setLoading(true);
 
-    const { data: packingLists } = await supabase
+    // every page (Supabase stops at 1000 rows per call), so the totals are complete
+    type PlRaw = { id: string; packing_list_no: string | null; supplier_name: string | null; status: string | null; date: string | null; batch_number: string | null; packing_list_items: PackingListItem[] | null };
+    const { data: packingLists, error: plErr } = await fetchAllPages<PlRaw>(() => supabase
       .from('pl_input')
       .select(`
         id,
@@ -72,6 +75,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
         supplier_name,
         status,
         date,
+        batch_number,
         packing_list_items (
           id,
           item_name,
@@ -82,15 +86,13 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
           weight_kg
         )
       `)
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('id'));
+    if (plErr) alert('Shipment History could not load all packing lists: ' + plErr);
 
-    const { data: bills } = await supabase
-      .from('purchase_bills')
-      .select('batch_number')
-      .not('batch_number', 'is', null);
-
-    const batches = [...new Set(bills?.map(b => b.batch_number).filter(Boolean) || [])];
-    setAllBatches(batches as string[]);
+    // the batch filter lists the batches the packing lists are in (the filter compares the packing list's batch)
+    const batches = [...new Set(packingLists.map((pl) => pl.batch_number || '').filter(Boolean))].sort();
+    setAllBatches(batches);
 
     if (packingLists) {
       const supplierMap = new Map<string, SupplierShipments>();
@@ -100,7 +102,8 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
       let totalWeight = 0;
 
       packingLists.forEach((pl) => {
-        const items = pl.packing_list_items as PackingListItem[] || [];
+        const items = pl.packing_list_items || [];
+        const supplierName = pl.supplier_name || '(no supplier)';
         // the package count is saved on every row of the packing list (same number), so count it once
         const plCartons = items.reduce((m, item) => Math.max(m, item.no_of_pkgs || 0), 0);
         const plCbm = items.reduce((sum, item) => sum + (item.cbm || 0), 0);
@@ -108,26 +111,26 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
 
         const packingList: PackingList = {
           id: pl.id,
-          packing_list_no: pl.packing_list_no,
-          supplier_name: pl.supplier_name,
-          status: pl.status,
-          date: pl.date,
-          batch_number: null,
+          packing_list_no: pl.packing_list_no || '',
+          supplier_name: supplierName,
+          status: pl.status || '',
+          date: pl.date || '',
+          batch_number: pl.batch_number || null,
           total_cartons: plCartons,
           total_cbm: plCbm,
           total_weight: plWeight,
           items,
         };
 
-        const existing = supplierMap.get(pl.supplier_name);
+        const existing = supplierMap.get(supplierName);
         if (existing) {
           existing.total_shipments += 1;
           existing.total_cartons += plCartons;
           existing.total_cbm += plCbm;
           existing.packing_lists.push(packingList);
         } else {
-          supplierMap.set(pl.supplier_name, {
-            supplier_name: pl.supplier_name,
+          supplierMap.set(supplierName, {
+            supplier_name: supplierName,
             total_shipments: 1,
             total_cartons: plCartons,
             total_cbm: plCbm,
@@ -201,20 +204,31 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
     }
   }
 
-  const filteredShipments = shipments.map(supplier => ({
-    ...supplier,
-    packing_lists: supplier.packing_lists.filter(pl => {
+  const filteredShipments = shipments.map(supplier => {
+    const pls = supplier.packing_lists.filter(pl => {
       const matchesSearch =
         pl.packing_list_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pl.supplier_name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || pl.status.toLowerCase() === statusFilter.toLowerCase();
       const matchesBatch = !batchFilter || pl.batch_number === batchFilter;
       return matchesSearch && matchesStatus && matchesBatch;
-    })
-  })).filter(supplier =>
-    supplier.supplier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    supplier.packing_lists.length > 0
-  );
+    });
+    // supplier totals follow the filter (they showed every packing list even when filtered)
+    return {
+      ...supplier,
+      packing_lists: pls,
+      total_shipments: pls.length,
+      total_cartons: pls.reduce((t, pl) => t + pl.total_cartons, 0),
+      total_cbm: pls.reduce((t, pl) => t + pl.total_cbm, 0),
+    };
+  }).filter(supplier => supplier.packing_lists.length > 0);
+  const isFiltered = !!searchTerm || statusFilter !== 'all' || !!batchFilter;
+  const shownTotals = !isFiltered ? totals : filteredShipments.reduce((t, s) => ({
+    shipments: t.shipments + s.packing_lists.length,
+    cartons: t.cartons + s.total_cartons,
+    cbm: t.cbm + s.total_cbm,
+    weight: t.weight + s.packing_lists.reduce((w, pl) => w + pl.total_weight, 0),
+  }), { shipments: 0, cartons: 0, cbm: 0, weight: 0 });
 
   if (loading) {
     return (
@@ -226,7 +240,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-cyan-500 to-teal-600 rounded-xl">
             <Ship className="w-6 h-6 text-white" />
@@ -261,7 +275,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Shipments</p>
-              <p className="text-2xl font-bold text-gray-900">{totals.shipments}</p>
+              <p className="text-2xl font-bold text-gray-900">{shownTotals.shipments}</p>
             </div>
           </div>
         </div>
@@ -273,7 +287,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Cartons</p>
-              <p className="text-2xl font-bold text-gray-900">{totals.cartons.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{shownTotals.cartons.toLocaleString()}</p>
             </div>
           </div>
         </div>
@@ -285,7 +299,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
             </div>
             <div>
               <p className="text-sm text-gray-500">Total CBM</p>
-              <p className="text-2xl font-bold text-gray-900">{totals.cbm.toFixed(2)}</p>
+              <p className="text-2xl font-bold text-gray-900">{shownTotals.cbm.toFixed(2)}</p>
             </div>
           </div>
         </div>
@@ -297,7 +311,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Weight</p>
-              <p className="text-2xl font-bold text-gray-900">{totals.weight.toFixed(1)} kg</p>
+              <p className="text-2xl font-bold text-gray-900">{shownTotals.weight.toFixed(1)} kg</p>
             </div>
           </div>
         </div>
@@ -412,7 +426,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
                               <div className="flex items-center gap-3 text-xs text-gray-500 mt-1">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
-                                  {new Date(pl.date).toLocaleDateString()}
+                                  {pl.date ? new Date(pl.date.slice(0, 10) + 'T00:00:00').toLocaleDateString('en-GB') : '—'}
                                 </span>
                                 {pl.batch_number && (
                                   <span className="flex items-center gap-1">
@@ -437,7 +451,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
                         </button>
 
                         {expandedPLs.has(pl.id) && pl.items.length > 0 && (
-                          <div className="bg-gray-50 px-5 py-3">
+                          <div className="bg-gray-50 px-5 py-3 overflow-x-auto">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="text-xs text-gray-500 uppercase">
@@ -462,7 +476,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
                               <tfoot className="border-t border-gray-300 font-medium">
                                 <tr>
                                   <td className="py-2">Total</td>
-                                  <td className="py-2 text-right">{pl.items.reduce((s, i) => s + i.quantity, 0)}</td>
+                                  <td className="py-2 text-right">{pl.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)}</td>
                                   <td className="py-2 text-right">{pl.total_cartons}</td>
                                   <td className="py-2 text-right">{pl.total_cbm.toFixed(3)}</td>
                                   <td className="py-2 text-right">{pl.total_weight.toFixed(1)} kg</td>
@@ -484,7 +498,7 @@ export default function ShipmentHistory({ initialSupplier, initialBatch }: Shipm
         <ShipmentHistoryPrint
           shipments={filteredShipments}
           batchFilter={batchFilter || undefined}
-          totals={totals}
+          totals={shownTotals}
           onClose={() => setShowPrintView(false)}
         />
       )}

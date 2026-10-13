@@ -86,6 +86,7 @@ export default function ProductReference() {
 
     if (error) {
       console.error('Load error:', error);
+      alert('Could not load products: ' + error.message);
     } else if (data) {
       setProducts(data);
     }
@@ -236,7 +237,11 @@ export default function ProductReference() {
       return;
     }
 
-    await supabase.from('alibaba_products').delete().eq('id', product.id);
+    const { error } = await supabase.from('alibaba_products').delete().eq('id', product.id);
+    if (error) {
+      alert('Could not delete the product (a copy was put in the Recycle Bin; remove it there): ' + error.message);
+      return;
+    }
     loadProducts();
   }
 
@@ -337,12 +342,12 @@ export default function ProductReference() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Product Reference</h1>
           <p className="text-sm text-gray-500 mt-1">Alibaba product details for quick customer replies</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {filteredProducts.length > 0 && (
             <>
               <button

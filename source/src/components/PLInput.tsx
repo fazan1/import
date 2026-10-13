@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { fetchAllPages } from '../lib/fetchAll';
 import { Package, Plus, Check, Clock, Truck, CircleCheck as CheckCircle, Search, RefreshCw, Trash2, X, FileText, Calendar, ChevronDown, History, ChevronRight, Building2, CircleAlert as AlertCircle } from 'lucide-react';
 
 interface PLInputRecord {
@@ -61,6 +62,12 @@ function batchesAreSame(a: string, b: string): boolean {
   return a === b;
 }
 
+// today's date on this device (toISOString gives the UTC date, i.e. yesterday early in the morning in Sri Lanka/China)
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function canonicalizeBatch(batches: string[]): string {
   // prefer the padded form (e.g. "02" over "2")
   const sorted = [...batches].sort((a, b) => b.length - a.length || b.localeCompare(a));
@@ -75,6 +82,7 @@ export default function PLInput() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const importingRef = useRef(false);
+  const batchAtFocusRef = useRef<Record<string, string | null>>({}); // batch before typing, so an unchanged box saves nothing
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -89,7 +97,7 @@ export default function PLInput() {
   const [manualEntry, setManualEntry] = useState({
     supplier_name: '',
     shipper_name: '',
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocal(),
   });
 
   const [shipmentNos, setShipmentNos] = useState<string[]>([]);
@@ -107,13 +115,16 @@ export default function PLInput() {
   }
 
   async function loadAllRecords() {
-    const { data, error } = await supabase
+    // all pages: past 1000 records the newest batches (and the "already imported" check) would go missing
+    const { data, error } = await fetchAllPages<PLInputRecord>(() => supabase
       .from('pl_input')
       .select('*')
-      .order('date', { ascending: false });
+      .order('date', { ascending: false })
+      .order('id', { ascending: true }));
 
     if (error) {
       console.error('Error loading PL Input records:', error);
+      alert('Could not load PL Input: ' + error);
       return;
     }
 
@@ -159,7 +170,7 @@ export default function PLInput() {
   }
 
   async function loadAvailableBills() {
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllPages<{ id: string; bill_date: string; batch_number: string | null; purchase_orders: unknown; purchase_bill_items: unknown }>(() => supabase
       .from('purchase_bills')
       .select(`
         id,
@@ -171,7 +182,8 @@ export default function PLInput() {
         ),
         purchase_bill_items (id)
       `)
-      .order('bill_date', { ascending: false });
+      .order('bill_date', { ascending: false })
+      .order('id', { ascending: true }));
 
     if (error) {
       console.error('Error loading purchase bills:', error);
@@ -208,10 +220,10 @@ export default function PLInput() {
     if (billsToAdd.length === 0) { alert('These bills are already in PL Input.'); return; }
     const targetBatch = addFormSelectedBatch.canonicalBatch;
 
-    // Count existing non-manual records in THIS batch only so numbering starts fresh per batch
-    const existingInBatch = records.filter(
-      (r) => !r.packing_list_no.startsWith('M') && r.batch_number && batchesAreSame(r.batch_number, targetBatch)
-    ).length;
+    // Next number after the HIGHEST existing PL number in THIS batch (counting them gave a duplicate number after a delete)
+    const existingInBatch = records
+      .filter((r) => !r.packing_list_no.startsWith('M') && r.batch_number && batchesAreSame(r.batch_number, targetBatch))
+      .reduce((max, r) => { const n = parseInt(r.packing_list_no, 10); return isNaN(n) ? max : Math.max(max, n); }, 0);
 
     const inserts = billsToAdd.map((bill, idx) => ({
       purchase_bill_id: bill.id,
@@ -255,10 +267,11 @@ export default function PLInput() {
       for (const plRecord of inserted) {
         if (!plRecord.purchase_bill_id) continue;
 
-        const { data: billItems } = await supabase
+        const { data: billItems, error: itemsErr } = await supabase
           .from('purchase_bill_items')
           .select('id, item_name, quantity_received, unit')
           .eq('purchase_bill_id', plRecord.purchase_bill_id);
+        if (itemsErr) alert(`PL ${plRecord.packing_list_no}: could not read the bill items (${itemsErr.message}). Create its lines from Packing List.`);
 
         if (!billItems || billItems.length === 0) continue;
 
@@ -321,6 +334,7 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error adding manual PL Input:', error);
+      alert('Could not add the entry: ' + error.message);
       return;
     }
 
@@ -328,7 +342,7 @@ export default function PLInput() {
     setManualEntry({
       supplier_name: '',
       shipper_name: '',
-      date: new Date().toISOString().split('T')[0],
+      date: todayLocal(),
     });
     loadAllRecords();
   }
@@ -358,6 +372,7 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error updating record:', error);
+      alert('Could not save the tick: ' + error.message);
       return;
     }
 
@@ -377,6 +392,8 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error updating shipper name:', error);
+      alert('Could not save the shipper name: ' + error.message);
+      loadAllRecords();
       return;
     }
 
@@ -386,6 +403,11 @@ export default function PLInput() {
   }
 
   async function updateBatchNumber(id: string, value: string) {
+    if (id in batchAtFocusRef.current) {
+      const before = batchAtFocusRef.current[id];
+      delete batchAtFocusRef.current[id];
+      if ((before || '') === value) return; // nothing changed
+    }
     const { error } = await supabase
       .from('pl_input')
       .update({ batch_number: value || null })
@@ -393,8 +415,17 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error updating batch number:', error);
+      alert('Could not save the batch: ' + error.message);
+      loadAllRecords();
       return;
     }
+
+    // move this PL's packing list lines to the same batch (as Shipping does), so the PL is not split across two batches
+    const { error: linesErr } = await supabase
+      .from('packing_list_items')
+      .update({ batch_number: value || '' })
+      .eq('pl_input_id', id);
+    if (linesErr) alert('The batch was saved, but its packing list lines could not be moved: ' + linesErr.message);
 
     setRecords((prev) =>
       prev.map((r) => (r.id === id ? { ...r, batch_number: value || null } : r))
@@ -427,6 +458,7 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error deleting record:', error);
+      alert('Could not delete the record (a copy was put in the Recycle Bin; remove it there): ' + error.message);
       return;
     }
 
@@ -560,7 +592,7 @@ export default function PLInput() {
   };
 
   const batchSummary = allBatches.map((b) => {
-    const batchRows = records.filter((r) => r.batch_number === b);
+    const batchRows = records.filter((r) => !!r.batch_number && batchesAreSame(r.batch_number, b));
     const complete = batchRows.filter((r) => r.status === 'Complete').length;
     const dates = batchRows.map((r) => r.date).filter(Boolean).sort();
     return {
@@ -583,9 +615,9 @@ export default function PLInput() {
   return (
     <div className="space-y-6">
       <datalist id="pl-shipment-list">{shipmentNos.map((n) => <option key={n} value={n} />)}</datalist>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-2xl font-bold text-gray-900">PL Input</h2>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={loadData}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -767,8 +799,8 @@ export default function PLInput() {
 
       {/* Batch History Modal */}
       {showBatchHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Batch History</h3>
@@ -1119,7 +1151,7 @@ export default function PLInput() {
                   setManualEntry({
                     supplier_name: '',
                     shipper_name: '',
-                    date: new Date().toISOString().split('T')[0],
+                    date: todayLocal(),
                   });
                 }}
                 className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -1196,6 +1228,7 @@ export default function PLInput() {
                       type="text"
                       list="pl-shipment-list"
                       value={record.batch_number || ''}
+                      onFocus={() => { if (!(record.id in batchAtFocusRef.current)) batchAtFocusRef.current[record.id] = record.batch_number; }}
                       onChange={(e) => editLocal(record.id, 'batch_number', e.target.value)}
                       onBlur={(e) => updateBatchNumber(record.id, e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}

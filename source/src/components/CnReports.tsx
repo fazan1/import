@@ -69,7 +69,7 @@ export default function CnReports() {
       const total = (x.purchase_bill_items ?? []).reduce((t, i) => t + (Number(i.quantity_received) || 0) * (Number(i.unit_price_cny) || 0), 0);
       const paid = Number(x.amount_paid) || 0, bal = total - paid;
       return {
-        id: x.id, no: [x.bill_number, x.cnv_invoice_number].filter(Boolean).join(' / ') || '—', date: x.bill_date, batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '(no supplier)',
+        id: x.id, no: [x.bill_number, x.cnv_invoice_number].filter(Boolean).join(' / ') || '—', date: x.bill_date || '', batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '(no supplier)',
         total, paid, bal, rate: Number(x.exchange_rate) || 0,
         status: total <= 0 ? 'Empty' : bal > 0.5 ? (paid > 0.5 ? 'Part paid' : 'Unpaid') : bal < -0.5 ? 'Overpaid' : 'Paid',
       };
@@ -77,11 +77,11 @@ export default function CnReports() {
     type PRaw = { payment_date: string; voucher_number: string | null; payment_mode: string | null; amount: number; rate_lkr: number | null; funded_by: string | null; purchase_bills: { bill_number: string | null; cnv_invoice_number: string | null; batch_number: string | null; exchange_rate: number | null; purchase_orders: { suppliers: { name: string } | null } | null } | null };
     setPays(((p.data ?? []) as unknown as PRaw[]).map((x) => {
       const rate = Number(x.rate_lkr) || Number(x.purchase_bills?.exchange_rate) || 0, rmb = Number(x.amount) || 0;
-      return { date: x.payment_date, voucher: x.voucher_number || '', supplier: x.purchase_bills?.purchase_orders?.suppliers?.name || '(no supplier)', bill: x.purchase_bills?.bill_number || x.purchase_bills?.cnv_invoice_number || '', batch: x.purchase_bills?.batch_number || '', mode: x.payment_mode || '', rmb, rate, lkr: rmb * rate, funded: x.funded_by === 'investor' ? 'Investor' : 'Own' };
+      return { date: x.payment_date || '', voucher: x.voucher_number || '', supplier: x.purchase_bills?.purchase_orders?.suppliers?.name || '(no supplier)', bill: x.purchase_bills?.bill_number || x.purchase_bills?.cnv_invoice_number || '', batch: x.purchase_bills?.batch_number || '', mode: x.payment_mode || '', rmb, rate, lkr: rmb * rate, funded: x.funded_by === 'investor' ? 'Investor' : 'Own' };
     }));
     type SRaw = { shipment_no: string; mode: string; forwarder: string | null; eta: string | null; status: string; actual_charges: number | null; created_at: string };
     setShips(((s.data ?? []) as SRaw[]).map((x) => ({ no: x.shipment_no, mode: x.mode, forwarder: x.forwarder || '', eta: x.eta || '', status: x.status, charges: Number(x.actual_charges) || 0, created: x.created_at.slice(0, 10) })));
-    setLed(((l.data ?? []) as { entry_date: string; direction: 'owe' | 'paid'; lkr: number }[]).map((x) => ({ date: x.entry_date, dir: x.direction, lkr: Number(x.lkr) || 0 })));
+    setLed(((l.data ?? []) as { entry_date: string; direction: 'owe' | 'paid'; lkr: number }[]).map((x) => ({ date: x.entry_date || '', dir: x.direction, lkr: Number(x.lkr) || 0 })));
     // freight per bill (other charges split by share inside each shipment)
     type SRaw2 = { id: string; shipment_no: string; other_charges: number | null };
     const shipById = new Map(((s.data ?? []) as unknown as SRaw2[]).map((x) => [x.id, x]));
@@ -98,7 +98,7 @@ export default function CnReports() {
       return { ship: sh.shipment_no, bill: bl?.bill_number || bl?.cnv_invoice_number || '—', supplier: bl?.purchase_orders?.suppliers?.name || '—', basis: x.basis, qty: Number(x.qty) || 0, rate: Number(x.rate) || 0, amount: amt, other: share, billRmb: rmb, billRate: Number(bl?.exchange_rate) || 0 };
     }));
     type ARaw = { entry_date: string; kind: 'charge' | 'payment'; amount: number; reference: string | null; clearing_agents: { name: string } | null };
-    setAg(((a.data ?? []) as unknown as ARaw[]).map((x) => ({ agent: x.clearing_agents?.name || '—', date: x.entry_date, kind: x.kind, amount: Number(x.amount) || 0, ref: x.reference || '' })));
+    setAg(((a.data ?? []) as unknown as ARaw[]).map((x) => ({ agent: x.clearing_agents?.name || '—', date: x.entry_date || '', kind: x.kind, amount: Number(x.amount) || 0, ref: x.reference || '' })));
     setLoading(false);
   }
 
@@ -216,6 +216,8 @@ export default function CnReports() {
       // the balance is everything up to the "To" date (not only the chosen period): what we really owe the agent
       const owed = new Map<string, number>();
       ag.filter((x) => !to || x.date <= to).forEach((x) => owed.set(x.agent, (owed.get(x.agent) || 0) + (x.kind === 'charge' ? x.amount : -x.amount)));
+      // agents with no entries in the period still owe their balance: list them too, so the balance total is complete
+      owed.forEach((v, k) => { if (Math.abs(v) >= 0.5 && !m.has(k) && (!q || `${k}`.toLowerCase().includes(q))) m.set(k, { charged: 0, paid: 0, n: 0 }); });
       const g = [...m.entries()].sort((a, b) => (owed.get(b[0]) || 0) - (owed.get(a[0]) || 0));
       const t = g.reduce((s, [k, r]) => ({ c: s.c + r.charged, p: s.p + r.paid, b: s.b + (owed.get(k) || 0) }), { c: 0, p: 0, b: 0 });
       return {

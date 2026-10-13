@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { companyFor } from '../lib/company';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { deletePurchaseBill } from '../lib/bills';
+import { replaceLines } from '../lib/lines';
+import { fetchAllPages } from '../lib/fetchAll';
 import PurchaseBillPrint from './PurchaseBillPrint';
 
 interface Supplier {
@@ -74,6 +76,12 @@ interface ItemRecord {
   purchase_price: number;
 }
 
+// today's date on this device (toISOString gives the UTC date, i.e. yesterday before 5:30 am in Sri Lanka)
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 interface Props {
   purchaseOrderId: string;
   onBack: () => void;
@@ -88,7 +96,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
   const [billNumber, setBillNumber] = useState('');
   const [cnvInvoiceNumber, setCnvInvoiceNumber] = useState('');
   const [batchNumber, setBatchNumber] = useState('');
-  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [billDate, setBillDate] = useState(localToday());
   const [dueDate, setDueDate] = useState('');
   const [exchangeRate, setExchangeRate] = useState('1');
   const [notes, setNotes] = useState('');
@@ -98,7 +106,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [newPayment, setNewPayment] = useState({
     voucher_number: '',
-    payment_date: new Date().toISOString().split('T')[0],
+    payment_date: localToday(),
     payment_mode: 'CASH',
     amount: '',
     account_name: '',
@@ -113,6 +121,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
   const dropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [showPrint, setShowPrint] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -133,17 +142,20 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
   }, [activeDropdown]);
 
   async function loadAllItems() {
-    const { data } = await supabase
+    // all items, not only the first 1000 (otherwise later items never show in the search)
+    const { data } = await fetchAllPages<ItemRecord>(() => supabase
       .from('items')
       .select('id, item_name, sku, unit, purchase_price')
-      .order('item_name');
-    if (data) setAllItems(data);
+      .order('item_name')
+      .order('id'));
+    setAllItems(data);
   }
 
   async function loadData() {
     setLoading(true);
 
-    const { data: poData } = await supabase
+    setLoadError(null);
+    const { data: poData, error: poError } = await supabase
       .from('purchase_orders')
       .select(`
         *,
@@ -152,17 +164,22 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       `)
       .eq('id', purchaseOrderId)
       .maybeSingle();
+    if (poError) setLoadError('Could not load the order: ' + poError.message);
 
     if (poData) {
       setPurchaseOrder(poData);
 
-      const { data: billData } = await supabase
+      const { data: billData, error: billError } = await supabase
         .from('purchase_bills')
         .select('*')
         .eq('purchase_order_id', purchaseOrderId)
         .maybeSingle();
 
-      if (billData) {
+      // if the bill could not be read (e.g. this order has two bills), do NOT show an empty
+      // "Create" form: saving it would add yet another bill for the same order
+      if (billError) {
+        setLoadError('Could not load the bill of this order: ' + billError.message);
+      } else if (billData) {
         setExistingBill(billData);
         setBillNumber(billData.bill_number || '');
         setCnvInvoiceNumber(billData.cnv_invoice_number || '');
@@ -320,6 +337,17 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
     setSaving(true);
 
+    // paid amount from the payments saved in the database right now (a payment recorded on
+    // another screen since this page opened must not be overwritten by an old figure)
+    let paidNow = calculateTotalPaid();
+    if (existingBill) {
+      const { data: payRows, error: payReadErr } = await supabase.from('purchase_payments').select('amount').eq('purchase_bill_id', existingBill.id);
+      if (payReadErr) { alert('Could not save the bill: ' + payReadErr.message); setSaving(false); return; }
+      paidNow = Math.round((payRows || []).reduce((t, p) => t + (Number(p.amount) || 0), 0) * 100) / 100;
+    }
+    const totalNow = calculateTotalCNY();
+    const statusNow = totalNow > 0 && paidNow >= totalNow ? 'paid' : paidNow > 0 ? 'partial' : 'pending';
+
     const billPayload = {
       purchase_order_id: purchaseOrderId,
       bill_number: billNumber.trim() || null,
@@ -327,18 +355,16 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       batch_number: batchNumber.trim() || null,
       bill_date: billDate,
       due_date: dueDate || (billDate ? new Date(new Date(billDate).getTime() + 30 * 86400000).toISOString().slice(0, 10) : null),
-      status: getStatus(),
+      status: statusNow,
       exchange_rate: parseFloat(exchangeRate),
       shipping_cost: 0,
       customs_duty: 0,
       other_charges: 0,
-      amount_paid: calculateTotalPaid(),
+      amount_paid: paidNow,
       notes: notes.trim() || null
     };
 
     let billId: string;
-    // the lines as they are now, so they can be put back if saving the new lines fails
-    let oldLines: Record<string, unknown>[] = [];
 
     if (existingBill) {
       const { error } = await supabase
@@ -353,22 +379,6 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
         return;
       }
       billId = existingBill.id;
-
-      const { data: before, error: readError } = await supabase.from('purchase_bill_items').select('*').eq('purchase_bill_id', billId);
-      if (readError) { alert('Could not save the bill lines: ' + readError.message); setSaving(false); return; }
-      oldLines = before || [];
-
-      const { error: deleteError } = await supabase
-        .from('purchase_bill_items')
-        .delete()
-        .eq('purchase_bill_id', billId);
-
-      if (deleteError) {
-        console.error('Error deleting old bill items:', deleteError);
-        alert('Could not save the bill lines: ' + deleteError.message);
-        setSaving(false);
-        return;
-      }
     } else {
       const { data, error } = await supabase
         .from('purchase_bills')
@@ -383,6 +393,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
         return;
       }
       billId = data.id;
+      // the bill now exists: if the lines fail below, the next Save updates it instead of making a second bill
+      setExistingBill(data);
     }
 
     const itemsToInsert = validItems.map(item => ({
@@ -394,19 +406,15 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       ...(item.unit ? { unit: item.unit } : {})
     }));
 
-    const { data: insertedItems, error: itemsError } = await supabase
-      .from('purchase_bill_items')
-      .insert(itemsToInsert)
-      .select();
-
-    if (itemsError) {
-      console.error('Error saving bill items:', itemsError);
-      // never leave a bill with no lines: put the old ones back and stay on the page
-      if (oldLines.length) await supabase.from('purchase_bill_items').insert(oldLines);
-      alert('Could not save the bill lines: ' + itemsError.message + (oldLines.length ? '\nYour previous lines were kept.' : ''));
+    // replaceLines puts the old lines back if the new ones cannot be saved
+    const linesErr = await replaceLines('purchase_bill_items', 'purchase_bill_id', billId, itemsToInsert);
+    if (linesErr) {
+      console.error('Error saving bill items:', linesErr);
+      alert('Could not save the bill lines: ' + linesErr);
       setSaving(false);
       return;
     }
+    const { data: insertedItems } = await supabase.from('purchase_bill_items').select('id, item_name, quantity_received').eq('purchase_bill_id', billId);
 
     // Re-link packing list items that were generated from this bill
     if (existingBill && insertedItems && insertedItems.length > 0) {
@@ -449,7 +457,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
     await supabase
       .from('purchase_orders')
-      .update({ status: getStatus() === 'paid' ? 'completed' : 'billed' })
+      .update({ status: statusNow === 'paid' ? 'completed' : 'billed' })
       .eq('id', purchaseOrderId);
 
     setSaving(false);
@@ -484,7 +492,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       setShowPaymentForm(false);
       setNewPayment({
         voucher_number: '',
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date: localToday(),
         payment_mode: 'CASH',
         amount: '',
         account_name: '',
@@ -493,14 +501,19 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
         funded_by: 'investor'
       });
 
-      const newTotalPaid = payments.reduce((sum, p) => sum + p.amount, 0) + data.amount;
-      const total = calculateTotalCNY();
-      const newStatus = newTotalPaid >= total ? 'paid' : newTotalPaid > 0 ? 'partial' : 'pending';
+      // the database copies a payment's rate onto the bill, so show that rate here too
+      // (otherwise "Save Bill" would put the old rate back)
+      if (Number(data.rate_lkr) > 0) setExchangeRate(String(data.rate_lkr));
 
-      await supabase
+      const newTotalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0) + (Number(data.amount) || 0);
+      const total = calculateTotalCNY();
+      const newStatus = total > 0 && newTotalPaid >= total ? 'paid' : newTotalPaid > 0 ? 'partial' : 'pending';
+
+      const { error: updErr } = await supabase
         .from('purchase_bills')
         .update({ amount_paid: newTotalPaid, status: newStatus })
         .eq('id', existingBill.id);
+      if (updErr) alert('Payment saved, but the bill\'s paid amount was not updated: ' + updErr.message + '. Press Save Bill to fix it.');
 
       await supabase
         .from('purchase_orders')
@@ -526,13 +539,14 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
     if (!pay) return;
     if (!confirm(`Delete this payment of ${pay.amount}? It goes to the Recycle Bin and can be restored.`)) return;
 
-    await moveToRecycleBin({
+    const bin = await moveToRecycleBin({
       source_table: 'purchase_payments',
       source_id: paymentId,
       record_data: pay,
       display_name: `Payment ${pay.amount} on ${existingBill?.cnv_invoice_number || existingBill?.bill_number || 'bill'} (${pay.payment_date})`,
       portal: 'cn',
     });
+    if (!bin.success) { alert('Could not copy the payment to the Recycle Bin, so it was not deleted: ' + (bin.error || '')); return; }
 
     const { error } = await supabase
       .from('purchase_payments')
@@ -547,14 +561,21 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
     setPayments(updated);
 
     if (existingBill) {
-      const newTotalPaid = updated.reduce((sum, p) => sum + p.amount, 0);
+      const newTotalPaid = updated.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
       const total = calculateTotalCNY();
       const newStatus = newTotalPaid >= total && total > 0 ? 'paid' : newTotalPaid > 0 ? 'partial' : 'pending';
 
-      await supabase
+      const { error: updErr } = await supabase
         .from('purchase_bills')
         .update({ amount_paid: newTotalPaid, status: newStatus })
         .eq('id', existingBill.id);
+      if (updErr) alert('Payment deleted, but the bill\'s paid amount was not updated: ' + updErr.message + '. Press Save Bill to fix it.');
+
+      // a fully paid order goes back to "billed" when a payment is removed
+      await supabase
+        .from('purchase_orders')
+        .update({ status: newStatus === 'paid' ? 'completed' : 'billed' })
+        .eq('id', purchaseOrderId);
     }
   }
 
@@ -566,10 +587,10 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
     );
   }
 
-  if (!purchaseOrder) {
+  if (!purchaseOrder || loadError) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Purchase order not found.</p>
+        <p className="text-gray-500">{loadError || 'Purchase order not found.'}</p>
         <button onClick={onBack} className="mt-4 text-teal-600 hover:text-teal-700">
           Go back
         </button>
@@ -790,7 +811,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
                       type="number"
                       value={item.quantity_received}
                       onChange={(e) => updateItem(index, 'quantity_received', e.target.value)}
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                      className="col-span-2 min-w-0 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                       placeholder="Qty"
                       min="0"
                     />
@@ -798,7 +819,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
                       type="number"
                       value={item.unit_price_cny}
                       onChange={(e) => updateItem(index, 'unit_price_cny', e.target.value)}
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                      className="col-span-2 min-w-0 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                       placeholder="Price"
                       min="0"
                       step="0.01"
@@ -979,7 +1000,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
                     </div>
                     <div className="flex items-center space-x-3">
                       <span className="text-sm font-bold text-green-700">
-                        -{payment.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        -{(Number(payment.amount) || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </span>
                       <button
                         onClick={() => handleDeletePayment(payment.id)}
@@ -1020,11 +1041,11 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
               <div className="pt-3 border-t border-teal-400">
                 <div className="flex justify-between text-sm">
-                  <span className="text-teal-100">Total Paid</span>
+                  <span className="text-teal-100">Total Paid (CNY)</span>
                   <span className="font-medium text-green-200">-{totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
                 <div className={`flex justify-between text-lg font-bold mt-1 ${balance <= 0 ? 'text-green-200' : 'text-yellow-200'}`}>
-                  <span>Balance Due</span>
+                  <span>Balance Due (CNY)</span>
                   <span>{balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>

@@ -3,6 +3,7 @@ import { ClipboardList, Receipt, DollarSign, Landmark, ListChecks, Container, Ba
 import { supabase } from '../lib/supabase';
 import { getBook, BOOK_ALL, BOOK_BRO } from '../lib/book';
 import { companyFor } from '../lib/company';
+import { fetchAllPages } from '../lib/fetchAll';
 
 /* A friendly home page for the CN side: what we owe, where each shipment is,
    and what needs doing today. Reads only the current book. */
@@ -14,7 +15,7 @@ interface Pay { date: string; rmb: number }
 
 const cny = (v: number) => '¥' + Math.round(v).toLocaleString('en-US');
 const lkr = (v: number) => 'Rs ' + Math.round(v).toLocaleString('en-US');
-const days = (d: string) => Math.floor((Date.now() - new Date(d + 'T00:00:00').getTime()) / 86400000);
+const days = (d: string) => !d ? 0 : Math.floor((Date.now() - new Date(d + 'T00:00:00').getTime()) / 86400000);
 const STEPS = ['Billed', 'Paid', 'Packed', 'Shipped', 'Arrived', 'Cleared'] as const;
 
 export default function CnHome({ name, onNavigate }: { name?: string | null; onNavigate: (view: string) => void }) {
@@ -25,26 +26,30 @@ export default function CnHome({ name, onNavigate }: { name?: string | null; onN
   const [pays, setPays] = useState<Pay[]>([]);
   const [investorBal, setInvestorBal] = useState(0);
   const [poCount, setPoCount] = useState(0);
+  const [loadErr, setLoadErr] = useState('');
 
   useEffect(() => {
     (async () => {
+      // every row (not only the first 1000), so the totals are right
       const [b, s, p, pp, l, po] = await Promise.all([
-        supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)'),
-        supabase.from('shipments').select('shipment_no, status, eta, mode, created_at').order('created_at', { ascending: false }),
-        supabase.from('pl_input').select('purchase_bill_id, batch_number, received'),
-        supabase.from('purchase_payments').select('payment_date, amount'),
-        supabase.from('investor_ledger').select('direction, lkr'),
+        fetchAllPages<unknown>(() => supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)').order('id')),
+        fetchAllPages<unknown>(() => supabase.from('shipments').select('shipment_no, status, eta, mode, created_at').order('created_at', { ascending: false }).order('id')),
+        fetchAllPages<unknown>(() => supabase.from('pl_input').select('purchase_bill_id, batch_number, received').order('id')),
+        fetchAllPages<unknown>(() => supabase.from('purchase_payments').select('payment_date, amount').order('id')),
+        fetchAllPages<unknown>(() => supabase.from('investor_ledger').select('direction, lkr').order('id')),
         supabase.from('purchase_orders').select('id', { count: 'exact', head: true }),
       ]);
-      type BRaw = { id: string; bill_number: string | null; cnv_invoice_number: string | null; bill_date: string; batch_number: string | null; amount_paid: number | null; purchase_orders: { suppliers: { name: string } | null } | null; purchase_bill_items: { quantity_received: number; unit_price_cny: number }[] | null };
+      const firstErr = b.error || s.error || p.error || pp.error || l.error || po.error?.message || '';
+      if (firstErr) setLoadErr(firstErr);
+      type BRaw = { id: string; bill_number: string | null; cnv_invoice_number: string | null; bill_date: string | null; batch_number: string | null; amount_paid: number | null; purchase_orders: { suppliers: { name: string } | null } | null; purchase_bill_items: { quantity_received: number; unit_price_cny: number }[] | null };
       setBills(((b.data ?? []) as unknown as BRaw[]).map((x) => {
         const total = (x.purchase_bill_items ?? []).reduce((t, i) => t + (Number(i.quantity_received) || 0) * (Number(i.unit_price_cny) || 0), 0);
         const paid = Number(x.amount_paid) || 0;
-        return { id: x.id, no: x.bill_number || x.cnv_invoice_number || '—', date: x.bill_date, batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '—', total, paid, bal: total - paid };
+        return { id: x.id, no: x.bill_number || x.cnv_invoice_number || '—', date: x.bill_date || '', batch: x.batch_number || '', supplier: x.purchase_orders?.suppliers?.name || '—', total, paid, bal: total - paid };
       }));
-      setShips(((s.data ?? []) as { shipment_no: string; status: string; eta: string | null; mode: string; created_at: string }[]).map((x) => ({ no: x.shipment_no, status: x.status, eta: x.eta, mode: x.mode, created: x.created_at.slice(0, 10) })));
+      setShips(((s.data ?? []) as { shipment_no: string; status: string; eta: string | null; mode: string; created_at: string }[]).map((x) => ({ no: x.shipment_no, status: x.status, eta: x.eta, mode: x.mode, created: (x.created_at || '').slice(0, 10) })));
       setPls(((p.data ?? []) as { purchase_bill_id: string | null; batch_number: string | null; received: boolean }[]).map((x) => ({ bill: x.purchase_bill_id, batch: x.batch_number || '', received: !!x.received })));
-      setPays(((pp.data ?? []) as { payment_date: string; amount: number }[]).map((x) => ({ date: x.payment_date, rmb: Number(x.amount) || 0 })));
+      setPays(((pp.data ?? []) as { payment_date: string | null; amount: number }[]).map((x) => ({ date: x.payment_date || '', rmb: Number(x.amount) || 0 })));
       setInvestorBal(((l.data ?? []) as { direction: string; lkr: number }[]).reduce((t, x) => t + (x.direction === 'owe' ? 1 : -1) * (Number(x.lkr) || 0), 0));
       setPoCount(po.count ?? 0);
       setLoading(false);
@@ -81,7 +86,7 @@ export default function CnHome({ name, onNavigate }: { name?: string | null; onN
   if (looseBills.length) todo.push({ tone: 'sky', text: `${looseBills.length} bill${looseBills.length > 1 ? 's' : ''} not in a shipment yet`, sub: 'Add them to a shipment when cargo is booked', view: 'shipping' });
 
   // payments in the last 6 months
-  const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5 - i)); return d.toISOString().slice(0, 7); });
+  const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5 - i)); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }); // local month (toISOString shifted it to UTC)
   const perMonth = months.map((m) => ({ m, v: pays.filter((p) => p.date.startsWith(m)).reduce((t, p) => t + p.rmb, 0) }));
   const maxM = Math.max(1, ...perMonth.map((x) => x.v));
 
@@ -90,7 +95,7 @@ export default function CnHome({ name, onNavigate }: { name?: string | null; onN
   const GreetIcon = h < 12 ? Sun : h < 17 ? CloudSun : Moon;
   const first = (name || '').split(/[\s@.]/)[0];
   const book = getBook() === BOOK_ALL ? 'All books' : getBook();
-  const fresh = !loading && bills.length === 0 && poCount === 0 && ships.length === 0;
+  const fresh = !loading && !loadErr && bills.length === 0 && poCount === 0 && ships.length === 0;
 
   const tiles = [
     { label: 'We owe suppliers', value: cny(oweSuppliers), sub: `${unpaid.length} bill${unpaid.length === 1 ? '' : 's'} open`, icon: DollarSign, bg: 'bg-rose-50', ic: 'text-rose-500 bg-white', view: 'outstanding-payments' },
@@ -130,6 +135,7 @@ export default function CnHome({ name, onNavigate }: { name?: string | null; onN
         </div>
       </div>
 
+      {loadErr && <p className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-2">Some figures could not be loaded, so totals below may be incomplete: {loadErr}</p>}
       {loading ? <p className="text-sm text-gray-500 px-1">Loading…</p> : fresh ? (
         <div className="rounded-3xl border border-dashed border-teal-300 bg-white p-6 sm:p-8 text-center">
           <Sparkles className="w-8 h-8 text-teal-500 mx-auto mb-2" />

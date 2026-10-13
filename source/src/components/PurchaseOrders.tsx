@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Check, Package, ChevronDown, ChevronUp, Receipt, ShoppingCart, Search, Calendar, Layers, Pencil, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { replaceLines } from '../lib/lines';
+import { fetchAllPages } from '../lib/fetchAll';
+
+// today's date on this device (toISOString gives the UTC date, i.e. yesterday before 5:30 am in Sri Lanka)
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 // a row read with select('*') can be written back as long as joined data is left out
 function stripJoined(row: Record<string, unknown>): Record<string, unknown> {
@@ -133,7 +140,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(localToday());
   const [notes, setNotes] = useState('');
   const [totalWeightKg, setTotalWeightKg] = useState('');
   const [totalCbm, setTotalCbm] = useState('');
@@ -200,9 +207,10 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
   async function loadData() {
     setLoading(true);
 
+    // POs and batches: every row, not only the first 1000
     const [suppliersRes, ordersRes, itemsRes, salesOrdersRes, batchesRes] = await Promise.all([
       supabase.from('suppliers').select('id, name, currency').order('name'),
-      supabase
+      fetchAllPages<PurchaseOrder>(() => supabase
         .from('purchase_orders')
         .select(`
           *,
@@ -216,21 +224,25 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
           ),
           purchase_bills (*, purchase_bill_items (quantity_received))
         `)
-        .order('order_date', { ascending: false }),
+        .order('order_date', { ascending: false })
+        .order('id')),
       supabase.from('items').select('id, item_name, sku, unit, purchase_price, purchase_currency').order('item_name'),
       supabase
         .from('busy_sales_orders')
         .select('id, order_number, customer_name, total_amount, status')
         .in('status', ['pending', 'confirmed'])
         .order('order_date', { ascending: false }),
-      supabase
+      fetchAllPages<{ batch_number: string | null }>(() => supabase
         .from('purchase_bills')
         .select('batch_number')
         .not('batch_number', 'is', null)
+        .order('id'))
     ]);
 
+    if (ordersRes.error) alert('Could not load all purchase orders: ' + ordersRes.error);
+
     if (suppliersRes.data) setSuppliers(suppliersRes.data);
-    if (ordersRes.data) setOrders(ordersRes.data);
+    if (!ordersRes.error) setOrders(ordersRes.data);
     if (itemsRes.data) setAllItems(itemsRes.data);
     if (salesOrdersRes.data) setSalesOrders(salesOrdersRes.data);
     if (batchesRes.data) {
@@ -253,6 +265,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
       .from('purchase_bills')
       .select(`
         *,
+        purchase_bill_items (quantity_received, unit_price_cny),
         purchase_orders (
           *,
           suppliers (id, name, currency),
@@ -279,11 +292,20 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
           supplierNames.add(po.suppliers.name);
         }
 
+        // value of what was BILLED (bill lines), not the PO — a bill can differ from its PO
         let billValueCny = 0;
-        if (po?.purchase_order_items) {
+        const billLines = (bill.purchase_bill_items || []) as { quantity_received: number; unit_price_cny: number }[];
+        if (billLines.length) {
+          totalItems += billLines.length;
+          billLines.forEach((item) => {
+            const itemValue = (Number(item.quantity_received) || 0) * (Number(item.unit_price_cny) || 0);
+            totalValueCny += itemValue;
+            billValueCny += itemValue;
+          });
+        } else if (po?.purchase_order_items) {
           totalItems += po.purchase_order_items.length;
           po.purchase_order_items.forEach((item: PurchaseOrderItem) => {
-            const itemValue = (item.quantity || 0) * (item.unit_price_cny || 0);
+            const itemValue = (Number(item.quantity) || 0) * (Number(item.unit_price_cny) || 0);
             totalValueCny += itemValue;
             billValueCny += itemValue;
           });
@@ -391,7 +413,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
     setShowForm(false);
     setEditingOrder(null);
     setSelectedSupplier('');
-    setOrderDate(new Date().toISOString().split('T')[0]);
+    setOrderDate(localToday());
     setNotes('');
     setTotalWeightKg('');
     setTotalCbm('');
@@ -450,7 +472,17 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
       parseFloat(item.unit_price_cny) >= 0
     );
 
-    if (!selectedSupplier || validItems.length === 0) return;
+    if (!selectedSupplier) return;
+    // a line with a name but no quantity/price used to be dropped without a word
+    const badLines = items.filter(item => item.item_name.trim() && !validItems.includes(item));
+    if (badLines.length) {
+      alert('Please enter a quantity and price for: ' + badLines.map(i => i.item_name.trim()).join(', '));
+      return;
+    }
+    if (validItems.length === 0) {
+      alert('Add at least one item with a quantity and price.');
+      return;
+    }
 
     setSaving(true);
 
@@ -468,11 +500,22 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
 
       if (orderError) {
         console.error('Error updating order:', orderError);
+        alert('Could not save the PO: ' + orderError.message);
         setSaving(false);
         return;
       }
 
-      const oldPoItems = (editingOrder.purchase_order_items || []) as unknown as Record<string, unknown>[];
+      // the PO lines as they are NOW in the database (the list on screen may be out of date)
+      const { data: freshPoItems, error: poItemsReadError } = await supabase
+        .from('purchase_order_items')
+        .select('*')
+        .eq('purchase_order_id', editingOrder.id);
+      if (poItemsReadError) {
+        alert('Could not read the PO lines, so they were not changed: ' + poItemsReadError.message);
+        setSaving(false);
+        return;
+      }
+      const oldPoItems = (freshPoItems || []) as Record<string, unknown>[];
 
       // Bills of this PO, read BEFORE the PO lines change (so nothing can be lost)
       const { data: linkedBills, error: billsLookupError } = await supabase
@@ -482,16 +525,6 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
       if (billsLookupError) {
         console.error('Error looking up linked bills:', billsLookupError);
         alert('Could not check the bills of this PO, so the PO lines were not changed: ' + billsLookupError.message);
-        setSaving(false);
-        return;
-      }
-
-      const { error: delPoError } = await supabase
-        .from('purchase_order_items')
-        .delete()
-        .eq('purchase_order_id', editingOrder.id);
-      if (delPoError) {
-        alert('Could not update the PO lines: ' + delPoError.message);
         setSaving(false);
         return;
       }
@@ -507,16 +540,17 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         cbm: parseFloat(item.cbm) || 0
       }));
 
-      const { data: insertedItems, error: itemsError } = await supabase
-        .from('purchase_order_items')
-        .insert(itemsToInsert)
-        .select();
+      // replaceLines puts the old lines back if the new ones cannot be saved
+      const linesErr = await replaceLines('purchase_order_items', 'purchase_order_id', editingOrder.id, itemsToInsert);
+      const { data: insertedItems, error: itemsError } = linesErr
+        ? { data: null, error: null }
+        : await supabase.from('purchase_order_items').select('*').eq('purchase_order_id', editingOrder.id);
 
-      if (itemsError || !insertedItems) {
-        console.error('Error updating order items:', itemsError);
-        if (oldPoItems.length) await supabase.from('purchase_order_items').insert(oldPoItems.map(stripJoined));
-        alert('Could not save the PO lines: ' + (itemsError?.message || '') + '\nThe previous lines were kept.');
+      if (linesErr || itemsError || !insertedItems) {
+        console.error('Error updating order items:', linesErr || itemsError);
+        alert('Could not save the PO lines: ' + (linesErr || itemsError?.message || ''));
         setSaving(false);
+        loadData();
         return;
       }
 
@@ -573,18 +607,11 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         alert(`PO saved. These bills have their own quantities/prices and were NOT changed: ${keptBills.join(', ')}.\nIf they should change too, edit them on the Bills page.`);
       }
 
-      await supabase
-        .from('so_po_links')
-        .delete()
-        .eq('purchase_order_id', editingOrder.id);
-
-      if (selectedSalesOrders.length > 0) {
-        const linksToInsert = selectedSalesOrders.map(soId => ({
-          sales_order_id: soId,
-          purchase_order_id: editingOrder.id
-        }));
-        await supabase.from('so_po_links').insert(linksToInsert);
-      }
+      const linksErr = await replaceLines('so_po_links', 'purchase_order_id', editingOrder.id, selectedSalesOrders.map(soId => ({
+        sales_order_id: soId,
+        purchase_order_id: editingOrder.id
+      })));
+      if (linksErr) alert('PO saved, but the sales-order links could not be updated: ' + linksErr);
     } else {
       const { data: order, error: orderError } = await supabase
         .from('purchase_orders')
@@ -601,6 +628,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
 
       if (orderError || !order) {
         console.error('Error creating order:', orderError);
+        if (orderError?.code !== 'BOOK_MODE') alert('Could not create the PO: ' + (orderError?.message || ''));
         setSaving(false);
         return;
       }
@@ -621,7 +649,12 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         .insert(itemsToInsert);
 
       if (itemsError) {
+        // do not leave an empty PO behind; keep the form so nothing typed is lost
         console.error('Error creating order items:', itemsError);
+        await supabase.from('purchase_orders').delete().eq('id', order.id);
+        alert('Could not save the PO lines, so the PO was not created: ' + itemsError.message + '\nYour entries are still in the form.');
+        setSaving(false);
+        return;
       }
 
       if (selectedSalesOrders.length > 0) {
@@ -629,7 +662,8 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
           sales_order_id: soId,
           purchase_order_id: order.id
         }));
-        await supabase.from('so_po_links').insert(linksToInsert);
+        const { error: linksError } = await supabase.from('so_po_links').insert(linksToInsert);
+        if (linksError) alert('PO created, but the sales-order links could not be saved: ' + linksError.message);
       }
     }
 
@@ -644,15 +678,30 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
     const orderToDelete = orders.find(o => o.id === id);
     if (!orderToDelete) return;
 
-    const { data: orderItems } = await supabase
+    // a PO with a bill must not lose its lines (the bill, its payments and packing list hang on them)
+    const { data: poBills, error: poBillsError } = await supabase
+      .from('purchase_bills')
+      .select('id, bill_number, cnv_invoice_number')
+      .eq('purchase_order_id', id);
+    if (poBillsError) { alert('Could not check the bills of this PO, so nothing was deleted: ' + poBillsError.message); return; }
+    if (poBills && poBills.length) {
+      alert(`This PO has bill(s): ${poBills.map(b => b.cnv_invoice_number || b.bill_number || 'bill').join(', ')}.\nDelete the bill(s) on the Bills page first, then delete the PO.`);
+      return;
+    }
+
+    const { data: orderItems, error: itemsReadError } = await supabase
       .from('purchase_order_items')
       .select('*')
       .eq('purchase_order_id', id);
 
-    const { data: soLinks } = await supabase
+    const { data: soLinks, error: linksReadError } = await supabase
       .from('so_po_links')
       .select('*')
       .eq('purchase_order_id', id);
+    if (itemsReadError || linksReadError) {
+      alert('Could not read this PO, so nothing was deleted: ' + (itemsReadError || linksReadError)!.message);
+      return;
+    }
 
     const supplierName = suppliers.find(s => s.id === orderToDelete.supplier_id)?.name || 'Unknown';
 
@@ -673,8 +722,14 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
       return;
     }
 
-    await supabase.from('so_po_links').delete().eq('purchase_order_id', id);
-    await supabase.from('purchase_order_items').delete().eq('purchase_order_id', id);
+    const { error: linksDelError } = await supabase.from('so_po_links').delete().eq('purchase_order_id', id);
+    if (linksDelError) { alert('Could not delete the PO: ' + linksDelError.message); return; }
+    const { error: itemsDelError } = await supabase.from('purchase_order_items').delete().eq('purchase_order_id', id);
+    if (itemsDelError) {
+      if (soLinks?.length) await supabase.from('so_po_links').insert(soLinks);
+      alert('Could not delete the PO: ' + itemsDelError.message);
+      return;
+    }
 
     const { error } = await supabase
       .from('purchase_orders')
@@ -683,9 +738,12 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
 
     if (error) {
       console.error('Error deleting order:', error);
-    } else {
-      loadData();
+      // put the lines and links back so the PO is not left empty
+      if (orderItems?.length) await supabase.from('purchase_order_items').insert(orderItems);
+      if (soLinks?.length) await supabase.from('so_po_links').insert(soLinks);
+      alert('Could not delete the PO: ' + error.message + ' (its lines were kept)');
     }
+    loadData();
   }
 
   function toggleOrderExpand(id: string) {
@@ -1237,7 +1295,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        {new Date(order.order_date).toLocaleDateString()} · {order.purchase_order_items?.length || 0} items
+                        {new Date(String(order.order_date).slice(0, 10) + 'T00:00:00').toLocaleDateString()} · {order.purchase_order_items?.length || 0} items
                         {order.purchase_bills?.[0]?.batch_number && (
                           <span className="ml-2 text-gray-400">· Batch {order.purchase_bills[0].batch_number}</span>
                         )}

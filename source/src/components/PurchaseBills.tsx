@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Receipt, Search, Calendar, Building2, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { deletePurchaseBill } from '../lib/bills';
+import { fetchAllPages } from '../lib/fetchAll';
 import PurchaseBillPage from './PurchaseBillPage';
 
 interface Supplier {
@@ -73,7 +74,8 @@ export default function PurchaseBills({ preselectedBillId, onClearPreselection }
   async function loadData() {
     setLoading(true);
 
-    const billsRes = await supabase
+    // fetchAllPages: every bill and order of the current book, not only the first 1000
+    const billsRes = await fetchAllPages<PurchaseBill>(() => supabase
       .from('purchase_bills')
       .select(`
         *,
@@ -88,14 +90,16 @@ export default function PurchaseBills({ preselectedBillId, onClearPreselection }
           unit_price_cny
         )
       `)
-      .order('bill_date', { ascending: false });
+      .order('bill_date', { ascending: false })
+      .order('id'));
 
-    if (billsRes.data) {
-      setBills(billsRes.data as PurchaseBill[]);
+    if (billsRes.error) alert('Could not load all bills: ' + billsRes.error);
+    else {
+      setBills(billsRes.data);
 
       const billedOrderIds = new Set(billsRes.data.map(b => b.purchase_order_id));
 
-      const ordersRes = await supabase
+      const ordersRes = await fetchAllPages<PurchaseOrder>(() => supabase
         .from('purchase_orders')
         .select(`
           id,
@@ -103,11 +107,13 @@ export default function PurchaseBills({ preselectedBillId, onClearPreselection }
           status,
           suppliers (id, name)
         `)
-        .order('order_date', { ascending: false });
+        .order('order_date', { ascending: false })
+        .order('id'));
 
-      if (ordersRes.data) {
+      if (ordersRes.error) alert('Could not load all orders: ' + ordersRes.error);
+      else {
         const unbilled = ordersRes.data.filter(order => !billedOrderIds.has(order.id));
-        setUnbilledOrders(unbilled as PurchaseOrder[]);
+        setUnbilledOrders(unbilled);
       }
     }
 
@@ -319,7 +325,7 @@ export default function PurchaseBills({ preselectedBillId, onClearPreselection }
                       {getBillTotalCNY(bill).toLocaleString(undefined, { maximumFractionDigits: 0 })} <span className="text-xs text-gray-500">CNY</span>
                     </p>
                     <p className="text-xs text-gray-500">
-                      {(getBillTotalCNY(bill) * bill.exchange_rate).toLocaleString(undefined, { maximumFractionDigits: 0 })} LKR
+                      {(getBillTotalCNY(bill) * (Number(bill.exchange_rate) || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 })} LKR
                     </p>
                   </div>
                   <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${getStatusColor(bill.status)}`}>

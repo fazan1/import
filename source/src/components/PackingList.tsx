@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import ChangeHistory from './ChangeHistory';
 import { History as HistoryIcon } from 'lucide-react';
 import { Package, Plus, Search, RefreshCw, X, Link, Trash2, Download, History, ChevronDown, Printer } from 'lucide-react';
@@ -53,6 +54,7 @@ export default function PackingList() {
   const [shipmentNos, setShipmentNos] = useState<string[]>([]);
   const [shipBills, setShipBills] = useState<{ id: string; bill_number: string; cnv_invoice_number: string | null; bill_date: string; batch_number: string | null; supplier_name: string }[]>([]);
   const [creatingFromBill, setCreatingFromBill] = useState<string | null>(null);
+  const creatingRef = useRef(false); // a double-click must not create the same packing list twice
   const [allBatches, setAllBatches] = useState<string[]>([]);
   const [activeBatch, setActiveBatch] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -110,14 +112,21 @@ export default function PackingList() {
   // Create the PL Input record and its packing list rows straight from a bill that is in the shipment
   async function createPlFromBill(bill: { id: string; bill_number: string; cnv_invoice_number: string | null; bill_date: string; batch_number: string | null; supplier_name: string }) {
     if (!bill.batch_number) return;
+    if (creatingRef.current) return;
+    creatingRef.current = true;
+    try {
     setCreatingFromBill(bill.id);
-    const existingInBatch = plInputRecords.filter((r) => !r.packing_list_no.startsWith('M') && r.batch_number === bill.batch_number).length;
+    // next number after the HIGHEST PL number in this batch (counting them gave a duplicate number after a delete)
+    const existingInBatch = plInputRecords
+      .filter((r) => !r.packing_list_no.startsWith('M') && r.batch_number === bill.batch_number)
+      .reduce((max, r) => { const n = parseInt(r.packing_list_no, 10); return isNaN(n) ? max : Math.max(max, n); }, 0);
     const { data: inserted, error } = await supabase.from('pl_input').insert({
       purchase_bill_id: bill.id, date: bill.bill_date, supplier_name: bill.supplier_name, shipper_name: '',
       packing_list_no: String(existingInBatch + 1), batch_number: bill.batch_number, expected: true, received: false, entered_in_register: false,
     }).select('id, packing_list_no').single();
     if (error || !inserted) { console.error('Error creating PL Input:', error); alert('Could not create the packing list: ' + (error?.message || 'unknown error')); setCreatingFromBill(null); return; }
-    const { data: billItems } = await supabase.from('purchase_bill_items').select('id, item_name, quantity_received, unit').eq('purchase_bill_id', bill.id);
+    const { data: billItems, error: biErr } = await supabase.from('purchase_bill_items').select('id, item_name, quantity_received, unit').eq('purchase_bill_id', bill.id);
+    if (biErr) alert('Packing list created but the bill items could not be read: ' + biErr.message);
     if (billItems && billItems.length > 0) {
       const rows = billItems.map((item) => ({
         batch_number: bill.batch_number, packing_list_no: inserted.packing_list_no, pl_input_id: inserted.id, purchase_bill_item_id: item.id,
@@ -129,18 +138,21 @@ export default function PackingList() {
     setCreatingFromBill(null);
     await loadData();
     setActiveBatch(bill.batch_number);
+    } finally { creatingRef.current = false; }
   }
 
   async function loadItems() {
-    const { data, error } = await supabase
+    // all pages: past 1000 lines some batches lost rows and their kg / CBM / package totals came out short
+    const { data, error } = await fetchAllPages<PackingListItem>(() => supabase
       .from('packing_list_items')
       .select('*')
       .order('packing_list_no', { ascending: true })
       .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
+      .order('id', { ascending: true }));
 
     if (error) {
       console.error('Error loading packing list items:', error);
+      alert('Could not load the packing list: ' + error);
       return;
     }
 
@@ -162,10 +174,11 @@ export default function PackingList() {
   }, [loading, tabBatches.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadPlInputRecords() {
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllPages<PLInputRecord>(() => supabase
       .from('pl_input')
       .select('id, packing_list_no, supplier_name, purchase_bill_id, status, batch_number')
-      .order('packing_list_no', { ascending: true });
+      .order('packing_list_no', { ascending: true })
+      .order('id', { ascending: true }));
 
     if (error) {
       console.error('Error loading PL Input records:', error);
@@ -210,6 +223,9 @@ export default function PackingList() {
 
   async function createPackingListFromPlInput() {
     if (!selectedPlInput || billItems.length === 0) return;
+    if (creatingRef.current) return; // a double-click must not copy the bill items twice
+    creatingRef.current = true;
+    try {
 
     const { data: billData } = await supabase
       .from('purchase_bills')
@@ -226,7 +242,7 @@ export default function PackingList() {
       pl_input_id: selectedPlInput.id,
       purchase_bill_item_id: item.id,
       item_name: item.item_name,
-      quantity: item.quantity_received,
+      quantity: item.quantity_received ?? 0,
       unit: item.unit || 'PCS',
       no_of_pkgs: 0,
       weight_kg: 0,
@@ -250,12 +266,14 @@ export default function PackingList() {
     setSearchTerm('');
     await loadData();
     setActiveBatch(batchNumber || '__unassigned__');
+    } finally { creatingRef.current = false; }
   }
 
   async function addManualItem() {
     if (!newItem.packing_list_no || !newItem.item_name) return;
 
-    const matchingPlInput = plInputRecords.find(
+    // only a PL of THIS batch (PL "1" exists in every batch; linking another batch's PL mixed batches)
+    const matchingPlInput = batchPlInputRecords.find(
       (pl) => pl.packing_list_no === newItem.packing_list_no
     );
 
@@ -274,6 +292,7 @@ export default function PackingList() {
 
     if (error) {
       console.error('Error adding item:', error);
+      alert('Could not add the item: ' + error.message);
       return;
     }
 
@@ -300,6 +319,7 @@ export default function PackingList() {
 
     if (error) {
       console.error('Error deleting item:', error);
+      alert('Could not delete the item: ' + error.message);
       return;
     }
 
@@ -328,10 +348,12 @@ export default function PackingList() {
     let error;
     if (field === 'no_of_pkgs') {
       // packages belong to the whole packing list: every line of this PL gets the same number
-      let q = supabase.from('packing_list_items').update({ no_of_pkgs: value, updated_at: new Date().toISOString() });
-      q = item.batch_number ? q.eq('batch_number', item.batch_number) : q.is('batch_number', null);
-      ({ error } = await q.eq('packing_list_no', item.packing_list_no));
-      if (!error) setItems(prev => prev.map(i => i.batch_number === item.batch_number && i.packing_list_no === item.packing_list_no ? { ...i, no_of_pkgs: value as number } : i));
+      // by the ids of this PL's lines on screen: matching by batch text missed '' batches (Unassigned) and could reach
+      // a PL with the same batch + number in another book
+      const sameBatch = (b: string | null) => (b || '') === (item.batch_number || '');
+      const plIds = items.filter(i => sameBatch(i.batch_number) && i.packing_list_no === item.packing_list_no).map(i => i.id);
+      ({ error } = await supabase.from('packing_list_items').update({ no_of_pkgs: value, updated_at: new Date().toISOString() }).in('id', plIds));
+      if (!error) setItems(prev => prev.map(i => sameBatch(i.batch_number) && i.packing_list_no === item.packing_list_no ? { ...i, no_of_pkgs: value as number } : i));
     } else {
       ({ error } = await supabase.from('packing_list_items').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', id));
       if (!error) setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
@@ -393,6 +415,18 @@ export default function PackingList() {
         } else if (currentIdx < filteredItems.length - 1) {
           nextId = filteredItems[currentIdx + 1].id;
           nextField = fields[0];
+        }
+      }
+
+      // packages can only be typed on the first line of a PL: skip that box on the other lines
+      if (nextField === 'no_of_pkgs') {
+        const cand = filteredItems.find(i => i.id === nextId);
+        if (cand && firstRowByPlNo.get(cand.packing_list_no) !== cand.id) {
+          if (!e.shiftKey) nextField = 'weight_kg';
+          else {
+            const idx = filteredItems.findIndex(i => i.id === nextId);
+            if (idx > 0) { nextId = filteredItems[idx - 1].id; nextField = 'cbm'; } else { nextId = id; nextField = field; }
+          }
         }
       }
 
@@ -584,9 +618,9 @@ export default function PackingList() {
   return (
     <>
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-2xl font-bold text-gray-900">Packing List</h2>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
           {saving && <span className="text-sm text-teal-700">Saving...</span>}
           {!saving && savedNote && <span className="text-sm text-green-700">{savedNote}</span>}
           {activeBatch && activeBatch !== '__unassigned__' && (
@@ -759,8 +793,8 @@ export default function PackingList() {
 
       {/* Batch History Modal */}
       {showBatchHistory && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-lg max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">Batch History</h3>
@@ -893,7 +927,7 @@ export default function PackingList() {
                 </h3>
                 {newItem.packing_list_no && (
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {plInputRecords.find((pl) => pl.packing_list_no === newItem.packing_list_no)?.supplier_name || ''}
+                    {batchPlInputRecords.find((pl) => pl.packing_list_no === newItem.packing_list_no)?.supplier_name || ''}
                   </p>
                 )}
               </div>
@@ -910,7 +944,7 @@ export default function PackingList() {
                   onChange={(e) => setNewItem({ ...newItem, packing_list_no: e.target.value })}
                   placeholder="e.g. 1, 2, 3..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  readOnly={!!plInputRecords.find((pl) => pl.packing_list_no === newItem.packing_list_no)}
+                  readOnly={!!batchPlInputRecords.find((pl) => pl.packing_list_no === newItem.packing_list_no)}
                 />
               </div>
               <div>

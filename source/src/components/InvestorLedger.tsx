@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Landmark, Plus, Printer, Download, Pencil, Trash2, X, Check, Banknote } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import { companyFor } from '../lib/company';
 import { esc } from '../lib/html';
 import { getBook, BOOK_ALL, MAIN_BOOKS } from '../lib/book';
@@ -18,6 +19,8 @@ const yen = (n: number) => '¥' + n.toLocaleString('en-US', { minimumFractionDig
 const fmtD = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
 const KIND: Record<Line['kind'], string> = { supplier_payment: 'Bill payment', settlement: 'Paid to investor', manual: 'Manual', opening: 'Opening balance' };
 const MODES = ['BANK', 'CASH', 'CHEQUE', 'OTHER'];
+// today's date on this device (toISOString gives the UTC date, i.e. yesterday before 5:30 am in Sri Lanka)
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 type Draft = { id?: string; entry_date: string; direction: 'owe' | 'paid'; currency: 'RMB' | 'LKR'; rmb: string; rate: string; lkr: string; reference: string; note: string; payment_mode: string; kind: Line['kind'] };
 
@@ -28,6 +31,7 @@ export default function InvestorLedger() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [rename, setRename] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { load(); }, []);
   async function load() {
@@ -43,7 +47,9 @@ export default function InvestorLedger() {
     }
     setInvestor(inv as Investor | null);
     if (inv) {
-      const { data } = await supabase.from('investor_ledger').select('*').eq('investor_id', inv.id).order('entry_date').order('created_at');
+      // every line (not only the first 1000), otherwise the balance owed is wrong
+      const { data, error } = await fetchAllPages<Line>(() => supabase.from('investor_ledger').select('*').eq('investor_id', inv.id).order('entry_date').order('created_at').order('id'));
+      if (error) alert('Could not load all ledger lines, the balance may be wrong: ' + error);
       setLines(((data ?? []) as Line[]).map((l) => ({ ...l, lkr: Number(l.lkr), rmb: l.rmb == null ? null : Number(l.rmb), rate: l.rate == null ? null : Number(l.rate) })));
     }
     setLoading(false);
@@ -61,7 +67,7 @@ export default function InvestorLedger() {
   const lastRate = [...lines].reverse().find((l) => l.rate && l.rate > 0)?.rate ?? 0;
 
   function newDraft(kind: 'settlement' | 'manual' | 'opening'): Draft {
-    return { entry_date: new Date().toISOString().slice(0, 10), direction: kind === 'settlement' ? 'paid' : 'owe', currency: kind === 'opening' ? 'LKR' : kind === 'settlement' ? 'LKR' : 'RMB', rmb: '', rate: lastRate ? String(lastRate) : '', lkr: '', reference: '', note: '', payment_mode: 'BANK', kind };
+    return { entry_date: localToday(), direction: kind === 'settlement' ? 'paid' : 'owe', currency: kind === 'opening' ? 'LKR' : kind === 'settlement' ? 'LKR' : 'RMB', rmb: '', rate: lastRate ? String(lastRate) : '', lkr: '', reference: '', note: '', payment_mode: 'BANK', kind };
   }
   function editDraft(l: Line): Draft {
     return { id: l.id, entry_date: l.entry_date, direction: l.direction, currency: l.rmb != null ? 'RMB' : 'LKR', rmb: l.rmb != null ? String(l.rmb) : '', rate: l.rate != null ? String(l.rate) : '', lkr: String(l.lkr), reference: l.reference ?? '', note: l.note ?? '', payment_mode: l.payment_mode ?? 'BANK', kind: l.kind };
@@ -69,7 +75,7 @@ export default function InvestorLedger() {
   const draftLkr = (d: Draft) => d.currency === 'RMB' ? (parseFloat(d.rmb) || 0) * (parseFloat(d.rate) || 0) : parseFloat(d.lkr) || 0;
 
   async function saveDraft() {
-    if (!draft || !investor) return;
+    if (!draft || !investor || saving) return;
     const lkr = draftLkr(draft);
     if (lkr <= 0) { alert(draft.currency === 'RMB' ? 'Enter RMB amount and rate' : 'Enter LKR amount'); return; }
     const row = {
@@ -77,9 +83,11 @@ export default function InvestorLedger() {
       rmb: draft.currency === 'RMB' ? parseFloat(draft.rmb) : null, rate: draft.currency === 'RMB' ? parseFloat(draft.rate) : null, lkr,
       reference: draft.reference.trim() || null, note: draft.note.trim() || null, payment_mode: draft.direction === 'paid' ? draft.payment_mode : null,
     };
+    setSaving(true); // a double click must not add the line twice
     const { error } = draft.id
       ? await supabase.from('investor_ledger').update(row).eq('id', draft.id)
       : await supabase.from('investor_ledger').insert(row);
+    setSaving(false);
     if (error) { alert(error.message); return; }
     setDraft(null); load();
   }
@@ -93,7 +101,7 @@ export default function InvestorLedger() {
     if (error) alert(error.message);
     load();
   }
-  async function saveName() { if (!investor || !rename?.trim()) return; await supabase.from('investors').update({ name: rename.trim() }).eq('id', investor.id); setRename(null); load(); }
+  async function saveName() { if (!investor || !rename?.trim()) return; const { error } = await supabase.from('investors').update({ name: rename.trim() }).eq('id', investor.id); if (error) { alert('Name not saved: ' + error.message); return; } setRename(null); load(); }
 
   function exportExcel() {
     const ws = XLSX.utils.json_to_sheet(withBal.map((l) => ({ Date: l.entry_date, Type: KIND[l.kind], Reference: l.reference, Note: l.note, RMB: l.rmb ?? '', Rate: l.rate ?? '', 'LKR owed': l.direction === 'owe' ? l.lkr : '', 'LKR paid': l.direction === 'paid' ? l.lkr : '', Balance: l.bal })));
@@ -196,7 +204,7 @@ export default function InvestorLedger() {
               <div><label className="text-xs text-gray-500">Reference</label><input className={input} value={draft.reference} onChange={(e) => setDraft({ ...draft, reference: e.target.value })} placeholder="bill no., bank ref, cheque no." /></div>
               <div><label className="text-xs text-gray-500">Note</label><input className={input} value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })} /></div>
             </div>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setDraft(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={saveDraft} className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm flex items-center gap-1"><Check className="w-4 h-4" />Save</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setDraft(null)} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={saveDraft} disabled={saving} className="px-4 py-1.5 bg-teal-600 text-white rounded-lg text-sm flex items-center gap-1 disabled:opacity-50"><Check className="w-4 h-4" />Save</button></div>
           </div>
         </div>
       )}
