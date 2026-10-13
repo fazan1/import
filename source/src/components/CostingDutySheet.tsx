@@ -585,7 +585,7 @@ export default function CostingDutySheet() {
   const itemChargeTotal = [...itemCharges.values()].reduce((s, c) => s + c.amount, 0);
   const target = shipInfo
     ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: 'bulk amount in Shipping' }
-      : { amount: 0, label: 'bulk amount in Shipping' }
+      : { amount: itemChargeTotal, label: 'bulk amount in Shipping' }
     : null;
   const diff = target ? summary.shipping - target.amount : 0;
   const matches = !!target && target.amount > 0 && Math.abs(diff) < 1;
@@ -933,7 +933,7 @@ export default function CostingDutySheet() {
                   ) : (
                     <p className="flex items-start gap-1.5 text-amber-700">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>No bulk amount for shipment {activeBatch} yet — type it in Shipping &rarr; Charges. On items now: <strong>Rs {fmt0(summary.shipping)}</strong>.</span>
+                      <span>No charges yet for shipment {activeBatch} — put the type and rate per packing list in Shipping &rarr; Charges (or per item below). On items now: <strong>Rs {fmt0(summary.shipping)}</strong>.</span>
                     </p>
                   )}
                   {shipInfo && itemCharges.size > 0 && Math.abs(itemChargeTotal - summary.shipping) >= 1 && (
@@ -1269,7 +1269,7 @@ export default function CostingDutySheet() {
               <li><strong>Cost LKR/unit</strong> = Price CNY x CNY rate</li>
               <li><strong>Ship charge</strong> = the item's kg / CBM / qty from Packing List x Rate (or a Fixed amount)</li>
               <li><strong>Shipping/unit</strong> = Ship charge / the item's qty (MANUAL for rows not from the packing list)</li>
-              <li><strong>Bulk</strong> = the agent's invoice total typed in Shipping &rarr; Charges; on items should add up to it</li>
+              <li><strong>Bulk</strong> = each packing list's kg / CBM / pcs x rate in Shipping &rarr; Charges (or the agent's invoice when typed); items should add up to it</li>
               <li><strong>Landed/unit</strong> = Cost LKR/unit + Shipping/unit</li>
               <li><strong>Profit</strong> = Selling price - Landed (RESALE only); FACTORY goods count at landed cost</li>
             </ul>
