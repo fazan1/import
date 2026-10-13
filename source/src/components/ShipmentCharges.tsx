@@ -323,7 +323,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                               {g.items.map((i) => {
                                 const e = edits[i.id]; if (!e) return null;
                                 const a = amountOf(i.id);
-                                const noPl = e.basis !== 'FIXED' && autoQty(i, e.basis) === 0;
+                                const noPl = e.basis !== 'FIXED' && autoQty(i, e.basis) === 0 && !(Number(e.qty) > 0); // hidden once a quantity is typed
                                 return (
                                   <tr key={i.id}>
                                     <td className="px-3 py-2 font-medium text-gray-900 max-w-[220px] truncate" title={i.item_name}>{i.item_name}</td>
@@ -336,7 +336,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                                         {BASES.map((x) => <option key={x} value={x}>{x === 'FIXED' ? 'Fixed' : x}</option>)}
                                       </select>
                                     </td>
-                                    <td className="px-3 py-2 w-28">{e.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <><input className={cell} inputMode="decimal" value={e.qty} onChange={(ev) => setField(i.id, 'qty', ev.target.value)} />{noPl && <div className="text-[10px] text-amber-600 text-right">no packing list qty</div>}</>}</td>
+                                    <td className="px-3 py-2 w-28">{e.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <><input className={cell} inputMode="decimal" value={e.qty} onChange={(ev) => setField(i.id, 'qty', ev.target.value)} />{noPl && <div className="text-[10px] text-amber-600 text-right leading-tight">{e.basis === 'KG' ? 'No KG in packing list — type the kg here' : e.basis === 'CBM' ? 'No CBM in packing list — type the CBM here' : 'No qty in packing list — type it here'}</div>}</>}</td>
                                     <td className="px-3 py-2 w-28">{e.basis === 'FIXED'
                                       ? <span className="block text-right text-gray-400">—</span>
                                       : <input className={cell} inputMode="decimal" value={e.rate} onChange={(ev) => setField(i.id, 'rate', ev.target.value)} />}</td>
