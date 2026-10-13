@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { BOOKED_TABLES, MAIN_BOOKS, getBook, isAllBooks, writeBook } from './book';
+import { BOOKED_TABLES, DOCUMENT_TABLES, MAIN_BOOKS, bookMode, getBook, isAllBooks, writeBook } from './book';
 
 // Runtime config (set in index.html) wins over build-time env, so one build can serve several sites.
 declare global { interface Window { APP_CONFIG?: { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; MODE?: 'full' | 'shop'; COMPANY?: string; TITLE?: string } } }
@@ -35,8 +35,8 @@ const stamp = (rows: Row | Row[]) => {
 // "All books" is a reading view. Saving a NEW record there would silently file it under LCL 2026,
 // even when it belongs to an OLD bill or invoice, so new records must be added inside one book.
 export const ALL_BOOKS_SAVE_MSG = 'You are viewing "All books" (read-only). Switch to one book (LCL 2026 or OLD) to add records.';
-const refused = (): any => {
-  const result = { data: null, error: { message: ALL_BOOKS_SAVE_MSG, details: '', hint: '', code: 'ALL_BOOKS' }, count: null, status: 400, statusText: 'All books' };
+const refused = (message: string = ALL_BOOKS_SAVE_MSG): any => {
+  const result = { data: null, error: { message, details: '', hint: '', code: 'BOOK_MODE' }, count: null, status: 400, statusText: 'Book' };
   // behaves like a query: .select() / .single() / ... can be chained, awaiting it gives the error
   const p: any = new Proxy(function () { /* chainable */ }, {
     get(_t, prop) {
@@ -45,9 +45,21 @@ const refused = (): any => {
     },
     apply() { return p; },
   });
-  alert(ALL_BOOKS_SAVE_MSG);
+  alert(message);
   return p;
 };
+
+// Why a save into the current book is not allowed (null = allowed). The database checks the same rules.
+function writeRefusal(table: string, op: 'insert' | 'upsert'): string | null {
+  if (isAllBooks()) return ALL_BOOKS_SAVE_MSG;
+  const b = writeBook();
+  const m = bookMode(b);
+  if (m === 'closed') return `The ${b} book is closed (reference only). Nothing can be added there.`;
+  if (m === 'collection' && op === 'insert' && DOCUMENT_TABLES.has(table)) {
+    return `The ${b} book is collection-only: record receipts and payments there, but make new POs, bills, shipments, orders and invoices in LCL 2026.`;
+  }
+  return null;
+}
 
 try {
   const client = supabase as any;
@@ -62,9 +74,15 @@ try {
         return isAllBooks() ? q.in('book', MAIN_BOOKS) : q.eq('book', getBook());
       };
       const origInsert = qb.insert.bind(qb);
-      qb.insert = (rows: Row | Row[], ...rest: unknown[]) => (isAllBooks() ? refused() : origInsert(stamp(rows), ...rest));
+      qb.insert = (rows: Row | Row[], ...rest: unknown[]) => {
+        const why = writeRefusal(table, 'insert');
+        return why ? refused(why) : origInsert(stamp(rows), ...rest);
+      };
       const origUpsert = qb.upsert.bind(qb);
-      qb.upsert = (rows: Row | Row[], ...rest: unknown[]) => (isAllBooks() ? refused() : origUpsert(stamp(rows), ...rest));
+      qb.upsert = (rows: Row | Row[], ...rest: unknown[]) => {
+        const why = writeRefusal(table, 'upsert');
+        return why ? refused(why) : origUpsert(stamp(rows), ...rest);
+      };
     } catch (e) {
       console.error('book filter not applied for', table, e);
     }

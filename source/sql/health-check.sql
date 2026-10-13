@@ -18,7 +18,9 @@ UNION ALL SELECT 'function my_locked_book', to_regprocedure('public.my_locked_bo
 UNION ALL SELECT 'function admin_set_password', to_regprocedure('public.admin_set_password(uuid,text)') IS NOT NULL
 UNION ALL SELECT 'function admin_delete_user', to_regprocedure('public.admin_delete_user(uuid)') IS NOT NULL
 UNION ALL SELECT 'function investor_for_book', to_regprocedure('public.investor_for_book(text)') IS NOT NULL
-UNION ALL SELECT 'book locks = 19', (SELECT count(*) FROM pg_policy WHERE polname='book lock') = 19
+UNION ALL SELECT 'book locks >= 19', (SELECT count(*) FROM pg_policy WHERE polname='book lock') >= 19
+UNION ALL SELECT 'OLD is collection-only or closed (v96)', EXISTS (SELECT 1 FROM pg_class WHERE relname='book_settings' AND relnamespace='public'::regnamespace) AND (SELECT mode FROM public.book_settings WHERE book='OLD') IN ('collection','closed')
+UNION ALL SELECT 'book mode guard on 12+ tables (v96)', (SELECT count(*) FROM pg_trigger WHERE tgname='trg_zz_book_mode') >= 12
 UNION ALL SELECT 'admin sees all shipments', EXISTS (SELECT 1 FROM pg_policy WHERE polname='admin sees all shipments')
 UNION ALL SELECT 'security lock (v95): members only on every table', NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relkind IN ('r','p') AND c.relname<>'app_users' AND NOT EXISTS (SELECT 1 FROM pg_policy p WHERE p.polrelid=c.oid AND p.polname='members only'))
 UNION ALL SELECT 'security lock (v95): anon has no table access', NOT EXISTS (SELECT 1 FROM information_schema.role_table_grants WHERE grantee='anon' AND table_schema='public')

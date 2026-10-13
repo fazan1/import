@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { LayoutDashboard, Users, FileText, Settings as SettingsIcon, LogOut, Building2, ClipboardList, Shield, Network, Calculator, Receipt, Boxes, FileStack, ClipboardCheck, ListChecks, FileSpreadsheet, ShoppingCart, CreditCard, DollarSign, Ship, Trash2, ShoppingBag, Wrench, FolderOpen, Container, BarChart3, Crosshair, Warehouse as WarehouseIcon, Landmark, Wallet, TrendingUp, BookOpen as BookIcon, Lock } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
-import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, getBook, setBook, lockBook, unlockBook } from './lib/book';
+import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, getBook, setBook, lockBook, unlockBook, setBookModes, bookMode } from './lib/book';
+import type { BookMode } from './lib/book';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
 import Customers from './components/Customers';
@@ -121,6 +122,16 @@ function App() {
       if (!(u && u.role !== 'admin' && u.book)) { unlockBook(); setBookState(getBook()); }
       if (u && u.role !== 'admin' && u.book) { lockBook(u.book); setBookState(u.book); if (u.modules.includes('cn-home') && !sessionStorage.getItem('landed')) { sessionStorage.setItem('landed', '1'); setCurrentView('cn-home'); } }
       setPerm(u);
+    });
+  }, [user]);
+  // book modes (OLD = collection only); no table yet = every book open
+  const [, setModesLoaded] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('book_settings').select('book, mode').then(({ data, error }) => {
+      if (error || !data) return;
+      setBookModes(Object.fromEntries(data.map((r: { book: string; mode: BookMode }) => [r.book, r.mode])));
+      setModesLoaded((n) => n + 1); // redraw the banner
     });
   }, [user]);
   const canView = (item: { id: View }) => {
@@ -482,7 +493,7 @@ function App() {
         <main className="flex-1 min-w-0 p-3 sm:p-6 bg-gray-50 overflow-x-hidden pb-20 lg:pb-6">
           {book !== BOOK_NEW && !bookLocked && (
             <div className="max-w-[1600px] mx-auto mb-3 border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 flex items-center justify-between gap-3">
-              <span>{book === BOOK_ALL ? <><b>All books</b> — you are seeing old and new together. Anything you add now is saved into {BOOK_NEW}.</> : book === BOOK_BRO ? <><b>{BOOK_BRO}</b> — the shop's own books, separate from your import books. Anything you add here is saved into the shop book.</> : <><b>{BOOK_OLD} books</b> — the business up to the changeover. Collect and settle here; anything you add is saved into the old books.</>}</span>
+              <span>{book === BOOK_ALL ? <><b>All books</b> — old and new together, for reading only. To add anything, switch to one book.</> : book === BOOK_BRO ? <><b>{BOOK_BRO}</b> — the shop's own books, separate from your import books. Anything you add or correct here stays in the shop book.</> : bookMode(BOOK_OLD) === 'closed' ? <><b>{BOOK_OLD} books — closed</b>. Reference only: nothing can be added or changed.</> : bookMode(BOOK_OLD) === 'collection' ? <><b>{BOOK_OLD} books — collection only</b>. Record customer receipts and supplier payments here. New POs, bills, shipments, orders and invoices go in {BOOK_NEW}.</> : <><b>{BOOK_OLD} books</b> — the business up to the changeover. Collect and settle here; anything you add is saved into the old books.</>}</span>
               <button onClick={() => changeBook(BOOK_NEW)} className="shrink-0 border border-amber-600 text-amber-900 px-2 py-1 text-[11px] font-semibold hover:bg-amber-100">Back to {BOOK_NEW}</button>
             </div>
           )}

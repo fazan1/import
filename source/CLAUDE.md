@@ -42,12 +42,17 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 - No public sign-up link; logins are made in Settings -> Users.
 
 ## SQL files already applied to the live database (all in /sql)
-book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. health-check.sql is read-only and verifies all of it.
+book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95/v96): security-lock, packing-lines-book, old-collection-only. health-check.sql is read-only and verifies all of it.
 
 ## Open items
 - security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
 - Books decided (v96): LCL 2026 is the only new book; it must never count OLD. OLD stays open until old customers are paid
   (collection), then gets locked as reference. packing_list_items is booked since v96.
+- v96 sql/old-collection-only.sql: table book_settings (open/collection/closed), trigger trg_zz_book_mode
+  (guard_book_mode) on booked tables; OLD = collection (no NEW documents; payments/edits/Recycle Bin restore ok).
+  Close OLD later: UPDATE public.book_settings SET mode='closed' WHERE book='OLD'. Client mirrors it in supabase.ts writeRefusal().
+- No per-LC books: each LC is a shipment in LCL 2026. Shop sees prices/costs (costing-duty in SHOP_MODULES);
+  admin corrects shop records by switching to BLINE SHOP.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
 - Not fixed yet: customer balance rules differ between screens; some totals stop at 1000 rows; Backup exports only the current book;
   SECURITY DEFINER bulk_import is callable by any member.

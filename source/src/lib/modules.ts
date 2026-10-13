@@ -49,7 +49,8 @@ export const ALL_MODULE_IDS = MODULE_GROUPS.flatMap((g) => g.items.map((i) => i.
 export interface AppUser { user_id: string; email: string; name: string | null; role: 'admin' | 'staff'; modules: string[]; is_active: boolean; book?: string | null; created_at?: string; }
 
 // The screens of the shop book — the shop login gets these, and an admin who switches to the shop book sees only these.
-export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'investor', 'pl-input', 'packing-list', 'shipping', 'shipment-history', 'cn-reports', 'items', 'suppliers', 'clearing-agents'];
+// The shop sees its own prices and costs, so Costing & Duty (landed cost) is part of its book too.
+export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'investor', 'pl-input', 'packing-list', 'costing-duty', 'shipping', 'shipment-history', 'cn-reports', 'items', 'suppliers', 'clearing-agents'];
 
 // Presets to make setup fast
 export const PRESETS: { label: string; modules: string[] }[] = [

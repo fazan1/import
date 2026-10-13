@@ -67,3 +67,17 @@ export function onBookChange(f: Listener) { listeners.add(f); return () => { lis
 export function openingBal(v: number | null | undefined): number {
   return current === BOOK_OLD || current === BOOK_ALL ? (Number(v) || 0) : 0;
 }
+
+// Book modes (table book_settings, sql/old-collection-only.sql):
+//   open       = normal
+//   collection = only receipts / payments / corrections; no NEW documents (OLD while old money is collected)
+//   closed     = reference only, nothing can be saved
+export type BookMode = 'open' | 'collection' | 'closed';
+let modes: Record<string, BookMode> = {};
+export function setBookModes(m: Record<string, BookMode>) { modes = m; listeners.forEach((f) => f(current)); }
+export function bookMode(b: string = current): BookMode { return modes[b] ?? 'open'; }
+/** Tables that hold documents (new ones are refused in a collection-only book). */
+export const DOCUMENT_TABLES = new Set([
+  'purchase_orders', 'purchase_bills', 'shipments', 'costing_duty_sheet', 'packing_lists', 'pl_input',
+  'busy_sales_orders', 'busy_sales_invoices',
+]);
