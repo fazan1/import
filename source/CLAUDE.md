@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V108)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V109)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -78,6 +78,11 @@ charity-setup, bulk-import-admin-only, item-charges-costing. To run: history-and
   read-only, booked) + trigger zzzz_packing_to_charges: packing list kg/CBM/qty change -> item charge (qty x saved rate)
   -> costing charge_per_unit -> bill total -> shipment actual_charges -> agent ledger line (only if no agent_invoice typed).
   ChangeHistory.tsx = History button on Packing List, Shipping Charges, Costing. Clearing Agents: "View details" link.
+- v109 (owner's idea): Shipping -> Charges = BULK amount only (agent's invoice total, shipments.agent_invoice; posted to
+  agent_ledger). The charge per ITEM is set in COSTING: Ship type (KG/CBM/PCS/Fixed) + Rate per line, "Charge the items"
+  bar applies a type+rate to the shown (filtered) items. Kg/CBM/qty always come from Packing List (costingCharges.ts
+  saveItemCharges / refreshShipmentCharges / syncCostingCharges). Check strip: Bulk vs On items vs Difference (no spreading).
+  ShipmentCharges refreshes the Shipping list only when it closes (refreshing earlier remounted it and reset the form).
 - v102 COSTING: shipping charges are entered PER PACKING-LIST ITEM (shipment_item_charges: basis KG/CBM/PCS/FIXED, qty, rate, amount).
   NO spreading/allocation (owner's rule). Costing charge_per_unit = item amount / qty (src/lib/costingCharges.ts syncCostingCharges);
   DB trigger zzzz_costing_calc computes unit_price_lkr, duty_per_unit(=charge), landed, profit, totals. Old duty basis/rate,

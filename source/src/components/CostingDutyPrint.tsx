@@ -3,7 +3,7 @@ import { saveAsPdf } from '../lib/pdfUtils';
 import { companyFor } from '../lib/company';
 
 /* One costing line as the Costing screen holds it.
-   Shipping per unit = the item's charge from Shipping -> Charges divided by its quantity. */
+   Shipping per unit = the item's charge (set in Costing: kg / CBM / qty x rate) divided by its quantity. */
 export interface CostingPrintLine {
   id: string;
   pl_no: string;

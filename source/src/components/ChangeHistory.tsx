@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 
 /* History of one shipment / batch: every change to its packing list lines, shipping charges,
    agent account lines and costing lines — who, when, old -> new. Written by the database
-   (sql/change-history.sql), so it cannot be edited from the app. */
+   (sql/history-and-auto-charges.sql), so it cannot be edited from the app. */
 
 interface Entry { id: number; changed_at: string; table_name: string; action: string; label: string | null; changes: Record<string, unknown> | null; user_email: string | null }
 
@@ -26,7 +26,7 @@ export default function ChangeHistory({ batch, onClose }: { batch: string; onClo
     supabase.from('change_log').select('id, changed_at, table_name, action, label, changes, user_email').eq('batch', batch)
       .order('changed_at', { ascending: false }).limit(500)
       .then(({ data, error }) => {
-        if (error) setErr(/change_log/.test(error.message) && /does not exist|schema cache/.test(error.message) ? 'Run change-history.sql in Supabase once — from then on every change is recorded here.' : `Could not load the history: ${error.message}`);
+        if (error) setErr(/change_log/.test(error.message) && /does not exist|schema cache/.test(error.message) ? 'Run history-and-auto-charges.sql in Supabase once — from then on every change is recorded here.' : `Could not load the history: ${error.message}`);
         else setRows((data ?? []) as Entry[]);
       });
   }, [batch]);

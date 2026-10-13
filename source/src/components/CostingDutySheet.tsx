@@ -6,12 +6,15 @@ import ChangeHistory from './ChangeHistory';
 import CostingDutyPrint, { summarizeCosting, fmt0, fmt2 } from './CostingDutyPrint';
 import type { CostingPrintLine } from './CostingDutyPrint';
 import { fetchAllPages, selectByIds } from '../lib/fetchAll';
-import { syncCostingCharges, loadItemCharges } from '../lib/costingCharges';
-import type { ItemCharge } from '../lib/costingCharges';
+import { syncCostingCharges, loadItemCharges, saveItemCharges, chargeQty } from '../lib/costingCharges';
+import type { ItemCharge, ChargeBasis } from '../lib/costingCharges';
 
 /* Costing: landed per unit = (CNY price x rate) + shipping per unit.
-   Shipping per unit comes from Shipping -> Charges (charge of the item / its qty), copied onto the
-   costing line by syncCostingCharges(). Lines not from a packing list can have a MANUAL charge.
+   v109: the shipping charge is put on each packing-list item HERE: type (KG / CBM / PCS / Fixed) + rate.
+   KG / CBM / PCS take the item's kg / CBM / qty from Packing List; item charge = that x rate (saved in
+   shipment_item_charges), shipping per unit = item charge / its qty (syncCostingCharges).
+   Shipping -> Charges holds the shipment's BULK amount (the agent's invoice); the check strip compares the two.
+   Lines not from a packing list (or batches that are not a Shipping record) can have a MANUAL charge per unit.
    The database trigger works out cost LKR, landed, profit and totals; we always keep the row it returns. */
 
 interface PackingListItem {
@@ -25,6 +28,8 @@ interface PackingListItem {
   cbm: number;
   purchase_bill_item_id: string | null;
 }
+
+const SHIP_BASES: ChargeBasis[] = ['KG', 'CBM', 'PCS', 'FIXED'];
 
 interface PurchaseBillItem {
   id: string;
@@ -142,6 +147,8 @@ export default function CostingDutySheet() {
   const [syncMsg, setSyncMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [applyBasis, setApplyBasis] = useState<ChargeBasis>('KG');
+  const [applyRate, setApplyRate] = useState('');
   const batchToken = useRef('');
 
   useEffect(() => {
@@ -226,13 +233,14 @@ export default function CostingDutySheet() {
     if (!activeBatch) return;
     setSyncing(true);
     setSyncMsg('');
+    await loadPackingItems();            // latest kg / CBM shown in the table
     const { updated, error } = await syncCostingCharges(activeBatch);
     if (error) {
       alert(`Could not bring the shipping charges in.\n\n${error}`);
     } else {
       setShipError('');
       await loadRecords();
-      setSyncMsg(updated > 0 ? `${updated} line${updated === 1 ? '' : 's'} updated from Shipping` : 'Already up to date');
+      setSyncMsg(updated > 0 ? `${updated} line${updated === 1 ? '' : 's'} updated` : 'Already up to date');
     }
     await loadShipmentCheck(activeBatch);
     setSyncing(false);
@@ -455,23 +463,78 @@ export default function CostingDutySheet() {
     setSaving(false);
   }
 
+  /** per-unit charge typed by hand: lines not from a packing list, or a batch that is not a Shipping record */
   function canEditShipping(r: CostingRecord) {
-    return !r.packing_list_item_id && chargeCols === true;
+    return (!r.packing_list_item_id || !shipInfo) && chargeCols === true;
+  }
+  /** item charge (type + rate) set here: packing-list lines of a Shipping record */
+  function chargeable(r: CostingRecord) {
+    return !!r.packing_list_item_id && !!shipInfo && chargeCols === true;
+  }
+
+  /** put a charge on items (basis null = take it off), then bring it onto the costing lines */
+  async function setCharges(changes: { itemId: string; basis: ChargeBasis | null; rate: number; fixed?: number }[]) {
+    if (!shipInfo || changes.length === 0) return;
+    setSaving(true);
+    const res = await saveItemCharges(shipInfo.id, changes);
+    if (res.error) {
+      alert(`Could not save the shipping charge.\n\n${res.error}`);
+    } else {
+      const sync = await syncCostingCharges(activeBatch);
+      if (sync.error) alert(`Charge saved, but the costing lines were not updated.\n\n${sync.error}`);
+    }
+    await loadRecords();
+    await loadShipmentCheck(activeBatch);
+    setSaving(false);
+  }
+
+  /** the rate already used for a type in this shipment (so a new item gets the same rate) */
+  function usedRate(b: ChargeBasis) {
+    return [...itemCharges.values()].find(c => c.basis === b && c.rate > 0)?.rate ?? 0;
+  }
+
+  function changeBasis(r: CostingRecord, b: string) {
+    const id = r.packing_list_item_id; if (!id) return;
+    if (!b) { setCharges([{ itemId: id, basis: null, rate: 0 }]); return; }
+    const basis = b as ChargeBasis;
+    const cur = itemCharges.get(id);
+    if (basis === 'FIXED') setCharges([{ itemId: id, basis, rate: 0, fixed: cur ? cur.amount : 0 }]);
+    else setCharges([{ itemId: id, basis, rate: cur && cur.basis === basis && cur.rate > 0 ? cur.rate : usedRate(basis) }]);
+  }
+
+  async function applyToShown() {
+    const rate = parseFloat(applyRate.replace(/,/g, '')) || 0;
+    if (applyBasis !== 'FIXED' && !(rate > 0)) { alert('Type the rate first.'); return; }
+    const ids = [...new Set(filteredRecords.filter(chargeable).map(r => r.packing_list_item_id as string))];
+    if (ids.length === 0) { alert('No packing list items shown.'); return; }
+    const other = ids.filter(id => { const c = itemCharges.get(id); return c && (c.basis !== applyBasis || c.rate !== rate); }).length;
+    if (!confirm(`Charge ${ids.length} item${ids.length === 1 ? '' : 's'} at ${applyBasis} Rs ${rate.toLocaleString('en-US')}?${other ? `\n\n${other} of them already have a different charge — it will be replaced.` : ''}`)) return;
+    await setCharges(ids.map(itemId => ({ itemId, basis: applyBasis, rate })));
   }
 
   function handleCellClick(r: CostingRecord, field: string, currentValue: string | number) {
-    const editableFields = ['description', 'qty', 'unit', 'unit_price_cny', 'selling_price', 'charge_per_unit'];
+    const editableFields = ['description', 'qty', 'unit', 'unit_price_cny', 'selling_price', 'charge_per_unit', 'ship_rate', 'ship_fixed'];
     if (!editableFields.includes(field)) return;
     if (field === 'charge_per_unit' && !canEditShipping(r)) return;
+    if ((field === 'ship_rate' || field === 'ship_fixed') && !chargeable(r)) return;
     setEditingCell({ id: r.id, field });
     setEditingValue(String(currentValue));
   }
 
   function commitEdit(id: string, field: string) {
     if (!editingCell || editingCell.id !== id || editingCell.field !== field) return;
-    const isNumeric = ['qty', 'unit_price_cny', 'selling_price', 'charge_per_unit'].includes(field);
+    const isNumeric = ['qty', 'unit_price_cny', 'selling_price', 'charge_per_unit', 'ship_rate', 'ship_fixed'].includes(field);
     const value = isNumeric ? parseFloat(editingValue.replace(/,/g, '')) || 0 : editingValue;
     const current = records.find(r => r.id === id);
+    if (field === 'ship_rate' || field === 'ship_fixed') {
+      setEditingCell(null);
+      const itemId = current?.packing_list_item_id; if (!itemId) return;
+      const c = itemCharges.get(itemId);
+      const v = value as number;
+      if (field === 'ship_rate') { if (c && c.basis !== 'FIXED' && c.rate === v) return; setCharges([{ itemId, basis: c && c.basis !== 'FIXED' ? c.basis : 'KG', rate: v }]); }
+      else { if (c && c.basis === 'FIXED' && c.amount === v) return; setCharges([{ itemId, basis: 'FIXED', rate: 0, fixed: v }]); }
+      return;
+    }
     if (current && (current as unknown as Record<string, unknown>)[field] === value) { setEditingCell(null); return; }
     if (field === 'charge_per_unit') updateCell(id, { charge_per_unit: value, charge_basis: 'MANUAL' });
     else updateCell(id, { [field]: value });
@@ -521,9 +584,8 @@ export default function CostingDutySheet() {
   // shipping check
   const itemChargeTotal = [...itemCharges.values()].reduce((s, c) => s + c.amount, 0);
   const target = shipInfo
-    ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: 'agent invoice' }
-      : shipInfo.actual_charges > 0 ? { amount: shipInfo.actual_charges, label: 'shipment charges' }
-      : { amount: itemChargeTotal, label: 'item charges in Shipping' }
+    ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: 'bulk amount in Shipping' }
+      : { amount: 0, label: 'bulk amount in Shipping' }
     : null;
   const diff = target ? summary.shipping - target.amount : 0;
   const matches = !!target && target.amount > 0 && Math.abs(diff) < 1;
@@ -858,24 +920,24 @@ export default function CostingDutySheet() {
                   ) : !shipInfo ? (
                     <p className="flex items-start gap-1.5 text-gray-600 text-xs">
                       <Truck className="w-4 h-4 flex-shrink-0 text-gray-400" />
-                      <span>Batch {activeBatch} is not a Shipping record yet. Shipping charges come from Shipping &rarr; Charges once the shipment exists.</span>
+                      <span>Batch {activeBatch} is not a Shipping record yet. Create the shipment in Shipping to put a charge (KG / CBM / rate) on each item; until then type the shipping per unit by hand.</span>
                     </p>
                   ) : target && target.amount > 0 ? (
                     <p className={`flex items-start gap-1.5 ${matches ? 'text-green-700' : 'text-amber-700'}`}>
                       {matches ? <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
                       <span>
-                        Shipping charges in costing: <strong>Rs {fmt0(summary.shipping)}</strong> of <strong>Rs {fmt0(target.amount)}</strong> ({target.label})
-                        {matches ? ' ✓' : ` — ${diff < 0 ? 'short by' : 'over by'} Rs ${fmt0(Math.abs(diff))}`}
+                        Bulk <strong>Rs {fmt0(target.amount)}</strong> · On items <strong>Rs {fmt0(summary.shipping)}</strong> ·{' '}
+                        {matches ? <strong>Difference 0 ✓</strong> : <strong>{diff < 0 ? `Rs ${fmt0(-diff)} not on any item yet` : `items over by Rs ${fmt0(diff)}`}</strong>}
                       </span>
                     </p>
                   ) : (
                     <p className="flex items-start gap-1.5 text-amber-700">
                       <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>No shipping charges entered for shipment {activeBatch} yet. Enter them per item in Shipping &rarr; Charges.</span>
+                      <span>No bulk amount for shipment {activeBatch} yet — type it in Shipping &rarr; Charges. On items now: <strong>Rs {fmt0(summary.shipping)}</strong>.</span>
                     </p>
                   )}
-                  {shipInfo && target && target.label !== 'item charges in Shipping' && itemCharges.size > 0 && Math.abs(itemChargeTotal - target.amount) >= 1 && (
-                    <p className="text-xs text-amber-700 ml-5">Item charges entered in Shipping add up to Rs {fmt0(itemChargeTotal)}.</p>
+                  {shipInfo && itemCharges.size > 0 && Math.abs(itemChargeTotal - summary.shipping) >= 1 && (
+                    <p className="text-xs text-amber-700 ml-5">Item charges add up to Rs {fmt0(itemChargeTotal)} — some charged items are not in this costing (or a line has no qty).</p>
                   )}
                   {shipInfo && shipInfo.other_charges > 0 && (
                     <p className="text-xs text-gray-500 ml-5">Other charges on the shipment: Rs {fmt0(shipInfo.other_charges)}.</p>
@@ -889,17 +951,17 @@ export default function CostingDutySheet() {
                       onClick={updateFromShipping}
                       disabled={syncing}
                       className="flex items-center gap-1 px-2.5 py-1 text-xs text-teal-800 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 disabled:opacity-50"
-                      title="Copy each item's charge from Shipping -> Charges onto its costing line"
+                      title="Take the latest kg / CBM from Packing List and work the charges out again"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                      Update from shipping
+                      Update from packing list
                     </button>
                   </div>
                 )}
               </div>
               {noChargeLines.length > 0 && (
                 <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                  <strong>{noChargeLines.length} item{noChargeLines.length === 1 ? ' has' : 's have'} no shipping charge</strong> &mdash; open Shipping &rarr; Charges.
+                  <strong>{noChargeLines.length} item{noChargeLines.length === 1 ? ' has' : 's have'} no shipping charge</strong> &mdash; choose its type and rate below.
                   <span className="text-amber-700">
                     {' '}{noChargeLines.slice(0, 8).map(r => `${plNoOf(r) ? `#${plNoOf(r)} ` : ''}${r.description || '(no name)'}`).join(', ')}
                     {noChargeLines.length > 8 ? `, and ${noChargeLines.length - 8} more` : ''}
@@ -912,6 +974,18 @@ export default function CostingDutySheet() {
                 </p>
               )}
               {shipError && <p className="text-xs text-red-700">{shipError}</p>}
+              {shipInfo && chargeCols && (
+                <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700">
+                  <span className="font-medium">Charge the {filtersOn ? 'shown' : ''} items:</span>
+                  <select value={applyBasis} onChange={e => setApplyBasis(e.target.value as ChargeBasis)} className="px-1.5 py-1 border border-gray-300 rounded bg-white">
+                    {SHIP_BASES.filter(b => b !== 'FIXED').map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <span>Rate Rs</span>
+                  <input value={applyRate} onChange={e => setApplyRate(e.target.value)} inputMode="decimal" placeholder={applyBasis === 'KG' ? 'per kg' : applyBasis === 'CBM' ? 'per CBM' : 'per piece'} className="w-24 px-2 py-1 border border-gray-300 rounded text-right bg-white" />
+                  <button onClick={applyToShown} disabled={saving} className="px-2.5 py-1 bg-teal-600 text-white rounded disabled:opacity-50">Apply</button>
+                  <span className="text-gray-500">Tip: pick a PL in the filter below to charge only that packing list.</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1012,7 +1086,7 @@ export default function CostingDutySheet() {
           {filteredRecords.length > 0 ? (
             <div className="border border-gray-400 bg-white overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse" style={{ minWidth: '1380px' }}>
+                <table className="w-full text-xs border-collapse" style={{ minWidth: '1640px' }}>
                   <thead>
                     <tr className="bg-slate-900 text-white">
                       <th className="px-1 py-1.5 text-center border border-slate-700" style={{ width: '28px' }}>
@@ -1030,7 +1104,11 @@ export default function CostingDutySheet() {
                       <th className={`${thBase} bg-blue-800`} style={{ minWidth: '65px' }}>Price CNY</th>
                       <th className={`${thBase} bg-blue-800`} style={{ minWidth: '50px' }}>Rate</th>
                       <th className={`${thBase} bg-blue-800`} style={{ minWidth: '80px' }}>Cost LKR/unit</th>
-                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '95px' }}>Shipping/unit</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '70px' }}>Ship type</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '65px' }}>Kg / CBM / Pcs</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '60px' }}>Rate</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '80px' }}>Ship charge</th>
+                      <th className={`${thBase} bg-amber-600`} style={{ minWidth: '85px' }}>Shipping/unit</th>
                       <th className={`${thBase} bg-green-700`} style={{ minWidth: '80px' }}>Landed/unit</th>
                       <th className={`${thBase} bg-teal-600`} style={{ minWidth: '80px' }}>Selling price</th>
                       <th className={`${thBase} bg-teal-600`} style={{ minWidth: '70px' }}>Profit/unit</th>
@@ -1070,6 +1148,33 @@ export default function CostingDutySheet() {
                           <td className="px-2 py-1.5 text-right border border-gray-300 bg-teal-50 font-medium tabular-nums">
                             {record.unit_price_lkr > 0 ? fmt2(record.unit_price_lkr) : '-'}
                           </td>
+                          {(() => {
+                            const can = chargeable(record);
+                            const c = record.packing_list_item_id ? itemCharges.get(record.packing_list_item_id) : undefined;
+                            const pi = record.packing_list_item_id ? plItemMap.get(record.packing_list_item_id) : undefined;
+                            if (!can) return <><td className="px-2 py-1.5 text-center border border-gray-300 bg-amber-50 text-gray-400">{record.packing_list_item_id ? '' : 'manual'}</td><td className="px-2 py-1.5 border border-gray-300 bg-amber-50" /><td className="px-2 py-1.5 border border-gray-300 bg-amber-50" /><td className="px-2 py-1.5 border border-gray-300 bg-amber-50" /></>;
+                            const live = c && pi ? chargeQty(pi, c.basis) : 0;
+                            const unitWord = c?.basis === 'KG' ? 'kg' : c?.basis === 'CBM' ? 'CBM' : 'qty';
+                            return <>
+                              <td className="px-1 py-1 text-center border border-gray-300 bg-amber-50">
+                                <select value={c?.basis ?? ''} onChange={e => changeBasis(record, e.target.value)} disabled={saving} className={`w-full px-1 py-0.5 text-xs border rounded bg-white ${c ? 'border-gray-300' : 'border-red-300 text-red-600'}`}>
+                                  <option value="">— none —</option>
+                                  {SHIP_BASES.map(b => <option key={b} value={b}>{b === 'FIXED' ? 'Fixed' : b}</option>)}
+                                </select>
+                              </td>
+                              <td className="px-2 py-1.5 text-right border border-gray-300 bg-amber-50 tabular-nums" title="from Packing List">
+                                {!c || c.basis === 'FIXED' ? <span className="text-gray-400">-</span>
+                                  : live > 0 ? (c.basis === 'CBM' ? live.toFixed(3) : live.toLocaleString('en-US', { maximumFractionDigits: 2 }))
+                                  : <span className="text-orange-600" title={`No ${unitWord} in Packing List`}>no {unitWord}</span>}
+                              </td>
+                              {c && c.basis === 'FIXED'
+                                ? <td className="px-2 py-1.5 text-center border border-gray-300 bg-amber-50 text-gray-400">-</td>
+                                : editable(record, 'ship_rate', c?.rate ?? '', c && c.rate > 0 ? fmt2(c.rate) : <span className="text-gray-400">rate</span>, 'bg-amber-50 tabular-nums hover:bg-amber-100', { step: '0.01' })}
+                              {c && c.basis === 'FIXED'
+                                ? editable(record, 'ship_fixed', c.amount, fmt0(c.amount), 'bg-amber-50 font-medium tabular-nums hover:bg-amber-100', { step: '1' })
+                                : <td className="px-2 py-1.5 text-right border border-gray-300 bg-amber-50 font-medium tabular-nums">{c && c.amount > 0 ? fmt0(c.amount) : '-'}</td>}
+                            </>;
+                          })()}
                           {editable(record, 'charge_per_unit', record.charge_per_unit,
                             <div className="flex items-center justify-end gap-1">
                               {tag && <span className={`px-1 rounded text-[9px] font-semibold leading-4 ${BASIS_TAG[tag] || 'bg-gray-100 text-gray-600'}`}>{tag}</span>}
@@ -1127,7 +1232,7 @@ export default function CostingDutySheet() {
                       );
                     })}
                     <tr className="bg-slate-900 text-white font-bold">
-                      <td colSpan={13} className="px-2 py-2 text-right border border-slate-700">
+                      <td colSpan={17} className="px-2 py-2 text-right border border-slate-700">
                         {filtersOn ? `SHOWN LINES (${filteredRecords.length} of ${batchRecords.length}):` : 'TOTALS:'}
                       </td>
                       <td className="px-2 py-2 text-right border border-slate-700 bg-green-700 tabular-nums">{fmt0(shown.landed)}</td>
@@ -1162,7 +1267,9 @@ export default function CostingDutySheet() {
             </div>
             <ul className="space-y-0.5 ml-4 list-disc">
               <li><strong>Cost LKR/unit</strong> = Price CNY x CNY rate</li>
-              <li><strong>Shipping/unit</strong> = the item's charge in Shipping &rarr; Charges / its qty (tag shows KG / CBM / PCS / FIXED; MANUAL for rows not from the packing list)</li>
+              <li><strong>Ship charge</strong> = the item's kg / CBM / qty from Packing List x Rate (or a Fixed amount)</li>
+              <li><strong>Shipping/unit</strong> = Ship charge / the item's qty (MANUAL for rows not from the packing list)</li>
+              <li><strong>Bulk</strong> = the agent's invoice total typed in Shipping &rarr; Charges; on items should add up to it</li>
               <li><strong>Landed/unit</strong> = Cost LKR/unit + Shipping/unit</li>
               <li><strong>Profit</strong> = Selling price - Landed (RESALE only); FACTORY goods count at landed cost</li>
             </ul>

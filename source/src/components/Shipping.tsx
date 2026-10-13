@@ -436,7 +436,7 @@ export default function Shipping() {
                       </td>
                       <td className="px-3 py-3 text-gray-700 whitespace-nowrap">{s.eta ? new Date(s.eta).toLocaleDateString('en-GB') : '—'}</td>
                       <td className="px-3 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => setCharging(s as unknown as ChargeShipment)} className="px-2 py-1 mr-1 text-xs font-semibold border border-teal-600 text-teal-700 rounded hover:bg-teal-50 inline-flex items-center gap-1" title="Shipping charges per bill and the agent's account"><Banknote className="w-3.5 h-3.5" />Charges</button>
+                        <button onClick={() => setCharging(s as unknown as ChargeShipment)} className="px-2 py-1 mr-1 text-xs font-semibold border border-teal-600 text-teal-700 rounded hover:bg-teal-50 inline-flex items-center gap-1" title="Bulk shipping amount and the agent account"><Banknote className="w-3.5 h-3.5" />Charges</button>
                         <button onClick={() => printShipment(s)} className="p-1.5 text-gray-500 hover:text-teal-700" title="Print / Save as PDF"><Printer className="w-4 h-4" /></button>
                         <button onClick={() => openEdit(s)} className="p-1.5 text-gray-500 hover:text-teal-700" title="Edit"><Pencil className="w-4 h-4" /></button>
                         <button onClick={() => remove(s)} className="p-1.5 text-gray-500 hover:text-red-600" title="Delete"><Trash2 className="w-4 h-4" /></button>
