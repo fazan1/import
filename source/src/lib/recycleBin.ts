@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { writeBook } from './book';
 
 interface RecycleBinEntry {
   source_table: string;
@@ -35,6 +36,8 @@ export async function moveToRecycleBin(entry: RecycleBinEntry): Promise<{ succes
       related_data: entry.related_data || {},
       display_name: entry.display_name,
       portal: entry.portal,
+      // the deleted record's own book (a master without a book: the book you are in)
+      book: ((entry.record_data as { book?: string | null }).book) || writeBook(),
     });
 
   if (insertError) {

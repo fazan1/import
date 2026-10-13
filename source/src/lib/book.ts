@@ -27,6 +27,7 @@ export const BOOKED_TABLES = new Set([
   'shipment_charges',
   'agent_ledger',
   'packing_list_items', // lines carry their book too (sql/packing-lines-book.sql) — LCL 2026 never counts OLD lines
+  'recycle_bin',        // deleted records keep their book (sql/books-separate.sql)
 ]);
 
 const KEY = 'crm-book';

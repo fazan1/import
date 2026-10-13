@@ -61,9 +61,15 @@ function writeRefusal(table: string, op: 'insert' | 'upsert'): string | null {
   return null;
 }
 
+// Backup only: reads a table WITHOUT the book filter, so a backup holds every book.
+// Every row keeps its own "book" value, so nothing is mixed when it is restored. Never use it on screens.
+let unfilteredFrom: ((table: string) => any) | null = null;
+export const fromAllBooksForBackup = (table: string): any => (unfilteredFrom ? unfilteredFrom(table) : (supabase as any).from(table));
+
 try {
   const client = supabase as any;
   const rawFrom = client.from.bind(client);
+  unfilteredFrom = rawFrom;
   client.from = (table: string) => {
     const qb = rawFrom(table);
     if (!BOOKED_TABLES.has(table)) return qb;

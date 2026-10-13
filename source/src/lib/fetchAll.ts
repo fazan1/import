@@ -18,3 +18,21 @@ export async function selectByIds<T>(table: string, cols: string, col: string, i
   }
   return { data: out, error: null };
 }
+
+/**
+ * Read ALL rows of a query, page by page (Supabase returns at most 1000 rows per call).
+ * `build` must return a fresh query each time, with a stable .order() so pages don't skip or repeat rows.
+ * The current-book filter is applied automatically for booked tables, so books never mix.
+ *   const { data } = await fetchAllPages(() => supabase.from('busy_sales_payments').select('...').order('id'));
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function fetchAllPages<T>(build: () => any): Promise<{ data: T[]; error: string | null }> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().range(from, from + 999);
+    if (error) return { data: out, error: error.message };
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < 1000) break;
+  }
+  return { data: out, error: null };
+}

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Download, Upload, HardDriveDownload } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, fromAllBooksForBackup } from '../lib/supabase';
+import { BOOKED_TABLES, BOOK_OLD } from '../lib/book';
 
 // Every table in the database, in load order (referenced tables first).
 const TABLES = [
@@ -12,7 +13,15 @@ const TABLES = [
   'so_po_links', 'busy_sales_invoice_items', 'busy_sales_payments', 'pl_input', 'purchase_bill_items',
   'purchase_payments', 'packing_list_items', 'costing_duty_sheet',
   'shipments', 'factory_problems', 'factory_problem_media', 'factory_supplier_answers', 'factory_steps',
+  // added in v96 (were missing from the backup)
+  'investors', 'investor_ledger', 'clearing_agents', 'shipment_charges', 'agent_ledger', 'book_settings',
+  'growth_months', 'capital_savings',
+  'ep_categories', 'ep_deposits', 'ep_expenses', 'ep_tallies', 'ep_moves',
+  'wh_locations', 'wh_products', 'wh_stock', 'wh_notes', 'wh_note_lines',
 ];
+
+// A table that does not exist in this database is skipped (not every site has every page).
+const isMissingTable = (msg: string) => /does not exist|could not find the table|schema cache/i.test(msg);
 
 // Sheet names used by the older "full-data-export" spreadsheet, so those files import too.
 const SHEET_ALIASES: Record<string, string> = {
@@ -70,14 +79,22 @@ export default function BackupRestore() {
       let total = 0;
       for (const table of TABLES) {
         const rows: Row[] = [];
-        // page through in case a table grows large
+        // EVERY book is saved (not only the one you are in); each row keeps its own "book" column,
+        // so on restore every record goes back into its own book — nothing is mixed.
+        let missing = false;
+        let ordered = true;
         for (let from = 0; ; from += 1000) {
-          const { data, error } = await supabase.from(table).select('*').range(from, from + 999);
+          let q = fromAllBooksForBackup(table).select('*');
+          if (ordered) q = q.order('id'); // stable pages: no row skipped or repeated
+          const { data, error } = await q.range(from, from + 999);
+          if (error && ordered && /column .*id/i.test(error.message)) { ordered = false; from -= 1000; continue; }
+          if (error && isMissingTable(error.message)) { missing = true; break; }
           if (error) throw new Error(`${table}: ${error.message}`);
           if (!data || data.length === 0) break;
           rows.push(...(data as Row[]));
           if (data.length < 1000) break;
         }
+        if (missing) { setLog((l) => [...l, `${table}: not in this database — skipped`]); continue; }
         // json/array columns become text so they survive the spreadsheet round-trip
         const flat = rows.map((r) => {
           const o: Row = {};
@@ -89,10 +106,17 @@ export default function BackupRestore() {
         const ws = XLSX.utils.json_to_sheet(flat.length ? flat : [{}]);
         XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(table));
         total += rows.length;
-        setLog((l) => [...l, `${table}: ${rows.length} rows`]);
+        // show how many rows of each book went into the file
+        let perBook = '';
+        if (BOOKED_TABLES.has(table) && rows.length) {
+          const n: Record<string, number> = {};
+          rows.forEach((r) => { const b = (r.book as string) || 'NO BOOK'; n[b] = (n[b] || 0) + 1; });
+          perBook = ' (' + Object.entries(n).map(([b, c]) => `${b} ${c}`).join(', ') + ')';
+        }
+        setLog((l) => [...l, `${table}: ${rows.length} rows${perBook}`]);
       }
       const stamp = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `backup-${stamp}.xlsx`);
+      XLSX.writeFile(wb, `backup-all-books-${stamp}.xlsx`);
       setLog((l) => [...l, `Done — ${total} rows exported.`]);
     } catch (e) {
       setLog((l) => [...l, `Export failed: ${(e as Error).message}`]);
@@ -128,12 +152,30 @@ export default function BackupRestore() {
       }
 
       if (skipped.length) setLog((l) => [...l, `Ignored sheets: ${skipped.join(', ')}`]);
+
+      // Never let a restored record fall into the wrong book. A row without a book comes from a
+      // backup made before the books were split — everything from that time is the OLD book.
+      let tagged = 0;
+      for (const [table, rows] of Object.entries(payload)) {
+        if (!BOOKED_TABLES.has(table)) continue;
+        rows.forEach((r) => {
+          if (r.book) return;
+          // a deleted record in the Recycle Bin goes with the book of that record
+          let own: unknown = null;
+          if (table === 'recycle_bin') { try { const d = typeof r.record_data === 'string' ? JSON.parse(r.record_data) : r.record_data; own = d?.book; } catch { /* not JSON */ } }
+          r.book = (typeof own === 'string' && own) || BOOK_OLD; tagged++;
+        });
+      }
+      if (tagged) setLog((l) => [...l, `${tagged} rows had no book (backup from before the books were split) — they go into ${BOOK_OLD}.`]);
       const tableCount = Object.keys(payload).length;
       if (!tableCount) throw new Error('No recognised tables found in this file.');
       setLog((l) => [...l, `Importing ${tableCount} tables…`]);
 
       const { data, error } = await supabase.rpc('bulk_import', { p_data: payload });
-      if (error) throw new Error(error.message);
+      if (error) {
+        if (/collection-only|closed/i.test(error.message)) throw new Error(error.message + '\nNothing was imported. To restore OLD documents, the OLD book must be open for the import (ask for the SQL line).');
+        throw new Error(error.message);
+      }
 
       const result = (data ?? {}) as Record<string, number>;
       let inserted = 0;
@@ -163,8 +205,9 @@ export default function BackupRestore() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-blue-900 mb-2">Backup &amp; Restore</h3>
           <p className="text-sm text-teal-700 mb-4">
-            Export every table to one Excel file, or load a backup into this database. Importing only adds
-            rows that don't already exist, so it is safe to run more than once.
+            Export every table of every book to one Excel file (each record keeps its own book), or load a backup
+            into this database. Importing only adds rows that don't already exist, and every row goes back into its
+            own book, so it is safe to run more than once.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
