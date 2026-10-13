@@ -117,13 +117,30 @@ END $$;
 --   PCS item : charge = its qty x the rate          (Fixed amounts are left as they are)
 -- then: the item's costing line, the bill's total, the shipment's total and — only when no
 -- agent invoice total was typed — the agent's account line for that shipment.
--- Items never charged yet are not touched (save Charges once to give them a rate).
+-- An item without a charge yet takes the type and rate of the other items of its packing list.
 -- =====================================================================
 CREATE OR REPLACE FUNCTION public.packing_to_charges() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE c record; q numeric; tq numeric; tot numeric; s record;
+DECLARE c record; q numeric; tq numeric; tot numeric; s record; sib record;
 BEGIN
   IF to_regclass('public.shipment_item_charges') IS NULL THEN RETURN NEW; END IF;
+  -- an item that had no kg / CBM when Charges was saved has no charge yet: give it the type and rate
+  -- of the other items of the same packing list, so any kg / CBM added now is charged straight away
+  IF NOT EXISTS (SELECT 1 FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id) AND NEW.batch_number IS NOT NULL THEN
+    SELECT c2.shipment_id, c2.purchase_bill_id, c2.basis, c2.rate INTO sib
+      FROM public.shipment_item_charges c2
+      JOIN public.packing_list_items p2 ON p2.id = c2.packing_list_item_id
+      JOIN public.shipments sh ON sh.id = c2.shipment_id AND sh.shipment_no = NEW.batch_number
+     WHERE c2.basis IN ('KG', 'CBM') AND p2.id <> NEW.id
+       AND p2.packing_list_no IS NOT DISTINCT FROM NEW.packing_list_no
+       AND p2.pl_input_id IS NOT DISTINCT FROM NEW.pl_input_id
+     ORDER BY c2.updated_at DESC LIMIT 1;
+    IF sib.shipment_id IS NOT NULL THEN
+      INSERT INTO public.shipment_item_charges (shipment_id, packing_list_item_id, purchase_bill_id, basis, qty, rate, amount)
+      VALUES (sib.shipment_id, NEW.id, sib.purchase_bill_id, sib.basis, 0, sib.rate, 0)
+      ON CONFLICT (shipment_id, packing_list_item_id) DO NOTHING;
+    END IF;
+  END IF;
   FOR c IN SELECT * FROM public.shipment_item_charges WHERE packing_list_item_id = NEW.id AND basis IN ('KG', 'CBM', 'PCS') LOOP
     q := CASE c.basis WHEN 'KG' THEN COALESCE(NEW.weight_kg, 0) WHEN 'CBM' THEN COALESCE(NEW.cbm, 0) ELSE COALESCE(NEW.quantity, 0) END;
     IF q = COALESCE(c.qty, 0) THEN CONTINUE; END IF;
