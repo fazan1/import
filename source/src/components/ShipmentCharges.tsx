@@ -5,9 +5,11 @@ import { fetchAllPages, selectByIds } from '../lib/fetchAll';
 import { loadItemCharges, syncCostingCharges } from '../lib/costingCharges';
 import type { ChargeBasis, ItemCharge } from '../lib/costingCharges';
 
-/* Shipping charges for one shipment, ITEM BY ITEM: every packing-list item of the shipment gets
-   a type (KG / CBM / PCS / Fixed), a qty (taken from the packing list) and a rate.
-   Costing takes each item's charge and divides it by the item's quantity (charge per unit).
+/* Shipping charges for one shipment, PER PACKING LIST: each packing list (PL) gets a type (KG / CBM / PCS / Fixed),
+   a qty (its kg / CBM / pieces from the packing list — the PL's weight and CBM are often typed on its first line only)
+   and a rate. The PL's charge is shared by its items by quantity, so every piece in a PL carries the same charge.
+   A PL that mixes bases (bolts per kg, hose per CBM) can be switched to "charge items separately".
+   Each item's share is saved in shipment_item_charges; Costing divides it by the item's quantity (charge per unit).
    No spreading: "Other charges" are NOT put on any item.
    Per-bill totals are also written to shipment_charges (CN Reports reads those).
    "Post to agent account" puts the invoice into the agent's ledger (one line per shipment). */
@@ -25,7 +27,9 @@ interface Item {
 }
 interface BillInfo { id: string; label: string; cnv: string; supplier: string }
 interface Edit { basis: Basis; qty: string; rate: string; fixed: string }
-interface Group { key: string; title: string; sub: string; billId: string | null; items: Item[] }
+interface PL { key: string; plNo: string; billId: string | null; items: Item[]; qty: number; kg: number; cbm: number }
+interface Group { key: string; title: string; sub: string; billId: string | null; pls: PL[] }
+const plKeyOf = (i: { billId: string | null; packing_list_no: string }) => `${i.billId ?? '-'}|${i.packing_list_no || '-'}`;
 
 const BASES: Basis[] = ['KG', 'CBM', 'PCS', 'FIXED'];
 const RATE_BASES: Basis[] = ['KG', 'CBM', 'PCS'];
@@ -62,7 +66,9 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   const [bills, setBills] = useState<Record<string, BillInfo>>({});
   const [batchBillIds, setBatchBillIds] = useState<string[]>([]);
   const [savedCharges, setSavedCharges] = useState<Map<string, ItemCharge>>(new Map());
-  const [edits, setEdits] = useState<Record<string, Edit>>({});
+  const [edits, setEdits] = useState<Record<string, Edit>>({});      // per item (only used when a PL is charged item by item)
+  const [plEdits, setPlEdits] = useState<Record<string, Edit>>({});  // per packing list
+  const [split, setSplit] = useState<Record<string, boolean>>({});   // PL charged item by item
   const [bulk, setBulk] = useState<Record<string, string>>({});
   const [agentId, setAgentId] = useState<string>(shipment.agent_id || '');
   const [other, setOther] = useState<string>(shipment.other_charges ? String(shipment.other_charges) : '');
@@ -72,7 +78,8 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   const [okMsg, setOkMsg] = useState('');
 
   const defaultRate = (b: Basis) => (b === 'CBM' ? shipment.rate_cbm : b === 'KG' ? shipment.rate_kg : b === 'PCS' ? shipment.rate_pcs : 0) || 0;
-  const autoQty = (i: Item, b: Basis) => (b === 'CBM' ? i.cbm : b === 'KG' ? i.weight_kg : b === 'PCS' ? i.quantity : 0);
+  const autoQty = (i: { cbm: number; weight_kg?: number; kg?: number; quantity?: number; qty?: number }, b: Basis) =>
+    (b === 'CBM' ? i.cbm : b === 'KG' ? (i.weight_kg ?? i.kg ?? 0) : b === 'PCS' ? (i.quantity ?? i.qty ?? 0) : 0);
   const fmtQty = (v: number, b: Basis) => String(b === 'CBM' ? Math.round(v * 1000) / 1000 : Math.round(v * 100) / 100);
 
   useEffect(() => {
@@ -137,33 +144,72 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
         else e[i.id] = { basis: start, qty: fmtQty(autoQty(i, start), start), rate: defaultRate(start) ? String(defaultRate(start)) : '', fixed: '' };
       });
       setEdits(e);
+      // per packing list: one charge shared by its items — unless what was saved shows the items were charged separately
+      const byPl = new Map<string, Item[]>();
+      rows.forEach((i) => { const k = plKeyOf(i); byPl.set(k, [...(byPl.get(k) ?? []), i]); });
+      const pe: Record<string, Edit> = {}; const sp: Record<string, boolean> = {};
+      byPl.forEach((its, k) => {
+        const saved = its.map((i) => ch.map.get(i.id)).filter(Boolean) as ItemCharge[];
+        const q = its.reduce((t, i) => t + i.quantity, 0), kg = its.reduce((t, i) => t + i.weight_kg, 0), cbm = its.reduce((t, i) => t + i.cbm, 0);
+        if (saved.length) {
+          const perUnit = its.map((i) => { const c = ch.map.get(i.id); return i.quantity > 0 ? (c?.amount ?? 0) / i.quantity : 0; });
+          const mixed = new Set(saved.map((c) => c.basis)).size > 1 || new Set(saved.map((c) => c.rate)).size > 1
+            || saved.length < its.length || Math.max(...perUnit) - Math.min(...perUnit) > 0.01;
+          sp[k] = mixed;
+          const b = saved[0].basis, amt = saved.reduce((t, c) => t + c.amount, 0);
+          pe[k] = { basis: b, qty: b === 'FIXED' ? '' : fmtQty(saved.reduce((t, c) => t + c.qty, 0), b), rate: b === 'FIXED' ? '' : (saved[0].rate ? String(saved[0].rate) : ''), fixed: b === 'FIXED' ? String(r2(amt) || '') : '' };
+        } else {
+          pe[k] = { basis: start, qty: fmtQty(autoQty({ cbm, kg, qty: q }, start), start), rate: defaultRate(start) ? String(defaultRate(start)) : '', fixed: '' };
+        }
+      });
+      setPlEdits(pe); setSplit(sp);
       setLoading(false);
     })().catch((err) => { setLoadErr(plain((err as Error).message).replace(/^Could not save: /, 'Could not load: ')); setLoading(false); });
   }, [shipment.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const amountOf = (id: string) => { const e = edits[id]; if (!e) return 0; return e.basis === 'FIXED' ? num(e.fixed) : num(e.qty) * num(e.rate); };
+  const editAmount = (e: Edit | undefined) => (!e ? 0 : e.basis === 'FIXED' ? num(e.fixed) : num(e.qty) * num(e.rate));
+  const itemEditAmount = (id: string) => editAmount(edits[id]);
+
+  const pls = useMemo<Map<string, PL>>(() => {
+    const m = new Map<string, PL>();
+    items.forEach((i) => {
+      const k = plKeyOf(i);
+      const p = m.get(k) ?? { key: k, plNo: i.packing_list_no || '—', billId: i.billId, items: [], qty: 0, kg: 0, cbm: 0 };
+      p.items.push(i); p.qty += i.quantity; p.kg += i.weight_kg; p.cbm += i.cbm; m.set(k, p);
+    });
+    return m;
+  }, [items]);
+  const plAmount = (p: PL) => (split[p.key] ? p.items.reduce((t, i) => t + itemEditAmount(i.id), 0) : editAmount(plEdits[p.key]));
+  /** what one item carries: its own charge, or its share (by quantity) of its packing list's charge */
+  const amountOf = (id: string) => {
+    const i = items.find((x) => x.id === id); if (!i) return 0;
+    const p = pls.get(plKeyOf(i)); if (!p) return 0;
+    if (split[p.key]) return itemEditAmount(id);
+    return p.qty > 0 ? editAmount(plEdits[p.key]) * i.quantity / p.qty : 0;
+  };
 
   const groups = useMemo<Group[]>(() => {
-    const byBill = new Map<string, Item[]>();
-    const loose: Item[] = [];
-    items.forEach((i) => { if (i.billId) { const a = byBill.get(i.billId) ?? []; a.push(i); byBill.set(i.billId, a); } else loose.push(i); });
-    const out: Group[] = [...byBill.entries()].map(([id, its]) => {
+    const byBill = new Map<string, PL[]>();
+    const loose: PL[] = [];
+    pls.forEach((p) => { if (p.billId) byBill.set(p.billId, [...(byBill.get(p.billId) ?? []), p]); else loose.push(p); });
+    const byNo = (a: PL, b: PL) => a.plNo.localeCompare(b.plNo, undefined, { numeric: true });
+    const out: Group[] = [...byBill.entries()].map(([id, ps]) => {
       const b = bills[id];
-      return { key: id, billId: id, title: `Bill ${b?.label ?? '—'}`, sub: [b?.cnv ? `CNV ${b.cnv}` : '', b?.supplier ?? ''].filter(Boolean).join(' · '), items: its };
+      return { key: id, billId: id, title: `Bill ${b?.label ?? '—'}`, sub: [b?.cnv ? `CNV ${b.cnv}` : '', b?.supplier ?? ''].filter(Boolean).join(' · '), pls: ps.sort(byNo) };
     });
     out.sort((a, b) => a.title.localeCompare(b.title));
-    if (loose.length) out.push({ key: '__other', billId: null, title: 'Other items', sub: 'not linked to a bill (no PL Input bill)', items: loose });
+    if (loose.length) out.push({ key: '__other', billId: null, title: 'Other items', sub: 'not linked to a bill (no PL Input bill)', pls: loose.sort(byNo) });
     return out;
-  }, [items, bills]);
+  }, [pls, bills]);
 
-  const itemsTotal = useMemo(() => items.reduce((t, i) => t + amountOf(i.id), 0), [items, edits]); // eslint-disable-line react-hooks/exhaustive-deps
+  const itemsTotal = useMemo(() => [...pls.values()].reduce((t, p) => t + plAmount(p), 0), [pls, edits, plEdits, split]); // eslint-disable-line react-hooks/exhaustive-deps
   const otherV = num(other);
   const total = itemsTotal + otherV;
   const invoiceV = num(invoice);
   const diff = invoiceV > 0 ? invoiceV - total : 0;
   const agent = agents.find((a) => a.id === agentId) || null;
   const postAmount = invoiceV > 0 ? invoiceV : total;
-  const usedBases = RATE_BASES.filter((b) => items.some((i) => edits[i.id]?.basis === b));
+  const usedBases = RATE_BASES.filter((b) => [...pls.values()].some((p) => (split[p.key] ? p.items.some((i) => edits[i.id]?.basis === b) : plEdits[p.key]?.basis === b)));
 
   function setBasis(i: Item, b: Basis) {
     const cur = edits[i.id];
@@ -176,7 +222,16 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     const next = { ...edits };
     Object.keys(next).forEach((k) => { if (next[k].basis === b) next[k] = { ...next[k], rate }; });
     setEdits(next);
+    const nextPl = { ...plEdits };
+    Object.keys(nextPl).forEach((k) => { if (nextPl[k].basis === b) nextPl[k] = { ...nextPl[k], rate }; });
+    setPlEdits(nextPl);
   }
+  function setPlBasis(p: PL, b: Basis) {
+    const cur = plEdits[p.key];
+    const used = [...Object.values(plEdits), ...Object.values(edits)].find((x) => x.basis === b && num(x.rate) > 0)?.rate;
+    setPlEdits({ ...plEdits, [p.key]: { basis: b, qty: b === 'FIXED' ? '' : fmtQty(autoQty({ cbm: p.cbm, kg: p.kg, qty: p.qty }, b), b), rate: b === 'FIXED' ? '' : (used ?? (defaultRate(b) ? String(defaultRate(b)) : '')), fixed: b === 'FIXED' ? (cur?.fixed || String(Math.round(plAmount(p)) || '')) : '' } });
+  }
+  const setPlField = (k: string, f: keyof Edit, v: string) => setPlEdits({ ...plEdits, [k]: { ...plEdits[k], [f]: v } });
 
   async function save(post: boolean) {
     setMsg(''); setOkMsg('');
@@ -188,8 +243,14 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       const rows: ItemCharge[] = items
         .filter((i) => savedCharges.has(i.id) || amountOf(i.id) > 0)
         .map((i) => {
-          const e = edits[i.id];
-          return { shipment_id: shipment.id, packing_list_item_id: i.id, purchase_bill_id: i.billId, basis: e.basis, qty: e.basis === 'FIXED' ? 0 : num(e.qty), rate: e.basis === 'FIXED' ? 0 : num(e.rate), amount: r2(amountOf(i.id)) };
+          const p = pls.get(plKeyOf(i))!;
+          if (split[p.key]) {
+            const e = edits[i.id];
+            return { shipment_id: shipment.id, packing_list_item_id: i.id, purchase_bill_id: i.billId, basis: e.basis, qty: e.basis === 'FIXED' ? 0 : num(e.qty), rate: e.basis === 'FIXED' ? 0 : num(e.rate), amount: r2(amountOf(i.id)) };
+          }
+          // the item's share (by quantity) of its packing list's charge
+          const e = plEdits[p.key]; const share = p.qty > 0 ? i.quantity / p.qty : 0;
+          return { shipment_id: shipment.id, packing_list_item_id: i.id, purchase_bill_id: i.billId, basis: e.basis, qty: e.basis === 'FIXED' ? 0 : Math.round(num(e.qty) * share * 10000) / 10000, rate: e.basis === 'FIXED' ? 0 : num(e.rate), amount: r2(amountOf(i.id)) };
         });
       for (let k = 0; k < rows.length; k += 500) {
         const { error } = await supabase.from('shipment_item_charges').upsert(rows.slice(k, k + 500), { onConflict: 'shipment_id,packing_list_item_id' });
@@ -266,7 +327,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center sm:p-4" onClick={() => !saving && onClose()}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each item (per kg, per CBM, per piece or a fixed amount). Costing divides it by the item’s quantity.</p></div>
+          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each packing list (per kg, per CBM, per piece or a fixed amount). It is shared by the PL’s items by quantity; Costing shows it per piece.</p></div>
           <button onClick={onClose} className="text-gray-400"><X className="w-5 h-5" /></button>
         </div>
 
@@ -310,43 +371,82 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                     <table className="w-full text-sm whitespace-nowrap">
                       <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
                         <tr>
-                          <th className="px-3 py-2 text-left">Item</th><th className="px-3 py-2 text-left">PL</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Kg</th><th className="px-3 py-2 text-right">CBM</th>
+                          <th className="px-3 py-2 text-left">Packing list / items</th><th className="px-3 py-2 text-left">PL</th><th className="px-3 py-2 text-right">Qty</th><th className="px-3 py-2 text-right">Kg</th><th className="px-3 py-2 text-right">CBM</th>
                           <th className="px-3 py-2 text-left">Type</th><th className="px-3 py-2 text-right">Charge qty</th><th className="px-3 py-2 text-right">Rate (Rs)</th><th className="px-3 py-2 text-right">Amount (Rs)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {groups.map((g) => {
-                          const sub = g.items.reduce((t, i) => t + amountOf(i.id), 0);
+                          const sub = g.pls.reduce((t, p) => t + plAmount(p), 0);
+                          const qtyCell = (e: Edit, auto: number, onQty: (v: string) => void) => (e.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <>
+                            <input className={cell} inputMode="decimal" value={e.qty} onChange={(ev) => onQty(ev.target.value)} />
+                            {auto === 0 && !(num(e.qty) > 0) && <div className="text-[10px] text-amber-600 text-right leading-tight">{e.basis === 'KG' ? 'No KG in packing list — type the kg here' : e.basis === 'CBM' ? 'No CBM in packing list — type the CBM here' : 'No qty — type it here'}</div>}
+                          </>);
                           return (
                             <Fragment key={g.key}>
                               <tr className="bg-teal-50/60"><td colSpan={9} className="px-3 py-1.5 text-xs"><span className="font-semibold text-gray-900">{g.title}</span>{g.sub && <span className="text-gray-500"> · {g.sub}</span>}</td></tr>
-                              {g.items.map((i) => {
-                                const e = edits[i.id]; if (!e) return null;
-                                const a = amountOf(i.id);
-                                const noPl = e.basis !== 'FIXED' && autoQty(i, e.basis) === 0 && !(Number(e.qty) > 0); // hidden once a quantity is typed
+                              {g.pls.map((p) => {
+                                const pe = plEdits[p.key]; if (!pe) return null;
+                                const isSplit = !!split[p.key];
+                                const pa = plAmount(p);
+                                const names = p.items.map((i) => i.item_name);
                                 return (
-                                  <tr key={i.id}>
-                                    <td className="px-3 py-2 font-medium text-gray-900 max-w-[220px] truncate" title={i.item_name}>{i.item_name}</td>
-                                    <td className="px-3 py-2 text-gray-600">{i.packing_list_no || '—'}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums">{nq(i.quantity)} <span className="text-gray-400 text-xs">{i.unit}</span></td>
-                                    <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n2(i.weight_kg)}</td>
-                                    <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n3(i.cbm)}</td>
-                                    <td className="px-3 py-2">
-                                      <select value={e.basis} onChange={(ev) => setBasis(i, ev.target.value as Basis)} className="px-2 py-1.5 border border-gray-300 rounded text-sm">
-                                        {BASES.map((x) => <option key={x} value={x}>{x === 'FIXED' ? 'Fixed' : x}</option>)}
-                                      </select>
-                                    </td>
-                                    <td className="px-3 py-2 w-28">{e.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <><input className={cell} inputMode="decimal" value={e.qty} onChange={(ev) => setField(i.id, 'qty', ev.target.value)} />{noPl && <div className="text-[10px] text-amber-600 text-right leading-tight">{e.basis === 'KG' ? 'No KG in packing list — type the kg here' : e.basis === 'CBM' ? 'No CBM in packing list — type the CBM here' : 'No qty in packing list — type it here'}</div>}</>}</td>
-                                    <td className="px-3 py-2 w-28">{e.basis === 'FIXED'
-                                      ? <span className="block text-right text-gray-400">—</span>
-                                      : <input className={cell} inputMode="decimal" value={e.rate} onChange={(ev) => setField(i.id, 'rate', ev.target.value)} />}</td>
-                                    <td className="px-3 py-2 w-32 text-right">
-                                      {e.basis === 'FIXED'
-                                        ? <input className={cell} inputMode="decimal" placeholder="amount" value={e.fixed} onChange={(ev) => setField(i.id, 'fixed', ev.target.value)} />
-                                        : <span className="tabular-nums font-semibold">{n0(a)}</span>}
-                                      <div className="text-[10px] text-gray-400 tabular-nums">{i.quantity > 0 ? `${n2(a / i.quantity)} per ${i.unit || 'unit'}` : 'no qty — can’t divide'}</div>
-                                    </td>
-                                  </tr>
+                                  <Fragment key={p.key}>
+                                    <tr className={isSplit ? 'bg-gray-50/60' : ''}>
+                                      <td className="px-3 py-2 max-w-[260px]">
+                                        <div className="font-semibold text-gray-900">PL {p.plNo} <span className="font-normal text-gray-500">· {p.items.length} item{p.items.length === 1 ? '' : 's'}</span></div>
+                                        <div className="text-[11px] text-gray-500 truncate" title={names.join(', ')}>{names.join(', ')}</div>
+                                        {p.items.length > 1 && <button type="button" onClick={() => setSplit({ ...split, [p.key]: !isSplit })} className="text-[11px] text-teal-700 underline">{isSplit ? 'One charge for the whole PL' : 'Charge items separately'}</button>}
+                                      </td>
+                                      <td className="px-3 py-2 text-gray-600">{p.plNo}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums">{nq(p.qty)} <span className="text-gray-400 text-xs">pcs</span></td>
+                                      <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n2(p.kg)}</td>
+                                      <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n3(p.cbm)}</td>
+                                      {isSplit ? (
+                                        <td colSpan={3} className="px-3 py-2 text-[11px] text-gray-500">Charged item by item below</td>
+                                      ) : (<>
+                                        <td className="px-3 py-2">
+                                          <select value={pe.basis} onChange={(ev) => setPlBasis(p, ev.target.value as Basis)} className="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                                            {BASES.map((x) => <option key={x} value={x}>{x === 'FIXED' ? 'Fixed' : x}</option>)}
+                                          </select>
+                                        </td>
+                                        <td className="px-3 py-2 w-32">{qtyCell(pe, autoQty({ cbm: p.cbm, kg: p.kg, qty: p.qty }, pe.basis), (v) => setPlField(p.key, 'qty', v))}</td>
+                                        <td className="px-3 py-2 w-28">{pe.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <input className={cell} inputMode="decimal" value={pe.rate} onChange={(ev) => setPlField(p.key, 'rate', ev.target.value)} />}</td>
+                                      </>)}
+                                      <td className="px-3 py-2 w-32 text-right">
+                                        {!isSplit && pe.basis === 'FIXED'
+                                          ? <input className={cell} inputMode="decimal" placeholder="amount" value={pe.fixed} onChange={(ev) => setPlField(p.key, 'fixed', ev.target.value)} />
+                                          : <span className="tabular-nums font-semibold">{n0(pa)}</span>}
+                                        {!isSplit && <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece` : 'no qty — can’t divide'}</div>}
+                                      </td>
+                                    </tr>
+                                    {isSplit && p.items.map((i) => {
+                                      const e = edits[i.id]; if (!e) return null;
+                                      const a = itemEditAmount(i.id);
+                                      return (
+                                        <tr key={i.id} className="bg-gray-50/40">
+                                          <td className="pl-8 pr-3 py-2 text-gray-900 max-w-[240px] truncate" title={i.item_name}>{i.item_name}</td>
+                                          <td className="px-3 py-2 text-gray-400">{i.packing_list_no || '—'}</td>
+                                          <td className="px-3 py-2 text-right tabular-nums">{nq(i.quantity)} <span className="text-gray-400 text-xs">{i.unit}</span></td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n2(i.weight_kg)}</td>
+                                          <td className="px-3 py-2 text-right tabular-nums text-gray-600">{n3(i.cbm)}</td>
+                                          <td className="px-3 py-2">
+                                            <select value={e.basis} onChange={(ev) => setBasis(i, ev.target.value as Basis)} className="px-2 py-1.5 border border-gray-300 rounded text-sm">
+                                              {BASES.map((x) => <option key={x} value={x}>{x === 'FIXED' ? 'Fixed' : x}</option>)}
+                                            </select>
+                                          </td>
+                                          <td className="px-3 py-2 w-32">{qtyCell(e, autoQty(i, e.basis), (v) => setField(i.id, 'qty', v))}</td>
+                                          <td className="px-3 py-2 w-28">{e.basis === 'FIXED' ? <span className="block text-right text-gray-400">—</span> : <input className={cell} inputMode="decimal" value={e.rate} onChange={(ev) => setField(i.id, 'rate', ev.target.value)} />}</td>
+                                          <td className="px-3 py-2 w-32 text-right">
+                                            {e.basis === 'FIXED'
+                                              ? <input className={cell} inputMode="decimal" placeholder="amount" value={e.fixed} onChange={(ev) => setField(i.id, 'fixed', ev.target.value)} />
+                                              : <span className="tabular-nums font-semibold">{n0(a)}</span>}
+                                            <div className="text-[10px] text-gray-400 tabular-nums">{i.quantity > 0 ? `${n2(a / i.quantity)} per ${i.unit || 'unit'}` : 'no qty — can’t divide'}</div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </Fragment>
                                 );
                               })}
                               <tr className="bg-gray-50/70 text-xs"><td colSpan={8} className="px-3 py-1.5 text-right text-gray-500">{g.title} subtotal</td><td className="px-3 py-1.5 text-right tabular-nums font-semibold">{n0(sub)}</td></tr>
