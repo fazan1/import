@@ -97,3 +97,22 @@ input, select, textarea { border-radius: 2px !important; }
 input:focus, select:focus, textarea:focus { box-shadow: none !important; border-color: #e8552a !important; outline: none; }
 /* dark table headers (costing, PL, packing) */
 .bg-slate-900 { background-color: #0a0a0a !important; }
+
+/* ---------- Long prints (v99) ----------
+   The print pop-ups (PO, bill, packing list, costing, invoice …) sit inside a fixed window with a scroll box.
+   When printing, that window must not clip: let every box around the printed document grow, so all pages print
+   (before, only the first page — about 12 lines — came out). */
+@media print {
+  html:has([id$="-content"]), body:has([id$="-content"]) { height: auto !important; overflow: visible !important; }
+  body:has([id$="-content"]) *:has([id$="-content"]) {
+    position: static !important; display: block !important; overflow: visible !important;
+    max-height: none !important; height: auto !important; transform: none !important; padding: 0 !important; background: none !important;
+  }
+  [id$="-content"] { position: absolute !important; left: 0 !important; top: 0 !important; width: 100% !important;
+    max-height: none !important; height: auto !important; overflow: visible !important; }
+  /* the TOTAL row prints once, at the end (not at the foot of every page); column titles repeat on each page */
+  [id$="-content"] tfoot { display: table-row-group !important; }
+  [id$="-content"] thead { display: table-header-group !important; }
+  /* the screen behind the pop-up takes no space, so no blank pages are added */
+  body:has([id$="-content"]) #root > * > :not(:has([id$="-content"])) { display: none !important; }
+}

@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V98)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V99)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -54,6 +54,9 @@ book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipm
 - v97: ONE customer-balance rule (src/lib/receivables.ts) on every screen; totals load all pages (fetchAllPages);
   recycle_bin is booked (sql/books-separate.sql) and the shop login is kept out of every table its screens don't use;
   Backup exports all books (each row keeps its book; old backups restore into OLD).
+- v99: BLINE SHOP choice remembered per tab only (new visit = own books); companyFor(book) in src/lib/company.ts
+  (BLINE Traders for the shop book) on header, CN Home and purchase-side prints; print fixes (package count once
+  per PL, costing totals, invoice tax label); index.css "Long prints" rule stops print pop-ups clipping to page 1.
 - No per-LC books: each LC is a shipment in LCL 2026. Shop sees prices/costs (costing-duty in SHOP_MODULES);
   admin corrects shop records by switching to BLINE SHOP.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).

@@ -61,11 +61,15 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
         const plIds = Object.keys(plToBill);
         if (plIds.length) {
           const { data: items } = await supabase.from('packing_list_items').select('pl_input_id, cbm, weight_kg, no_of_pkgs').in('pl_input_id', plIds);
+          const pkgs: Record<string, number> = {};
           (items ?? []).forEach((i: { pl_input_id: string | null; cbm: number | null; weight_kg: number | null; no_of_pkgs: number | null }) => {
             const b = i.pl_input_id ? plToBill[i.pl_input_id] : null; if (!b) return;
             const t = tot[b] ?? (tot[b] = { cbm: 0, kg: 0, pcs: 0 });
-            t.cbm += Number(i.cbm) || 0; t.kg += Number(i.weight_kg) || 0; t.pcs += Number(i.no_of_pkgs) || 0;
+            t.cbm += Number(i.cbm) || 0; t.kg += Number(i.weight_kg) || 0;
+            // packages are saved on every line of a packing list: count them once per packing list
+            const pl = i.pl_input_id as string; pkgs[pl] = Math.max(pkgs[pl] || 0, Number(i.no_of_pkgs) || 0);
           });
+          Object.entries(pkgs).forEach(([pl, n]) => { const b = plToBill[pl]; if (b && tot[b]) tot[b].pcs += n; });
         }
       }
       const rows: BillRow[] = braw.map((b) => ({ id: b.id, no: b.bill_number || b.cnv_invoice_number || '—', supplier: b.purchase_orders?.suppliers?.name || '—', ...(tot[b.id] ?? { cbm: 0, kg: 0, pcs: 0 }) }));
