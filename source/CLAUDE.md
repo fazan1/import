@@ -42,10 +42,11 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 - No public sign-up link; logins are made in Settings -> Users.
 
 ## SQL files already applied to the live database (all in /sql)
-book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v100): security-lock, packing-lines-book, old-collection-only, books-separate, charity-setup, bulk-import-admin-only, item-charges-costing. health-check.sql is read-only and verifies all of it.
+book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop,
+and (confirmed ALL TRUE by check-everything.sql on 13 Oct 2026) security-lock, packing-lines-book, old-collection-only, books-separate,
+charity-setup, bulk-import-admin-only, item-charges-costing. check-everything.sql (read-only, 13 rows) and health-check.sql verify it.
 
 ## Open items
-- security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
 - Books decided (v96): LCL 2026 is the only new book; it must never count OLD. OLD stays open until old customers are paid
   (collection), then gets locked as reference. packing_list_items is booked since v96.
 - v96 sql/old-collection-only.sql: table book_settings (open/collection/closed), trigger trg_zz_book_mode
