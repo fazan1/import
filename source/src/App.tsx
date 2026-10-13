@@ -6,6 +6,7 @@ import type { BookMode } from './lib/book';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
 import { checkRecycleBinBook } from './lib/recycleBin';
+import { companyFor } from './lib/company';
 import Customers from './components/Customers';
 import CallList from './components/CallList';
 import CallForm from './components/CallForm';
@@ -433,7 +434,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{APP_COMPANY}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V98</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V98</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>

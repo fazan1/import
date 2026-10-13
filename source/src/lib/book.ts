@@ -31,10 +31,22 @@ export const BOOKED_TABLES = new Set([
 ]);
 
 const KEY = 'crm-book';
+// OLD / LCL 2026 / All books are remembered between visits. The shop book is remembered only
+// for this browser tab (sessionStorage): a new visit always starts in your own books, never in
+// BLINE SHOP by surprise. (The shop login itself is always put in its book by lockBook().)
 let current: string = (() => {
-  try { const v = localStorage.getItem(KEY); if (v === BOOK_OLD || v === BOOK_NEW || (v === BOOK_BRO) || v === BOOK_ALL) return v; } catch { /* ignore */ }
+  try {
+    if (sessionStorage.getItem(KEY) === BOOK_BRO) return BOOK_BRO;
+    const v = localStorage.getItem(KEY); if (v === BOOK_OLD || v === BOOK_NEW || v === BOOK_ALL) return v;
+  } catch { /* ignore */ }
   return BOOK_NEW;
 })();
+function remember(b: string) {
+  try {
+    if (b === BOOK_BRO) sessionStorage.setItem(KEY, b);
+    else { sessionStorage.removeItem(KEY); localStorage.setItem(KEY, b); }
+  } catch { /* ignore */ }
+}
 
 type Listener = (b: string) => void;
 const listeners = new Set<Listener>();
@@ -54,12 +66,12 @@ export function isBookLocked() { return locked; }
 export function unlockBook() {
   if (!locked) return;
   locked = false;
-  { current = BOOK_NEW; try { localStorage.setItem(KEY, BOOK_NEW); } catch { /* ignore */ } listeners.forEach((f) => f(BOOK_NEW)); }
+  { current = BOOK_NEW; remember(BOOK_NEW); listeners.forEach((f) => f(BOOK_NEW)); }
 }
 export function setBook(b: string) {
   if (locked || b === current) return;
   current = b;
-  try { localStorage.setItem(KEY, b); } catch { /* ignore */ }
+  remember(b);
   listeners.forEach((f) => f(b));
 }
 export function onBookChange(f: Listener) { listeners.add(f); return () => { listeners.delete(f); }; }

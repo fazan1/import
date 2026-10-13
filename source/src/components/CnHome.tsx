@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Receipt, DollarSign, Landmark, ListChecks, Container, BarChart3, Ship, Package, CheckCircle2, Clock, Sun, Moon, CloudSun, ArrowRight, Sparkles } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { getBook, BOOK_ALL } from '../lib/book';
+import { getBook, BOOK_ALL, BOOK_BRO } from '../lib/book';
+import { companyFor } from '../lib/company';
 
 /* A friendly home page for the CN side: what we owe, where each shipment is,
    and what needs doing today. Reads only the current book. */
@@ -115,7 +116,9 @@ export default function CnHome({ name, onNavigate }: { name?: string | null; onN
           <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center"><GreetIcon className="w-6 h-6 text-amber-400" /></div>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{greet}{first ? `, ${first.charAt(0).toUpperCase() + first.slice(1)}` : ''}</h2>
-            <p className="text-sm text-gray-500">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} · {book}</p>
+            <p className="text-sm text-gray-500 flex flex-wrap items-center gap-2">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {/* which book this home page is for, so the shop's home is never mistaken for yours */}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getBook() === BOOK_BRO ? 'bg-violet-100 text-violet-800' : 'bg-teal-100 text-teal-800'}`}>{book} · {companyFor().name}</span></p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
