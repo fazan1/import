@@ -33,7 +33,19 @@ interface OutstandingPaymentsPrintProps {
   onClose: () => void;
 }
 
-export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClose }: OutstandingPaymentsPrintProps) {
+export default function OutstandingPaymentsPrint({ suppliers: allSuppliers, batchFilter, onClose }: OutstandingPaymentsPrintProps) {
+  // only bills that still owe are printed, so every total below is the sum of the printed rows
+  const suppliers = allSuppliers.map((s) => {
+    const bills = s.bills.filter((b) => b.pending_amount > 0);
+    return {
+      ...s,
+      bills,
+      bills_count: bills.length,
+      total_pending: bills.reduce((t, b) => t + b.pending_amount, 0),
+      total_paid: bills.reduce((t, b) => t + b.amount_paid, 0),
+      oldest_bill_date: bills.reduce((o, b) => (b.bill_date && b.bill_date < o ? b.bill_date : o), bills[0]?.bill_date ?? ''),
+    };
+  }).filter((s) => s.bills.length > 0);
   const totalPending = suppliers.reduce((sum, s) => sum + s.total_pending, 0);
   const totalPaid = suppliers.reduce((sum, s) => sum + s.total_paid, 0);
   const totalBills = suppliers.reduce((sum, s) => sum + s.bills_count, 0);
@@ -47,11 +59,12 @@ export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClo
   }
 
   function formatCurrency(amount: number) {
-    return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function getDaysAgo(dateStr: string) {
     const date = new Date(dateStr);
+    if (!dateStr || isNaN(date.getTime())) return '-';
     const today = new Date();
     const diffTime = today.getTime() - date.getTime();
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -101,7 +114,7 @@ export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClo
                 <p className="text-lg font-bold text-amber-800">CNY {formatCurrency(totalPending)}</p>
               </div>
               <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
-                <p className="text-xs text-green-600 font-medium">Total Paid</p>
+                <p className="text-xs text-green-600 font-medium">Paid on these bills</p>
                 <p className="text-lg font-bold text-green-800">CNY {formatCurrency(totalPaid)}</p>
               </div>
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
@@ -138,11 +151,11 @@ export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClo
                     </tr>
                   </thead>
                   <tbody>
-                    {supplier.bills.filter(b => b.pending_amount > 0).map((bill, idx) => (
+                    {supplier.bills.map((bill, idx) => (
                       <tr key={bill.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="border border-gray-300 p-1.5">{bill.bill_number}</td>
                         <td className="border border-gray-300 p-1.5">{bill.cnv_invoice_number || '-'}</td>
-                        <td className="border border-gray-300 p-1.5 text-center">{new Date(bill.bill_date).toLocaleDateString('en-GB')}</td>
+                        <td className="border border-gray-300 p-1.5 text-center">{bill.bill_date && !isNaN(new Date(bill.bill_date).getTime()) ? new Date(bill.bill_date).toLocaleDateString('en-GB') : '-'}</td>
                         <td className="border border-gray-300 p-1.5 text-center">{bill.batch_number || '-'}</td>
                         <td className="border border-gray-300 p-1.5 text-center capitalize">{bill.status}</td>
                         <td className="border border-gray-300 p-1.5 text-right">{formatCurrency(bill.total_amount)}</td>
@@ -152,9 +165,22 @@ export default function OutstandingPaymentsPrint({ suppliers, batchFilter, onClo
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="bg-gray-100 font-semibold">
+                      <td className="border border-gray-300 p-1.5" colSpan={5}>Supplier total</td>
+                      <td className="border border-gray-300 p-1.5 text-right">{formatCurrency(supplier.bills.reduce((t, b) => t + b.total_amount, 0))}</td>
+                      <td className="border border-gray-300 p-1.5 text-right text-green-700">{formatCurrency(supplier.total_paid)}</td>
+                      <td className="border border-gray-300 p-1.5 text-right text-amber-700">{formatCurrency(supplier.total_pending)}</td>
+                      <td className="border border-gray-300 p-1.5"></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             ))}
+
+            {suppliers.length === 0 && (
+              <p className="text-center text-sm text-gray-500 py-8">Nothing outstanding for the bills shown.</p>
+            )}
 
             <div className="mt-6 pt-4 border-t-2 border-gray-800">
               <div className="flex justify-between text-sm font-bold">

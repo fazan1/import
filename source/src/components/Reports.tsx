@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase, APP_MODE } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import { BarChart3, Download, RefreshCw } from 'lucide-react';
 
 type Tab = 'shipments' | 'items' | 'suppliers' | 'receipts' | 'profit' | 'warehouse';
@@ -63,11 +64,15 @@ interface ReceiptRow {
   cheque_number: string | null;
   bank_name: string | null;
   notes: string | null;
+  cheque_status: string | null;
   busy_sales_invoices: { invoice_number: string } | { invoice_number: string }[] | null;
 }
 
 const n0 = (n: number) => n.toLocaleString('en-US', { maximumFractionDigits: 0 });
 const n2 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const n3 = (n: number) => n.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+// yyyy-mm-dd -> dd/mm/yyyy (yyyy-mm -> mm/yyyy) for the screen; sorting/filters keep the ISO string
+const dmy = (d: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '');
 const pct = (n: number) => `${n.toFixed(1)}%`;
 const ymOf = (d: string) => (d || '').slice(0, 7);
 
@@ -97,16 +102,20 @@ export default function Reports() {
 
   async function load() {
     setLoading(true);
+    // every page (Supabase stops at 1000 rows per call); the book filter is added automatically
     const [c, s, b, r] = await Promise.all([
-      supabase.from('costing_duty_sheet').select('*').order('created_at'),
-      supabase.from('shipments').select('shipment_no, mode, forwarder, eta, status, actual_charges, created_at'),
-      supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, exchange_rate, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)'),
-      supabase.from('busy_sales_payments').select('id, payment_number, payment_date, customer_name, amount, payment_mode, reference_number, cheque_number, bank_name, notes, busy_sales_invoices(invoice_number)').order('payment_date', { ascending: false }),
+      fetchAllPages<CostRow>(() => supabase.from('costing_duty_sheet').select('*').order('id')),
+      fetchAllPages<ShipmentRow>(() => supabase.from('shipments').select('shipment_no, mode, forwarder, eta, status, actual_charges, created_at').order('id')),
+      fetchAllPages<BillRow>(() => supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, exchange_rate, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)').order('id')),
+      fetchAllPages<ReceiptRow>(() => supabase.from('busy_sales_payments').select('id, payment_number, payment_date, customer_name, amount, payment_mode, reference_number, cheque_number, bank_name, notes, cheque_status, busy_sales_invoices(invoice_number)').order('id')),
     ]);
-    setCostRows((c.data || []) as CostRow[]);
-    setShipments((s.data || []) as ShipmentRow[]);
-    setBills((b.data || []) as unknown as BillRow[]);
-    setReceipts((r.data || []) as unknown as ReceiptRow[]);
+    const err = c.error || s.error || b.error || r.error;
+    if (err) alert('Could not load all report data: ' + err);
+    setCostRows(c.data);
+    setShipments(s.data);
+    setBills(b.data);
+    // returned cheques are not money received (same rule as Payments / receivables)
+    setReceipts(r.data.filter((x) => x.cheque_status !== 'returned').sort((x, y) => (y.payment_date || '').localeCompare(x.payment_date || '')));
     setLoading(false);
   }
 
@@ -318,7 +327,7 @@ export default function Reports() {
     <div className={`rounded-lg border p-3 ${tone}`}>
       <div className="text-xs font-semibold uppercase text-gray-600 mb-1">{label} · {t.n} shipment{t.n === 1 ? '' : 's'}</div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
-        <span className="text-gray-600">CBM</span><span className="text-right">{n2(t.cbm)}</span>
+        <span className="text-gray-600">CBM</span><span className="text-right">{n3(t.cbm)}</span>
         <span className="text-gray-600">Charges / CBM</span><span className="text-right">{n0(t.costPerCbm)}</span>
         <span className="text-gray-600">Landed</span><span className="text-right">{n0(t.landed)}</span>
         <span className="text-gray-600">Resale sales</span><span className="text-right">{n0(t.sales)}</span>
@@ -414,9 +423,9 @@ export default function Reports() {
                   <tr key={r.batch} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-medium">{r.batch}</td>
                     <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full ${r.mode === 'LCL' ? 'bg-amber-100 text-amber-800' : r.mode === 'FCL' ? 'bg-teal-100 text-teal-800' : 'bg-gray-100 text-gray-600'}`}>{r.mode === 'LCL' ? 'Loose' : r.mode === 'FCL' ? 'Container' : 'Batch'}</span></td>
-                    <td className="px-3 py-2 text-gray-600">{r.date}</td>
+                    <td className="px-3 py-2 text-gray-600">{dmy(r.date)}</td>
                     <td className="px-3 py-2 text-right">{r.items}</td>
-                    <td className="px-3 py-2 text-right">{n2(r.cbm)}</td>
+                    <td className="px-3 py-2 text-right">{n3(r.cbm)}</td>
                     <td className="px-3 py-2 text-right">{n0(r.productCost)}</td>
                     <td className="px-3 py-2 text-right" title={r.chargesActual ? 'Actual charges from Shipping' : 'Estimate from costing rows'}>{n0(r.charges)}<span className="text-xs text-gray-400 ml-1">{r.chargesActual ? 'act' : 'est'}</span></td>
                     <td className="px-3 py-2 text-right text-gray-600">{r.cbm > 0 ? n0(r.costPerCbm) : '—'}</td>
@@ -455,10 +464,10 @@ export default function Reports() {
                   <tr key={`${r.item}-${r.batch}-${i}`} className="hover:bg-gray-50">
                     <td className="px-3 py-2 font-medium">{r.item}</td>
                     <td className="px-3 py-2 text-gray-600">{r.batch}</td>
-                    <td className="px-3 py-2 text-gray-600">{r.date}</td>
+                    <td className="px-3 py-2 text-gray-600">{dmy(r.date)}</td>
                     <td className="px-3 py-2 text-right">{n0(r.qty)} {r.unit}</td>
-                    <td className="px-3 py-2 text-right">{r.cny}</td>
-                    <td className="px-3 py-2 text-right">{r.rate}</td>
+                    <td className="px-3 py-2 text-right">{n2(r.cny || 0)}</td>
+                    <td className="px-3 py-2 text-right">{n2(r.rate || 0)}</td>
                     <td className="px-3 py-2 text-right">{n2(r.lkr)}</td>
                     <td className="px-3 py-2 text-right">{n2(r.duty)}</td>
                     <td className="px-3 py-2 text-right font-semibold">
@@ -492,7 +501,7 @@ export default function Reports() {
               {supplierReport.map((r) => (
                 <tr key={`${r.supplier}-${r.month}`} className="hover:bg-gray-50">
                   <td className="px-3 py-2 font-medium">{r.supplier}</td>
-                  <td className="px-3 py-2 text-gray-600">{r.month}</td>
+                  <td className="px-3 py-2 text-gray-600">{dmy(r.month)}</td>
                   <td className="px-3 py-2 text-right">{r.bills}</td>
                   <td className="px-3 py-2 text-right">{r.shipments}</td>
                   <td className="px-3 py-2 text-right">{n2(r.cny)}</td>
@@ -530,7 +539,7 @@ export default function Reports() {
               </div>
             ))}
           </div>
-          <p className="text-xs text-gray-500">{receiptTotals.n} receipt{receiptTotals.n === 1 ? '' : 's'} in this range. Cheques count as received on the date recorded.</p>
+          <p className="text-xs text-gray-500">{receiptTotals.n} receipt{receiptTotals.n === 1 ? '' : 's'} in this range. Cheques count as received on the date recorded; returned cheques are left out.</p>
           <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
             {receiptGroup === 'detail' ? (
               <table className="w-full text-sm whitespace-nowrap">
@@ -545,18 +554,18 @@ export default function Reports() {
                   {receiptRows.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No receipts in this range.</td></tr>}
                   {receiptRows.map((r) => (
                     <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 text-gray-600">{r.payment_date}</td>
+                      <td className="px-3 py-2 text-gray-600">{dmy(r.payment_date)}</td>
                       <td className="px-3 py-2 text-gray-600">{r.payment_number || '—'}</td>
                       <td className="px-3 py-2 font-medium">{r.customer_name}</td>
                       <td className={`px-3 py-2 ${invOf(r) === 'On account' ? 'text-purple-700' : 'text-gray-600'}`}>{invOf(r)}</td>
                       <td className="px-3 py-2">{modeLabel(r.payment_mode)}</td>
                       <td className="px-3 py-2 text-gray-600">{[r.cheque_number, r.bank_name, r.reference_number].filter(Boolean).join(' · ') || '—'}</td>
-                      <td className="px-3 py-2 text-right font-semibold">{n2(r.amount)}</td>
+                      <td className="px-3 py-2 text-right font-semibold">{n0(r.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 {receiptRows.length > 0 && (
-                  <tfoot className="bg-gray-50 font-semibold"><tr><td className="px-3 py-2" colSpan={6}>Total</td><td className="px-3 py-2 text-right">{n2(receiptTotals.total)}</td></tr></tfoot>
+                  <tfoot className="bg-gray-50 font-semibold"><tr><td className="px-3 py-2" colSpan={6}>Total</td><td className="px-3 py-2 text-right">{n0(receiptTotals.total)}</td></tr></tfoot>
                 )}
               </table>
             ) : (
@@ -572,13 +581,13 @@ export default function Reports() {
                   {receiptGrouped.length === 0 && <tr><td colSpan={7} className="px-3 py-6 text-center text-gray-500">No receipts in this range.</td></tr>}
                   {receiptGrouped.map((g) => (
                     <tr key={g.key} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 font-medium">{g.key}</td>
+                      <td className="px-3 py-2 font-medium">{receiptGroup === 'customer' ? g.key : dmy(g.key)}</td>
                       <td className="px-3 py-2 text-right">{g.n}</td>
                       <td className="px-3 py-2 text-right">{g.cash ? n0(g.cash) : '—'}</td>
                       <td className="px-3 py-2 text-right">{g.cheque ? n0(g.cheque) : '—'}</td>
                       <td className="px-3 py-2 text-right">{g.bank ? n0(g.bank) : '—'}</td>
                       <td className="px-3 py-2 text-right">{g.other ? n0(g.other) : '—'}</td>
-                      <td className="px-3 py-2 text-right font-semibold">{n2(g.total)}</td>
+                      <td className="px-3 py-2 text-right font-semibold">{n0(g.total)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -587,7 +596,7 @@ export default function Reports() {
                     <td className="px-3 py-2">Total</td><td className="px-3 py-2 text-right">{receiptTotals.n}</td>
                     <td className="px-3 py-2 text-right">{n0(receiptTotals.cash)}</td><td className="px-3 py-2 text-right">{n0(receiptTotals.cheque)}</td>
                     <td className="px-3 py-2 text-right">{n0(receiptTotals.bank)}</td><td className="px-3 py-2 text-right">{n0(receiptTotals.other)}</td>
-                    <td className="px-3 py-2 text-right">{n2(receiptTotals.total)}</td>
+                    <td className="px-3 py-2 text-right">{n0(receiptTotals.total)}</td>
                   </tr></tfoot>
                 )}
               </table>

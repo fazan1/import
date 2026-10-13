@@ -4,6 +4,8 @@ import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { getBook, BOOK_ALL } from '../lib/book';
 import { companyFor } from '../lib/company';
+import { fetchAllPages } from '../lib/fetchAll';
+import { esc } from '../lib/html';
 
 /* CN Reports — purchase side only. Every query goes through the book filter,
    so a login locked to one book only ever reports on that book. */
@@ -21,7 +23,9 @@ interface AgLine { agent: string; date: string; kind: 'charge' | 'payment'; amou
 
 const n0 = (v: number) => Math.round(v).toLocaleString('en-US');
 const n2 = (v: number) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// yyyy-mm-dd -> dd/mm/yyyy for the screen, print and Excel (sorting/filters use the ISO date)
+const dmy = (d: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : '');
 const daysSince = (d: string) => Math.max(0, Math.floor((Date.now() - new Date(d + 'T00:00:00').getTime()) / 86400000));
 const mlabel = (m: string) => new Date(m + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 const input = 'px-2.5 py-1.5 border border-gray-300 rounded-lg text-sm bg-white';
@@ -49,14 +53,17 @@ export default function CnReports() {
   useEffect(() => { load(); }, []);
   async function load() {
     setLoading(true);
+    // every page (Supabase stops at 1000 rows per call); the book filter is added automatically
     const [b, p, s, l, c, a] = await Promise.all([
-      supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, exchange_rate, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)'),
-      supabase.from('purchase_payments').select('payment_date, voucher_number, payment_mode, amount, rate_lkr, funded_by, purchase_bills(bill_number, cnv_invoice_number, batch_number, exchange_rate, purchase_orders(suppliers(name)))'),
-      supabase.from('shipments').select('id, shipment_no, mode, forwarder, eta, status, actual_charges, other_charges, created_at'),
-      supabase.from('investor_ledger').select('entry_date, direction, lkr'),
-      supabase.from('shipment_charges').select('shipment_id, purchase_bill_id, basis, qty, rate, amount'),
-      supabase.from('agent_ledger').select('entry_date, kind, amount, reference, clearing_agents(name)'),
+      fetchAllPages<unknown>(() => supabase.from('purchase_bills').select('id, bill_number, cnv_invoice_number, bill_date, batch_number, exchange_rate, amount_paid, purchase_orders(suppliers(name)), purchase_bill_items(quantity_received, unit_price_cny)').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('purchase_payments').select('payment_date, voucher_number, payment_mode, amount, rate_lkr, funded_by, purchase_bills(bill_number, cnv_invoice_number, batch_number, exchange_rate, purchase_orders(suppliers(name)))').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('shipments').select('id, shipment_no, mode, forwarder, eta, status, actual_charges, other_charges, created_at').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('investor_ledger').select('entry_date, direction, lkr').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('shipment_charges').select('shipment_id, purchase_bill_id, basis, qty, rate, amount').order('id')),
+      fetchAllPages<unknown>(() => supabase.from('agent_ledger').select('entry_date, kind, amount, reference, clearing_agents(name)').order('id')),
     ]);
+    const err = b.error || p.error || s.error || l.error || c.error || a.error;
+    if (err) alert('Could not load all report data: ' + err);
     type BRaw = { id: string; bill_number: string | null; cnv_invoice_number: string | null; bill_date: string; batch_number: string | null; exchange_rate: number | null; amount_paid: number | null; purchase_orders: { suppliers: { name: string } | null } | null; purchase_bill_items: { quantity_received: number; unit_price_cny: number }[] | null };
     setBills(((b.data ?? []) as unknown as BRaw[]).map((x) => {
       const total = (x.purchase_bill_items ?? []).reduce((t, i) => t + (Number(i.quantity_received) || 0) * (Number(i.unit_price_cny) || 0), 0);
@@ -122,7 +129,7 @@ export default function CnReports() {
         title: 'Outstanding by supplier (RMB)',
         head: ['Supplier', 'Bills', 'Billed', 'Paid', 'Balance', '0–30 days', '31–60', '61–90', '90+ days', 'Oldest unpaid'],
         num: [false, true, true, true, true, true, true, true, true, false],
-        rows: list.map(([s, r]) => [s, r.bills, n2(r.total), n2(r.paid), n2(r.bal), r.a30 ? n2(r.a30) : '', r.a60 ? n2(r.a60) : '', r.a90 ? n2(r.a90) : '', r.a90p ? n2(r.a90p) : '', r.oldest ? `${r.oldest} (${daysSince(r.oldest)}d)` : '']),
+        rows: list.map(([s, r]) => [s, r.bills, n2(r.total), n2(r.paid), n2(r.bal), r.a30 ? n2(r.a30) : '', r.a60 ? n2(r.a60) : '', r.a90 ? n2(r.a90) : '', r.a90p ? n2(r.a90p) : '', r.oldest ? `${dmy(r.oldest)} (${daysSince(r.oldest)}d)` : '']),
         total: ['TOTAL', t.bills, n2(t.total), n2(t.paid), n2(t.bal), n2(t.a30), n2(t.a60), n2(t.a90), n2(t.a90p), ''],
         link: (i) => goSupplier(list[i][0]),
       };
@@ -134,7 +141,7 @@ export default function CnReports() {
         title: 'Bills (RMB)',
         head: ['Date', 'Bill / CNV', 'Batch', 'Supplier', 'Total', 'Paid', 'Balance', 'Status', 'Age', 'Rate'],
         num: [false, false, false, false, true, true, true, false, true, true],
-        rows: list.map((b) => [b.date, b.no, b.batch, b.supplier, n2(b.total), n2(b.paid), n2(b.bal), b.status, b.bal > 0.5 ? `${daysSince(b.date)}d` : '', b.rate ? n2(b.rate) : '']),
+        rows: list.map((b) => [dmy(b.date), b.no, b.batch, b.supplier, n2(b.total), n2(b.paid), n2(b.bal), b.status, b.bal > 0.5 ? `${daysSince(b.date)}d` : '', b.rate ? n2(b.rate) : '']),
         total: ['TOTAL', `${list.length} bills`, '', '', n2(t.total), n2(t.paid), n2(t.bal), '', '', ''],
       };
     }
@@ -158,7 +165,7 @@ export default function CnReports() {
         title: 'Supplier payments',
         head: ['Date', 'Voucher', 'Supplier', 'Bill', 'Batch', 'Mode', 'RMB', 'Rate', 'LKR', 'Funded by'],
         num: [false, false, false, false, false, false, true, true, true, false],
-        rows: list.map((p) => [p.date, p.voucher, p.supplier, p.bill, p.batch, p.mode, n2(p.rmb), p.rate ? n2(p.rate) : '', n0(p.lkr), p.funded]),
+        rows: list.map((p) => [dmy(p.date), p.voucher, p.supplier, p.bill, p.batch, p.mode, n2(p.rmb), p.rate ? n2(p.rate) : '', n0(p.lkr), p.funded]),
         total: ['TOTAL', `${list.length} payments`, '', '', '', '', n2(t.rmb), t.rmb ? n2(t.lkr / t.rmb) : '', n0(t.lkr), ''],
       };
     }
@@ -176,7 +183,7 @@ export default function CnReports() {
         title: 'By batch (RMB)',
         head: ['Batch', 'First bill', 'Suppliers', 'Bills', 'Billed', 'Paid', 'Balance', 'Paid %'],
         num: [false, false, true, true, true, true, true, true],
-        rows: list.map(([k, r]) => [k, r.first, r.sup.size, r.bills, n2(r.total), n2(r.paid), n2(r.bal), r.total ? `${Math.round((r.paid / r.total) * 100)}%` : '']),
+        rows: list.map(([k, r]) => [k, dmy(r.first), r.sup.size, r.bills, n2(r.total), n2(r.paid), n2(r.bal), r.total ? `${Math.round((r.paid / r.total) * 100)}%` : '']),
         total: ['TOTAL', '', '', list.reduce((s, [, r]) => s + r.bills, 0), n2(t.total), n2(t.paid), n2(t.bal), t.total ? `${Math.round((t.paid / t.total) * 100)}%` : ''],
         link: (i) => (list[i][0] === '(no batch)' ? null : goBatch(list[i][0])),
       };
@@ -187,7 +194,7 @@ export default function CnReports() {
         title: 'Shipments',
         head: ['Shipment', 'Mode', 'Forwarder', 'Created', 'ETD', 'Status', 'Charges (LKR)'],
         num: [false, false, false, false, false, false, true],
-        rows: list.map((s) => [s.no, s.mode, s.forwarder, s.created, s.eta, s.status, s.charges ? n0(s.charges) : '']),
+        rows: list.map((s) => [s.no, s.mode, s.forwarder, dmy(s.created), dmy(s.eta), s.status, s.charges ? n0(s.charges) : '']),
         total: ['TOTAL', `${list.length} shipments`, '', '', '', '', n0(list.reduce((t, s) => t + s.charges, 0))],
       };
     }
@@ -198,7 +205,7 @@ export default function CnReports() {
         title: 'Shipping cost per bill (LKR)',
         head: ['Shipment', 'Bill', 'Supplier', 'Type', 'Qty', 'Rate', 'Freight', '+ Other', 'Shipping total', 'Goods (Rs)', 'Shipping %'],
         num: [false, false, false, false, true, true, true, true, true, true, true],
-        rows: list.map((x) => { const goods = x.billRmb * x.billRate; const tot = x.amount + x.other; return [x.ship, x.bill, x.supplier, x.basis === 'FIXED' ? 'Fixed' : x.basis, x.basis === 'FIXED' ? '' : x.qty, x.basis === 'FIXED' ? '' : n0(x.rate), n0(x.amount), x.other ? n0(x.other) : '', n0(tot), goods ? n0(goods) : '', goods ? `${((tot / goods) * 100).toFixed(1)}%` : '']; }),
+        rows: list.map((x) => { const goods = x.billRmb * x.billRate; const tot = x.amount + x.other; return [x.ship, x.bill, x.supplier, x.basis === 'FIXED' ? 'Fixed' : x.basis, x.basis === 'FIXED' ? '' : x.qty.toLocaleString('en-US', { maximumFractionDigits: 3 }), x.basis === 'FIXED' ? '' : n0(x.rate), n0(x.amount), x.other ? n0(x.other) : '', n0(tot), goods ? n0(goods) : '', goods ? `${((tot / goods) * 100).toFixed(1)}%` : '']; }),
         total: ['TOTAL', `${list.length} bills`, '', '', '', '', n0(t.a), n0(t.o), n0(t.a + t.o), '', ''],
       };
     }
@@ -206,14 +213,17 @@ export default function CnReports() {
       const list = ag.filter((x) => inRange(x.date) && (!q || `${x.agent} ${x.ref}`.toLowerCase().includes(q)));
       const m = new Map<string, { charged: number; paid: number; n: number }>();
       list.forEach((x) => { const r = m.get(x.agent) ?? { charged: 0, paid: 0, n: 0 }; if (x.kind === 'charge') r.charged += x.amount; else r.paid += x.amount; r.n++; m.set(x.agent, r); });
-      const g = [...m.entries()].sort((a, b) => (b[1].charged - b[1].paid) - (a[1].charged - a[1].paid));
-      const t = g.reduce((s, [, r]) => ({ c: s.c + r.charged, p: s.p + r.paid }), { c: 0, p: 0 });
+      // the balance is everything up to the "To" date (not only the chosen period): what we really owe the agent
+      const owed = new Map<string, number>();
+      ag.filter((x) => !to || x.date <= to).forEach((x) => owed.set(x.agent, (owed.get(x.agent) || 0) + (x.kind === 'charge' ? x.amount : -x.amount)));
+      const g = [...m.entries()].sort((a, b) => (owed.get(b[0]) || 0) - (owed.get(a[0]) || 0));
+      const t = g.reduce((s, [k, r]) => ({ c: s.c + r.charged, p: s.p + r.paid, b: s.b + (owed.get(k) || 0) }), { c: 0, p: 0, b: 0 });
       return {
         title: 'Clearing agents (LKR)',
-        head: ['Agent', 'Entries', 'Charged', 'Paid', 'Balance we owe'],
+        head: ['Agent', 'Entries', 'Charged (period)', 'Paid (period)', to ? 'Balance we owe (to date)' : 'Balance we owe (today)'],
         num: [false, true, true, true, true],
-        rows: g.map(([k, r]) => [k, r.n, n0(r.charged), n0(r.paid), n0(r.charged - r.paid)]),
-        total: ['TOTAL', list.length, n0(t.c), n0(t.p), n0(t.c - t.p)],
+        rows: g.map(([k, r]) => [k, r.n, n0(r.charged), n0(r.paid), n0(owed.get(k) || 0)]),
+        total: ['TOTAL', list.length, n0(t.c), n0(t.p), n0(t.b)],
       };
     }
     // investor: month by month
@@ -233,7 +243,7 @@ export default function CnReports() {
   }, [tab, fBills, pays, ships, led, chg, ag, status, mode, onlyOpen, payGroup, from, to, supplier, batch, q]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bookName = getBook() === BOOK_ALL ? 'All books' : getBook();
-  const filterLine = [from || to ? `${from || '…'} to ${to || today()}` : '', supplier, batch ? `Batch ${batch}` : '', status, mode, search ? `"${search}"` : ''].filter(Boolean).join(' · ');
+  const filterLine = [from || to ? `${from ? dmy(from) : '…'} to ${dmy(to || today())}` : '', supplier, batch ? `Batch ${batch}` : '', status, mode, search ? `"${search}"` : ''].filter(Boolean).join(' · ');
 
   function excel() {
     const data = [report.head, ...report.rows, ...(report.total ? [report.total] : [])];
@@ -243,10 +253,9 @@ export default function CnReports() {
   }
   function print() {
     const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
-    const esc = (v: Cell) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const td = (v: Cell, i: number, tag = 'td') => `<${tag} style="text-align:${report.num[i] ? 'right' : 'left'}">${esc(v)}</${tag}>`;
     w.document.write(`<html><head><title>${esc(report.title)}</title><style>body{font-family:Arial,sans-serif;font-size:11px;margin:24px}h2{margin:0 0 2px}p{color:#666;margin:0 0 12px}table{border-collapse:collapse;width:100%}td,th{border-bottom:1px solid #ddd;padding:5px 6px;white-space:nowrap}th{background:#f3f4f6;font-size:10px;text-transform:uppercase}tfoot td{font-weight:bold;border-top:2px solid #333}</style></head><body>
-      <div style="font-weight:bold;font-size:13px">${esc(companyFor().name)}</div><h2>${esc(report.title)}</h2><p>${esc(bookName)} · printed ${today()}${filterLine ? ' · ' + esc(filterLine) : ''}</p>
+      <div style="font-weight:bold;font-size:13px">${esc(companyFor().name)}</div><h2>${esc(report.title)}</h2><p>${esc(bookName)} · printed ${dmy(today())}${filterLine ? ' · ' + esc(filterLine) : ''}</p>
       <table><thead><tr>${report.head.map((h, i) => td(h, i, 'th')).join('')}</tr></thead><tbody>${report.rows.map((r) => `<tr>${r.map((c, i) => td(c, i)).join('')}</tr>`).join('')}</tbody>${report.total ? `<tfoot><tr>${report.total.map((c, i) => td(c, i)).join('')}</tr></tfoot>` : ''}</table>
       <script>window.onload=()=>window.print()</script></body></html>`);
     w.document.close();

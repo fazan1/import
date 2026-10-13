@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 import { DollarSign, Building2, Receipt, Calendar, Clock, ChevronDown, ChevronRight, Search, ListFilter as Filter, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, CreditCard, RefreshCw, X, List, Layers, Printer } from 'lucide-react';
 import OutstandingPaymentsPrint from './OutstandingPaymentsPrint';
 
@@ -89,7 +90,9 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
   async function loadOutstandingPayments() {
     setLoading(true);
 
-    const { data: bills } = await supabase
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: bills, error: billsError } = await fetchAllPages<any>(() => supabase
       .from('purchase_bills')
       .select(`
         id,
@@ -115,7 +118,9 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
           )
         )
       `)
-      .order('bill_date', { ascending: false });
+      .order('bill_date', { ascending: false })
+      .order('id'));
+    if (billsError) alert('Could not load all bills: ' + billsError);
 
     if (bills) {
       const supplierMap = new Map<string, SupplierPayment>();
@@ -136,9 +141,10 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
         if (bill.batch_number) batchSet.add(bill.batch_number);
 
         const items = bill.purchase_bill_items as { quantity_received: number; unit_price_cny: number }[] | null;
-        const billTotal = items?.reduce((sum, item) => sum + (item.quantity_received || 0) * (item.unit_price_cny || 0), 0) || 0;
-        const amountPaid = bill.amount_paid || 0;
-        const pendingAmount = billTotal - amountPaid;
+        const billTotal = Math.round((items?.reduce((sum, item) => sum + (Number(item.quantity_received) || 0) * (Number(item.unit_price_cny) || 0), 0) || 0) * 100) / 100;
+        const amountPaid = Number(bill.amount_paid) || 0;
+        // rounded to fen so float dust never shows as "0.00 due" with a Pay button
+        const pendingAmount = Math.round((billTotal - amountPaid) * 100) / 100;
 
         const billDetail: BillDetail = {
           id: bill.id,
@@ -215,6 +221,9 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
 
   async function handlePaymentSubmit() {
     if (!paymentModal || !paymentForm.amount || parseFloat(paymentForm.amount) <= 0) return;
+    if (!(parseFloat(paymentForm.rate_lkr) > 0)) { alert('Enter the rate (Rs per ¥) for this payment.'); return; }
+    if (parseFloat(paymentForm.amount) > paymentModal.pendingAmount + 0.005
+      && !confirm(`Amount ${formatCurrency(parseFloat(paymentForm.amount))} is more than the due ${formatCurrency(paymentModal.pendingAmount)}. The bill will show as overpaid. Save anyway?`)) return;
     setSavingPayment(true);
 
     const { data: payment, error } = await supabase
@@ -234,25 +243,31 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
       .single();
 
     if (!error && payment) {
-      const { data: allPayments } = await supabase
+      // all payments of this bill: the select is book-filtered, and a payment always sits in its bill's book
+      const { data: allPayments, error: payErr } = await supabase
         .from('purchase_payments')
         .select('amount')
         .eq('purchase_bill_id', paymentModal.billId);
 
-      const totalPaid = allPayments?.reduce((s, p) => s + p.amount, 0) || 0;
+      const totalPaid = Math.round((allPayments?.reduce((s, p) => s + (Number(p.amount) || 0), 0) || 0) * 100) / 100;
 
-      const { data: billItems } = await supabase
+      const { data: billItems, error: itemsErr } = await supabase
         .from('purchase_bill_items')
         .select('quantity_received, unit_price_cny')
         .eq('purchase_bill_id', paymentModal.billId);
 
-      const billTotal = billItems?.reduce((s, i) => s + i.quantity_received * i.unit_price_cny, 0) || 0;
-      const newStatus = totalPaid >= billTotal ? 'paid' : totalPaid > 0 ? 'partial' : 'pending';
+      const billTotal = Math.round((billItems?.reduce((s, i) => s + (Number(i.quantity_received) || 0) * (Number(i.unit_price_cny) || 0), 0) || 0) * 100) / 100;
+      // a bill with no lines (total 0) is never "paid" just because 0 >= 0
+      const newStatus = billTotal > 0 && totalPaid >= billTotal ? 'paid' : totalPaid > 0 ? 'partial' : 'pending';
 
-      await supabase
-        .from('purchase_bills')
-        .update({ amount_paid: totalPaid, status: newStatus })
-        .eq('id', paymentModal.billId);
+      const { error: updErr } = payErr || itemsErr
+        ? { error: payErr || itemsErr }
+        : await supabase
+          .from('purchase_bills')
+          .update({ amount_paid: totalPaid, status: newStatus })
+          .eq('id', paymentModal.billId);
+      if (updErr) alert('Payment saved, but the bill\'s paid amount was not updated: ' + updErr.message + '. Press Refresh and check the bill.');
+      setLastRate(paymentForm.rate_lkr);
 
       setPaymentModal(null);
       loadOutstandingPayments();
@@ -274,7 +289,8 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
     return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount) + ' ' + currency;
   }
 
-  function formatDate(dateStr: string) {
+  function formatDate(dateStr: string | null) {
+    if (!dateStr || isNaN(new Date(dateStr).getTime())) return '-';
     return new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
   }
 
@@ -295,7 +311,11 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
     return 'text-red-600';
   }
 
-  function getStatusBadge(status: string, pendingAmount: number) {
+  function getStatusBadge(status: string, pendingAmount: number, totalAmount: number) {
+    if (totalAmount === 0 && pendingAmount === 0) return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">No lines</span>
+    );
+    if (pendingAmount === 0) status = 'paid';
     if (pendingAmount < 0) return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-700">
         <AlertTriangle className="w-3 h-3" />Overpaid
@@ -340,6 +360,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
     if (filteredBills.length === 0) return null;
     return {
       ...supplier,
+      oldest_bill_date: filteredBills.reduce((o, b) => (b.bill_date && b.bill_date < o ? b.bill_date : o), filteredBills[0].bill_date),
       bills: filteredBills,
       bills_count: filteredBills.length,
       total_pending: filteredBills.reduce((sum, b) => sum + Math.max(0, b.pending_amount), 0),
@@ -547,10 +568,10 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
 
                     return (
                       <tr key={bill.id} className={`hover:bg-gray-50 transition-colors ${isOverdue ? 'bg-red-50' : ''}`}>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-4 py-3">
                           <span className="text-sm font-medium text-gray-900">{supplier.supplier_name}</span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-4 py-3">
                           <button
                             onClick={() => onRecordPayment?.(bill.id)}
                             className="flex items-center gap-2 hover:text-amber-700 group"
@@ -560,18 +581,18 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                             <span className="font-medium text-gray-900 group-hover:text-amber-700 underline underline-offset-2 decoration-dotted text-sm">{bill.bill_number}</span>
                           </button>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{bill.cnv_invoice_number || '-'}</td>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{bill.cnv_invoice_number || '-'}</td>
+                        <td className="whitespace-nowrap px-4 py-3">
                           {bill.batch_number ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                              B{bill.batch_number}
+                              {/^\d+$/.test(bill.batch_number) ? `B${bill.batch_number}` : bill.batch_number}
                             </span>
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{formatDate(bill.bill_date)}</td>
-                        <td className="px-4 py-3">
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(bill.bill_date)}</td>
+                        <td className="whitespace-nowrap px-4 py-3">
                           {bill.due_date ? (
                             <div className="flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-gray-400" />
@@ -584,9 +605,9 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                             <span className="text-sm text-gray-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">{getStatusBadge(bill.status, bill.pending_amount)}</td>
-                        <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrency(bill.total_amount)}</td>
-                        <td className="px-4 py-3 text-right text-sm text-green-600">{formatCurrency(bill.amount_paid)}</td>
+                        <td className="whitespace-nowrap px-4 py-3">{getStatusBadge(bill.status, bill.pending_amount, bill.total_amount)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrency(bill.total_amount)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-green-600">{formatCurrency(bill.amount_paid)}</td>
                         <td className={`px-4 py-3 text-right text-sm font-semibold ${
                           bill.pending_amount < 0 ? 'text-teal-700' :
                           bill.pending_amount > 0 ? 'text-amber-600' : 'text-green-600'
@@ -596,7 +617,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                         <td className={`px-4 py-3 text-right text-sm font-medium ${getAgingColor(ageDays)}`}>
                           {ageDays}d
                         </td>
-                        <td className="px-4 py-3 text-center">
+                        <td className="whitespace-nowrap px-4 py-3 text-center">
                           {bill.pending_amount > 0 ? (
                             <button
                               onClick={() => openPaymentModal(bill, supplier.supplier_name)}
@@ -619,11 +640,11 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                   <td colSpan={7} className="px-4 py-3 text-sm text-gray-700">
                     Grand Total ({filteredSuppliers.reduce((s, sup) => s + sup.bills.length, 0)} bills)
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-900">
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">
                     {formatCurrency(filteredSuppliers.reduce((s, sup) => s + sup.bills.reduce((bs, b) => bs + b.total_amount, 0), 0))}
                   </td>
-                  <td className="px-4 py-3 text-right text-sm text-green-600">{formatCurrency(filteredSummary.total_paid)}</td>
-                  <td className="px-4 py-3 text-right text-sm text-amber-600">{formatCurrency(filteredSummary.total_pending)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-green-600">{formatCurrency(filteredSummary.total_paid)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-amber-600">{formatCurrency(filteredSummary.total_pending)}</td>
                   <td colSpan={2}></td>
                 </tr>
               </tfoot>
@@ -710,7 +731,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
 
                             return (
                               <tr key={bill.id} className={`hover:bg-gray-50 transition-colors ${isOverdue ? 'bg-red-50' : ''}`}>
-                                <td className="px-4 py-3">
+                                <td className="whitespace-nowrap px-4 py-3">
                                   <button
                                     onClick={() => onRecordPayment?.(bill.id)}
                                     className="flex items-center gap-2 hover:text-amber-700 group"
@@ -720,10 +741,10 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                                     <span className="font-medium text-gray-900 group-hover:text-amber-700 underline underline-offset-2 decoration-dotted">{bill.bill_number}</span>
                                   </button>
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-600">{bill.cnv_invoice_number || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-gray-600">{bill.batch_number || '-'}</td>
-                                <td className="px-4 py-3 text-sm text-gray-600">{formatDate(bill.bill_date)}</td>
-                                <td className="px-4 py-3">
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{bill.cnv_invoice_number || '-'}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{bill.batch_number || '-'}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600">{formatDate(bill.bill_date)}</td>
+                                <td className="whitespace-nowrap px-4 py-3">
                                   {bill.due_date ? (
                                     <div className="flex items-center gap-1">
                                       <Calendar className="w-3 h-3 text-gray-400" />
@@ -736,9 +757,9 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                                     <span className="text-sm text-gray-400">-</span>
                                   )}
                                 </td>
-                                <td className="px-4 py-3">{getStatusBadge(bill.status, bill.pending_amount)}</td>
-                                <td className="px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrency(bill.total_amount)}</td>
-                                <td className="px-4 py-3 text-right text-sm text-green-600">{formatCurrency(bill.amount_paid)}</td>
+                                <td className="whitespace-nowrap px-4 py-3">{getStatusBadge(bill.status, bill.pending_amount, bill.total_amount)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-medium text-gray-900">{formatCurrency(bill.total_amount)}</td>
+                                <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-green-600">{formatCurrency(bill.amount_paid)}</td>
                                 <td className={`px-4 py-3 text-right text-sm font-semibold ${
                                   bill.pending_amount < 0 ? 'text-teal-700' :
                                   bill.pending_amount > 0 ? 'text-amber-600' : 'text-green-600'
@@ -748,7 +769,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                                 <td className={`px-4 py-3 text-right text-sm font-medium ${getAgingColor(ageDays)}`}>
                                   {ageDays}d
                                 </td>
-                                <td className="px-4 py-3 text-center">
+                                <td className="whitespace-nowrap px-4 py-3 text-center">
                                   {bill.pending_amount > 0 ? (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); openPaymentModal(bill, supplier.supplier_name); }}
@@ -768,11 +789,11 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                         <tfoot className="bg-gray-50 border-t border-gray-200">
                           <tr className="font-semibold">
                             <td colSpan={6} className="px-4 py-3 text-sm text-gray-700">Supplier Total</td>
-                            <td className="px-4 py-3 text-right text-sm text-gray-900">
+                            <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">
                               {formatCurrency(supplier.bills.reduce((s, b) => s + b.total_amount, 0))}
                             </td>
-                            <td className="px-4 py-3 text-right text-sm text-green-600">{formatCurrency(supplier.total_paid)}</td>
-                            <td className="px-4 py-3 text-right text-sm text-amber-600">{formatCurrency(supplier.total_pending)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-green-600">{formatCurrency(supplier.total_paid)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-amber-600">{formatCurrency(supplier.total_pending)}</td>
                             <td colSpan={2}></td>
                           </tr>
                         </tfoot>
@@ -886,12 +907,15 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
                     min="0"
                     step="0.01"
                   />
+                  {parseFloat(paymentForm.amount) > paymentModal.pendingAmount + 0.005 && (
+                    <p className="text-[11px] text-red-600 mt-1">More than the due — {formatCurrency(parseFloat(paymentForm.amount) - paymentModal.pendingAmount)} overpaid</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Rate (Rs per ¥)</label>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Rate (Rs per ¥) *</label>
                   <input type="number" step="0.01" value={paymentForm.rate_lkr} onChange={(e) => setPaymentForm({ ...paymentForm, rate_lkr: e.target.value })} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500" placeholder="e.g. 45.80" />
                   <p className="text-[11px] text-gray-500 mt-1">= Rs {((parseFloat(paymentForm.amount) || 0) * (parseFloat(paymentForm.rate_lkr) || 0)).toLocaleString('en-LK', { maximumFractionDigits: 0 })}</p>
                 </div>
@@ -925,7 +949,7 @@ export default function OutstandingPayments({ initialSupplierId, onRecordPayment
               </button>
               <button
                 onClick={handlePaymentSubmit}
-                disabled={savingPayment || !paymentForm.amount || parseFloat(paymentForm.amount) <= 0}
+                disabled={savingPayment || !paymentForm.amount || parseFloat(paymentForm.amount) <= 0 || !(parseFloat(paymentForm.rate_lkr) > 0)}
                 className="flex-1 px-4 py-2 text-sm font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 <CreditCard className="w-4 h-4" />

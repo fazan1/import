@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { esc } from '../lib/html';
 import { openingBal } from '../lib/book';
+import { companyFor } from '../lib/company';
 import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
 import { fetchAllPages } from '../lib/fetchAll';
 import { Users, DollarSign, RefreshCw, ChevronDown, ChevronRight, Search, ListFilter as Filter, FileText, Phone, Calendar, CreditCard, Printer } from 'lucide-react';
@@ -221,9 +222,14 @@ export default function CustomerOutstanding() {
     const w = window.open('', '_blank', 'width=800,height=1000');
     if (!w) { alert('Allow pop-ups to print'); return; }
     const total = c.total_due + c.opening_balance;
-    const rows = c.invoices.map((inv) => `<tr><td>${new Date(inv.date).toLocaleDateString('en-GB')}</td><td>${esc(inv.voucher_no)}</td><td class="r">${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.total_paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.sell_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`).join('');
-    const opening = c.opening_balance > 0 ? `<tr><td></td><td>Opening balance b/f${c.on_account_paid > 0 ? ` (after ${c.on_account_paid.toLocaleString()} received on account)` : ''}</td><td class="r"></td><td class="r"></td><td class="r">${c.opening_balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`
-      : c.opening_balance < 0 ? `<tr><td></td><td>Less: received on account (credit)</td><td class="r"></td><td class="r"></td><td class="r">−${(-c.opening_balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>` : '';
+    const money = (n: number) => (n < 0 ? '−' : '') + Math.abs(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const d = (s: string | null) => { const t = s ? new Date(s) : null; return t && !isNaN(t.getTime()) ? t.toLocaleDateString('en-GB') : ''; };
+    // running balance: opening (or on-account credit) first, then each unpaid invoice oldest first
+    let run = c.opening_balance;
+    const opening = c.opening_balance > 0 ? `<tr><td></td><td>Opening balance b/f${c.on_account_paid > 0 ? ` (after ${money(c.on_account_paid)} received on account)` : ''}</td><td class="r"></td><td class="r"></td><td class="r">${money(c.opening_balance)}</td><td class="r">${money(run)}</td></tr>`
+      : c.opening_balance < 0 ? `<tr><td></td><td>Less: received on account (credit)</td><td class="r"></td><td class="r"></td><td class="r">${money(c.opening_balance)}</td><td class="r">${money(run)}</td></tr>` : '';
+    const rows = c.invoices.map((inv) => { run += inv.sell_due; return `<tr><td>${d(inv.date)}</td><td>${esc(inv.voucher_no)}</td><td class="r">${money(inv.total_amount)}</td><td class="r">${money(inv.total_paid)}</td><td class="r">${money(inv.sell_due)}</td><td class="r">${money(run)}</td></tr>`; }).join('');
+    const co = companyFor();
     w.document.write(`<!doctype html><html><head><title>Statement - ${esc(c.customer_name)}</title><style>
       body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:32px;} h1{font-size:20px;margin:0} .sub{color:#555;font-size:12px}
       .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px} .cust{font-size:15px;font-weight:700}
@@ -231,12 +237,12 @@ export default function CustomerOutstanding() {
       tfoot td{font-weight:700;border-top:2px solid #333} .age{margin-top:20px;font-size:12px} .age span{display:inline-block;margin-right:18px}
       .note{margin-top:28px;font-size:12px;color:#555} @media print{body{padding:0}}
     </style></head><body>
-      <div class="head"><div><h1>HDR &amp; CO</h1><div class="sub">NO 149/5 New Chetty Street Col 11</div></div><div class="sub" style="text-align:right">STATEMENT OF ACCOUNT<br/>${new Date().toLocaleDateString('en-GB')}</div></div>
+      <div class="head"><div><h1>${esc(co.name)}</h1><div class="sub">${esc(co.address)}</div></div><div class="sub" style="text-align:right">STATEMENT OF ACCOUNT<br/>${new Date().toLocaleDateString('en-GB')}</div></div>
       <div class="cust">${esc(c.customer_name)}</div>${c.phone ? `<div class="sub">${esc(c.phone)}</div>` : ''}
-      <table><thead><tr><th>Date</th><th>Invoice</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th></tr></thead>
+      <table><thead><tr><th>Date</th><th>Invoice</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Due</th><th class="r">Balance</th></tr></thead>
       <tbody>${opening}${rows}</tbody>
-      <tfoot><tr><td colspan="4">Total outstanding</td><td class="r">LKR ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr></tfoot></table>
-      <div class="age"><strong>Ageing:</strong> <span>0–30: ${c.aging.current.toLocaleString()}</span><span>31–60: ${c.aging.d31.toLocaleString()}</span><span>61–90: ${c.aging.d61.toLocaleString()}</span><span>90+: ${c.aging.d90.toLocaleString()}</span></div>
+      <tfoot><tr><td colspan="5">Total outstanding</td><td class="r">LKR ${money(total)}</td></tr></tfoot></table>
+      <div class="age"><strong>Ageing:</strong> <span>0–30: ${money(c.aging.current)}</span><span>31–60: ${money(c.aging.d31)}</span><span>61–90: ${money(c.aging.d61)}</span><span>90+: ${money(c.aging.d90)}</span></div>${c.pending_cheques > 0 ? `<div class="age">Cheques received, not yet realised: LKR ${money(c.pending_cheques)}</div>` : ''}
       <div class="note">Please settle the balance at your earliest. Thank you for your business.</div>
       <script>window.onload=function(){window.print();}</script></body></html>`);
     w.document.close();
@@ -260,6 +266,7 @@ export default function CustomerOutstanding() {
   }
 
   function formatDate(dateStr: string) {
+    if (!dateStr || isNaN(new Date(dateStr).getTime())) return '-';
     return new Date(dateStr).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: 'short',
@@ -416,11 +423,16 @@ export default function CustomerOutstanding() {
           </div>
         </div>
 
+        {searchTerm && (
+          <p className="px-5 py-2 text-xs text-gray-500 border-b border-gray-100">
+            Showing {filteredCustomers.length} of {customers.length} customers ({formatCurrency(filteredCustomers.reduce((t, c) => t + c.total_due + c.opening_balance, 0))}). Totals above and the ageing summary are for all customers.
+          </p>
+        )}
         {filteredCustomers.length === 0 ? (
           <div className="p-12 text-center">
             <DollarSign className="w-12 h-12 text-green-400 mx-auto mb-3" />
-            <p className="text-lg font-medium text-gray-900">No Outstanding Balances</p>
-            <p className="text-sm text-gray-500">All customer payments are up to date</p>
+            <p className="text-lg font-medium text-gray-900">{searchTerm ? 'No matching customers' : 'No Outstanding Balances'}</p>
+            <p className="text-sm text-gray-500">{searchTerm ? 'No customer with a balance matches the search' : 'All customer payments are up to date'}</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
@@ -465,22 +477,28 @@ export default function CustomerOutstanding() {
                       <div className="flex items-center gap-6">
                         <div className="text-right">
                           <p className="text-xs text-gray-500">Total Sales</p>
-                          <p className="text-sm font-medium text-gray-700">{formatCurrency(customer.total_sales)}</p>
+                          <p className="whitespace-nowrap text-sm font-medium text-gray-700">{formatCurrency(customer.total_sales)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-xs text-green-600">Paid</p>
-                          <p className="text-sm font-medium text-green-600">{formatCurrency(customer.total_paid)}</p>
+                          <p className="whitespace-nowrap text-sm font-medium text-green-600">{formatCurrency(customer.total_paid)}</p>
                         </div>
                         {customer.opening_balance > 0 && (
                           <div className="text-right" title={customer.on_account_paid > 0 ? `Opening ${formatCurrency(customer.opening_balance_gross)} less ${formatCurrency(customer.on_account_paid)} received on account` : undefined}>
                             <p className="text-xs text-orange-600">Opening Bal</p>
-                            <p className="text-sm font-medium text-orange-600">{formatCurrency(customer.opening_balance)}</p>
+                            <p className="whitespace-nowrap text-sm font-medium text-orange-600">{formatCurrency(customer.opening_balance)}</p>
                           </div>
                         )}
                         {customer.opening_balance < 0 && (
                           <div className="text-right" title="Received on account beyond the opening balance — deducted from the invoices">
                             <p className="text-xs text-purple-600">On-account credit</p>
-                            <p className="text-sm font-medium text-purple-600">−{formatCurrency(-customer.opening_balance)}</p>
+                            <p className="whitespace-nowrap text-sm font-medium text-purple-600">−{formatCurrency(-customer.opening_balance)}</p>
+                          </div>
+                        )}
+                        {customer.pending_cheques > 0 && (
+                          <div className="text-right" title="Cheques received but not yet realised">
+                            <p className="text-xs text-blue-600">Cheques pending</p>
+                            <p className="whitespace-nowrap text-sm font-medium text-blue-600">{formatCurrency(customer.pending_cheques)}</p>
                           </div>
                         )}
                         <div className="text-right hidden lg:block">
@@ -497,7 +515,7 @@ export default function CustomerOutstanding() {
                         </div>
                         <div className="text-right min-w-[140px]">
                           <p className="text-xs text-rose-600">Outstanding</p>
-                          <p className="text-lg font-bold text-rose-600">{formatCurrency(totalBalance)}</p>
+                          <p className="whitespace-nowrap text-lg font-bold text-rose-600">{formatCurrency(totalBalance)}</p>
                         </div>
                         <button
                           onClick={(e) => {
@@ -577,7 +595,7 @@ export default function CustomerOutstanding() {
                                   <td className="py-2 text-right text-green-600">{formatCurrency(invoice.total_paid)}</td>
                                   <td className="py-2 text-right font-medium text-rose-600">{formatCurrency(invoice.sell_due)}</td>
                                   <td className={`py-2 text-right font-medium ${getAgingColor(ageDays)}`}>
-                                    {ageDays} days
+                                    {isNaN(ageDays) ? '-' : `${ageDays} days`}
                                   </td>
                                   <td className="py-2 text-center">
                                     <button
@@ -623,18 +641,8 @@ export default function CustomerOutstanding() {
             { label: '61-90 days', color: 'bg-orange-500' },
             { label: '90+ days', color: 'bg-red-500' },
           ].map((bucket, index) => {
-            let amount = 0;
-            customers.forEach((c) => {
-              c.invoices.forEach((inv) => {
-                const invDate = new Date(inv.date);
-                const today = new Date();
-                const days = Math.floor((today.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
-                if (index === 0 && days <= 30) amount += inv.sell_due;
-                else if (index === 1 && days > 30 && days <= 60) amount += inv.sell_due;
-                else if (index === 2 && days > 60 && days <= 90) amount += inv.sell_due;
-                else if (index === 3 && days > 90) amount += inv.sell_due;
-              });
-            });
+            // same buckets as each customer row (opening balance in 90+, on-account credit in 0-30), so the four add up to Total Outstanding
+            const amount = customers.reduce((t, c) => t + [c.aging.current, c.aging.d31, c.aging.d61, c.aging.d90][index], 0);
 
             const percentage = summary.total_outstanding > 0 ? (amount / summary.total_outstanding) * 100 : 0;
 
@@ -643,7 +651,7 @@ export default function CustomerOutstanding() {
                 <div className="h-24 bg-gray-100 rounded-lg relative overflow-hidden mb-2">
                   <div
                     className={`absolute bottom-0 left-0 right-0 ${bucket.color} transition-all`}
-                    style={{ height: `${Math.min(percentage, 100)}%` }}
+                    style={{ height: `${Math.max(0, Math.min(percentage, 100))}%` }}
                   ></div>
                 </div>
                 <p className="text-xs text-gray-500 mb-1">{bucket.label}</p>

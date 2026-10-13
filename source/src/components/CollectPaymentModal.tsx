@@ -42,7 +42,7 @@ export default function CollectPaymentModal({
   const ALL = '__all__';
   const OPENING = '__opening__';
   const selectedInvoiceData = invoices.find(inv => inv.id === selectedInvoice);
-  const sortedInvoices = [...invoices].filter(i => i.sell_due > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const sortedInvoices = [...invoices].filter(i => i.sell_due > 0).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   const totalDue = sortedInvoices.reduce((t, i) => t + i.sell_due, 0);
   const maxAmount = selectedInvoice === ALL ? totalDue + openingBalance : selectedInvoiceData ? selectedInvoiceData.sell_due : openingBalance;
 
@@ -90,7 +90,7 @@ export default function CollectPaymentModal({
       return;
     }
 
-    if (paymentAmount > maxAmount) {
+    if (paymentAmount > maxAmount + 0.005) { // half-cent tolerance: summed dues carry float dust
       setError(`Payment amount cannot exceed ${formatCurrency(maxAmount)}`);
       return;
     }
@@ -210,7 +210,7 @@ export default function CollectPaymentModal({
   }
 
   function handlePayFullAmount() {
-    setAmount(maxAmount.toString());
+    setAmount((Math.round(maxAmount * 100) / 100).toFixed(2));
   }
 
   const paymentModes = [
@@ -316,7 +316,7 @@ export default function CollectPaymentModal({
                 <p className="font-semibold text-green-800">This will be split as:</p>
                 {bulkPreview.parts.map((pt) => (
                   <div key={pt.inv.id} className="flex justify-between text-gray-700">
-                    <span>{pt.inv.voucher_no} <span className="text-gray-400">({pt.inv.date})</span>{pt.amount >= pt.inv.sell_due ? <span className="ml-1 text-green-700">paid in full</span> : <span className="ml-1 text-amber-700">part — {formatCurrency(pt.inv.sell_due - pt.amount)} still due</span>}</span>
+                    <span>{pt.inv.voucher_no} <span className="text-gray-400">({pt.inv.date ? new Date(pt.inv.date).toLocaleDateString('en-GB') : '-'})</span>{pt.amount >= pt.inv.sell_due ? <span className="ml-1 text-green-700">paid in full</span> : <span className="ml-1 text-amber-700">part — {formatCurrency(pt.inv.sell_due - pt.amount)} still due</span>}</span>
                     <span className="font-medium">{formatCurrency(pt.amount)}</span>
                   </div>
                 ))}
