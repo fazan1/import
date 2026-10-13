@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { writeBook } from './book';
+import { supabase, fromAllBooksForBackup } from './supabase';
+import { BOOKED_TABLES, writeBook } from './book';
 
 interface RecycleBinEntry {
   source_table: string;
@@ -23,22 +23,35 @@ function stripNested(row: unknown): Record<string, unknown> {
   return out;
 }
 
+const recycleBinHasNoBook = (msg: string) => /book/i.test(msg) && /column|schema cache/i.test(msg);
+
+/** Until sql/books-separate.sql has run, the Recycle Bin has no book column: then don't split it by book. */
+export async function checkRecycleBinBook(): Promise<void> {
+  const { error } = await fromAllBooksForBackup('recycle_bin').select('book').limit(1);
+  if (error && recycleBinHasNoBook(error.message)) BOOKED_TABLES.delete('recycle_bin');
+}
+
 export async function moveToRecycleBin(entry: RecycleBinEntry): Promise<{ success: boolean; error?: string }> {
   const { data: userData } = await supabase.auth.getUser();
 
-  const { error: insertError } = await supabase
-    .from('recycle_bin')
-    .insert({
-      user_id: userData?.user?.id || null,
-      source_table: entry.source_table,
-      source_id: entry.source_id,
-      record_data: stripNested(entry.record_data),
-      related_data: entry.related_data || {},
-      display_name: entry.display_name,
-      portal: entry.portal,
-      // the deleted record's own book (a master without a book: the book you are in)
-      book: ((entry.record_data as { book?: string | null }).book) || writeBook(),
-    });
+  const row: Record<string, unknown> = {
+    user_id: userData?.user?.id || null,
+    source_table: entry.source_table,
+    source_id: entry.source_id,
+    record_data: stripNested(entry.record_data),
+    related_data: entry.related_data || {},
+    display_name: entry.display_name,
+    portal: entry.portal,
+    // the deleted record's own book (a master without a book: the book you are in)
+    book: ((entry.record_data as { book?: string | null }).book) || writeBook(),
+  };
+  let { error: insertError } = await supabase.from('recycle_bin').insert(row);
+  if (insertError && recycleBinHasNoBook(insertError.message)) {
+    // books-separate.sql not run yet: keep deleting working, just without the book
+    BOOKED_TABLES.delete('recycle_bin');
+    delete row.book;
+    ({ error: insertError } = await supabase.from('recycle_bin').insert(row));
+  }
 
   if (insertError) {
     return { success: false, error: insertError.message };

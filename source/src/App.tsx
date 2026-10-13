@@ -5,6 +5,7 @@ import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, getBook, setBook, lockBook, unl
 import type { BookMode } from './lib/book';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
+import { checkRecycleBinBook } from './lib/recycleBin';
 import Customers from './components/Customers';
 import CallList from './components/CallList';
 import CallForm from './components/CallForm';
@@ -124,6 +125,8 @@ function App() {
       setPerm(u);
     });
   }, [user]);
+  // Recycle Bin split by book only once books-separate.sql has run
+  useEffect(() => { if (user) checkRecycleBinBook(); }, [user]);
   // book modes (OLD = collection only); no table yet = every book open
   const [, setModesLoaded] = useState(0);
   useEffect(() => {
