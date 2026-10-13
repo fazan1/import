@@ -144,7 +144,7 @@ export default function ClearingAgents() {
               <tbody className="divide-y divide-gray-100">
                 {myLines.map((l) => (
                   <tr key={l.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">{l.entry_date}</td>
+                    <td className="px-3 py-2">{l.entry_date ? new Date(l.entry_date + 'T00:00:00').toLocaleDateString('en-GB') : ''}</td>
                     <td className="px-3 py-2 text-gray-700">{[l.reference, l.payment_mode, l.note].filter(Boolean).join(' · ') || (l.kind === 'charge' ? 'Charge' : 'Payment')}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{l.kind === 'charge' ? n0(l.amount) : ''}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-green-700">{l.kind === 'payment' ? n0(l.amount) : ''}</td>
@@ -198,12 +198,12 @@ export default function ClearingAgents() {
           return (
             <div key={a.id} className={`px-4 py-3 flex items-center gap-3 ${a.is_active ? '' : 'opacity-50'}`}>
               <button onClick={() => setOpenId(a.id)} className="flex-1 min-w-0 text-left">
-                <div className="font-medium text-gray-900 truncate">{a.name}{!a.is_active && <span className="ml-2 text-[10px] uppercase bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}</div>
+                <div className="font-medium text-teal-700 underline underline-offset-2 truncate">{a.name}{!a.is_active && <span className="ml-2 text-[10px] uppercase bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}</div>
                 <div className="text-xs text-gray-500 flex items-center gap-1">{a.phone ? <><Phone className="w-3 h-3" />{a.phone}</> : 'No phone'}</div>
               </button>
               <button onClick={() => setOpenId(a.id)} className="text-right">
                 <div className={`text-sm font-semibold tabular-nums ${bal > 0.5 ? 'text-rose-600' : bal < -0.5 ? 'text-sky-600' : 'text-green-700'}`}>{bal > 0.5 ? rs(bal) : bal < -0.5 ? `${rs(-bal)} adv.` : 'Settled'}</div>
-                <div className="text-[11px] text-gray-400">open account →</div>
+                <div className="text-[12px] text-teal-700 underline underline-offset-2">View details →</div>
               </button>
               {!locked && <div className="flex items-center gap-1">
                 <button onClick={() => setEdit({ id: a.id, name: a.name, phone: a.phone ?? '' })} className="p-1.5 text-gray-400 hover:text-teal-700" title="Edit"><Pencil className="w-4 h-4" /></button>

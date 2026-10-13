@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import ChangeHistory from './ChangeHistory';
+import { History as HistoryIcon } from 'lucide-react';
 import { Package, Plus, Search, RefreshCw, X, Link, Trash2, Download, History, ChevronDown, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PackingListPrint from './PackingListPrint';
@@ -304,70 +306,72 @@ export default function PackingList() {
     loadItems();
   }
 
+  // Each typed value is saved ONCE (Enter, Tab or leaving the box — whichever comes first), with the value that was typed.
+  // Before, Enter/Tab saved it and leaving the box saved it again (sometimes with an old value), and the box could close
+  // while typing in the next one.
+  const committedRef = useRef<Set<string>>(new Set());
+  const [savedNote, setSavedNote] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const cellKey = (id: string, field: string) => `${id}:${field}`;
+  function openCell(id: string, field: string, value: string) {
+    committedRef.current.delete(cellKey(id, field));
+    setEditingValue(value);
+    setEditingCell({ id, field });
+  }
+
   async function updateCell(id: string, field: string, value: number | string) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    const before = item[field as keyof PackingListItem];
+    if (String(before ?? '') === String(value)) return;            // nothing changed: nothing to save
     setSaving(true);
-
+    let error;
     if (field === 'no_of_pkgs') {
-      const item = items.find(i => i.id === id);
-      if (item) {
-        const { error } = await supabase
-          .from('packing_list_items')
-          .update({ no_of_pkgs: value, updated_at: new Date().toISOString() })
-          .eq('batch_number', item.batch_number)
-          .eq('packing_list_no', item.packing_list_no);
-
-        if (error) {
-          console.error('Error updating item:', error);
-        } else {
-          setItems(items.map(i =>
-            i.batch_number === item.batch_number && i.packing_list_no === item.packing_list_no
-              ? { ...i, no_of_pkgs: value as number }
-              : i
-          ));
-        }
-      }
+      // packages belong to the whole packing list: every line of this PL gets the same number
+      let q = supabase.from('packing_list_items').update({ no_of_pkgs: value, updated_at: new Date().toISOString() });
+      q = item.batch_number ? q.eq('batch_number', item.batch_number) : q.is('batch_number', null);
+      ({ error } = await q.eq('packing_list_no', item.packing_list_no));
+      if (!error) setItems(prev => prev.map(i => i.batch_number === item.batch_number && i.packing_list_no === item.packing_list_no ? { ...i, no_of_pkgs: value as number } : i));
     } else {
-      const { error } = await supabase
-        .from('packing_list_items')
-        .update({ [field]: value, updated_at: new Date().toISOString() })
-        .eq('id', id);
-
-      if (error) {
-        console.error('Error updating item:', error);
-      } else {
-        setItems(items.map(item =>
-          item.id === id ? { ...item, [field]: value } : item
-        ));
-      }
+      ({ error } = await supabase.from('packing_list_items').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', id));
+      if (!error) setItems(prev => prev.map(i => i.id === id ? { ...i, [field]: value } : i));
     }
-
     setSaving(false);
-    setEditingCell(null);
+    if (error) {
+      console.error('Error updating item:', error);
+      alert(`Could not save ${field === 'weight_kg' ? 'the weight' : field === 'cbm' ? 'the CBM' : 'the packages'} for "${item.item_name}": ${error.message}`);
+      return;
+    }
+    setSavedNote(`Saved ✓ ${item.item_name}: ${field === 'weight_kg' ? 'kg' : field === 'cbm' ? 'CBM' : 'packages'} ${before || 0} → ${value}`);
+    window.setTimeout(() => setSavedNote(''), 4000);
   }
 
   function handleCellClick(id: string, field: string, currentValue: number) {
     if (field === 'weight_kg' || field === 'cbm' || field === 'no_of_pkgs') {
-      setEditingCell({ id, field });
-      setEditingValue(currentValue > 0 ? String(currentValue) : '');
+      if (editingCell?.id === id && editingCell?.field === field) return;
+      openCell(id, field, currentValue > 0 ? String(currentValue) : '');
     }
   }
 
-  function commitEdit(id: string, field: string) {
-    const numValue = parseFloat(editingValue) || 0;
-    updateCell(id, field, numValue);
+  /** save the typed value once; `close` = also close the box (only if it is still this box) */
+  function commitEdit(id: string, field: string, close = true) {
+    const key = cellKey(id, field);
+    if (!committedRef.current.has(key)) {
+      committedRef.current.add(key);
+      updateCell(id, field, parseFloat(editingValue) || 0);
+    }
+    if (close) setEditingCell(c => (c && c.id === id && c.field === field ? null : c));
   }
 
   function handleKeyDown(e: React.KeyboardEvent, id: string, field: string) {
     if (e.key === 'Enter') {
       commitEdit(id, field);
     } else if (e.key === 'Escape') {
+      committedRef.current.add(cellKey(id, field));                 // leaving with Escape saves nothing
       setEditingCell(null);
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      const numValue = parseFloat(editingValue) || 0;
-      // Update local state immediately so the saved value is correct
-      setItems((prev) => prev.map((item) => item.id === id ? { ...item, [field]: numValue } : item));
-      updateCell(id, field, numValue);
+      commitEdit(id, field, false);
 
       const currentIdx = filteredItems.findIndex(i => i.id === id);
       const fields = ['no_of_pkgs', 'weight_kg', 'cbm'];
@@ -395,8 +399,9 @@ export default function PackingList() {
       if (nextId !== id || nextField !== field) {
         const nextItem = filteredItems.find(i => i.id === nextId);
         const nextVal = nextItem ? (nextItem[nextField as keyof PackingListItem] as number) : 0;
-        setEditingValue(nextVal > 0 ? String(nextVal) : '');
-        setEditingCell({ id: nextId, field: nextField });
+        openCell(nextId, nextField, nextVal > 0 ? String(nextVal) : '');
+      } else {
+        setEditingCell(null);
       }
     }
   }
@@ -583,6 +588,10 @@ export default function PackingList() {
         <h2 className="text-2xl font-bold text-gray-900">Packing List</h2>
         <div className="flex items-center space-x-2">
           {saving && <span className="text-sm text-teal-700">Saving...</span>}
+          {!saving && savedNote && <span className="text-sm text-green-700">{savedNote}</span>}
+          {activeBatch && activeBatch !== '__unassigned__' && (
+            <button onClick={() => setHistoryOpen(true)} className="flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50" title="Every change to this shipment, who and when"><HistoryIcon className="w-4 h-4" />History</button>
+          )}
           <button
             onClick={loadData}
             className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
@@ -1157,6 +1166,7 @@ export default function PackingList() {
           onClose={() => setShowPrintView(false)}
         />
       )}
+      {historyOpen && activeBatch && <ChangeHistory batch={activeBatch} onClose={() => setHistoryOpen(false)} />}
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { X, Check, Send, AlertTriangle } from 'lucide-react';
+import { X, Check, Send, AlertTriangle, History } from 'lucide-react';
+import ChangeHistory from './ChangeHistory';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages, selectByIds } from '../lib/fetchAll';
 import { loadItemCharges, syncCostingCharges } from '../lib/costingCharges';
@@ -77,6 +78,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   const [posted, setPosted] = useState<{ id: string; amount: number; agent_id: string } | null>(null);
   const [msg, setMsg] = useState('');
   const [okMsg, setOkMsg] = useState('');
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const defaultRate = (b: Basis) => (b === 'CBM' ? shipment.rate_cbm : b === 'KG' ? shipment.rate_kg : b === 'PCS' ? shipment.rate_pcs : 0) || 0;
   const autoQty = (i: { cbm: number; weight_kg?: number; kg?: number; quantity?: number; qty?: number }, b: Basis) =>
@@ -141,7 +143,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       const e: Record<string, Edit> = {};
       rows.forEach((i) => {
         const s = ch.map.get(i.id);
-        if (s) e[i.id] = { basis: s.basis, qty: s.basis === 'FIXED' ? '' : String(s.qty || 0), rate: s.basis === 'FIXED' ? '' : (s.rate ? String(s.rate) : ''), fixed: s.basis === 'FIXED' ? (s.amount ? String(s.amount) : '') : '' };
+        if (s) { const live = autoQty(i, s.basis); e[i.id] = { basis: s.basis, qty: s.basis === 'FIXED' ? '' : (live > 0 ? fmtQty(live, s.basis) : String(s.qty || 0)), rate: s.basis === 'FIXED' ? '' : (s.rate ? String(s.rate) : ''), fixed: s.basis === 'FIXED' ? (s.amount ? String(s.amount) : '') : '' }; }
         else e[i.id] = { basis: start, qty: fmtQty(autoQty(i, start), start), rate: defaultRate(start) ? String(defaultRate(start)) : '', fixed: '' };
       });
       setEdits(e);
@@ -158,7 +160,9 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
             || saved.length < its.length || Math.max(...perUnit) - Math.min(...perUnit) > 0.01;
           sp[k] = mixed;
           const b = saved[0].basis, amt = saved.reduce((t, c) => t + c.amount, 0);
-          pe[k] = { basis: b, qty: b === 'FIXED' ? '' : fmtQty(saved.reduce((t, c) => t + c.qty, 0), b), rate: b === 'FIXED' ? '' : (saved[0].rate ? String(saved[0].rate) : ''), fixed: b === 'FIXED' ? String(r2(amt) || '') : '' };
+          // kg / CBM always come fresh from the packing list (it may have changed since the last save)
+          const live = autoQty({ cbm, kg, qty: q }, b);
+          pe[k] = { basis: b, qty: b === 'FIXED' ? '' : fmtQty(live > 0 ? live : saved.reduce((t, c) => t + c.qty, 0), b), rate: b === 'FIXED' ? '' : (saved[0].rate ? String(saved[0].rate) : ''), fixed: b === 'FIXED' ? String(r2(amt) || '') : '' };
         } else {
           pe[k] = { basis: start, qty: fmtQty(autoQty({ cbm, kg, qty: q }, start), start), rate: defaultRate(start) ? String(defaultRate(start)) : '', fixed: '' };
         }
@@ -188,7 +192,9 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     if (b !== 'KG' && b !== 'CBM') return { by: 'QTY', missing: [] };
     const metric = (i: Item) => (b === 'KG' ? i.weight_kg : i.cbm);
     const missing = p.items.filter((i) => !(metric(i) > 0)).map((i) => i.item_name);
-    return missing.length === 0 ? { by: b, missing } : { by: 'QTY', missing };
+    // each item: its own kg / CBM x rate. Items with no kg / CBM yet carry nothing until it is entered.
+    // Only when NO item has any kg / CBM does it fall back to sharing by quantity.
+    return missing.length < p.items.length ? { by: b, missing } : { by: 'QTY', missing };
   };
   const shareOf = (i: Item, p: PL) => {
     const r = shareRule(p);
@@ -344,8 +350,12 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
           <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each packing list (per kg, per CBM, per piece or a fixed amount). It is shared by the PL’s items by their own weight / CBM (or by quantity if those are not filled in); Costing shows it per piece.</p></div>
-          <button onClick={onClose} className="text-gray-400"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setHistoryOpen(true)} className="text-xs px-2 py-1 border border-gray-300 rounded flex items-center gap-1 text-gray-700"><History className="w-3.5 h-3.5" />History</button>
+            <button onClick={onClose} className="text-gray-400"><X className="w-5 h-5" /></button>
+          </div>
         </div>
+        {historyOpen && <ChangeHistory batch={shipment.shipment_no} onClose={() => setHistoryOpen(false)} />}
 
         <div className="p-3 sm:p-5 overflow-y-auto flex-1 min-w-0">
           {loading ? <p className="text-sm text-gray-500">Loading…</p> : missing ? (
@@ -412,12 +422,18 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                                 <div className="min-w-0"><div className="font-semibold text-gray-900">PL {p.plNo} <span className="font-normal text-gray-500">· {p.items.length} item{p.items.length === 1 ? '' : 's'}</span></div>
                                   <div className="text-[11px] text-gray-500">{nq(p.qty)} pcs · {n2(p.kg)} kg · {n3(p.cbm)} CBM</div></div>
                                 <div className="text-right shrink-0"><div className="font-bold tabular-nums">Rs {n0(pa)}</div>
-                                  {!isSplit && <div className="text-[10px] text-gray-500">{r.by !== 'QTY' && p.items.length > 1 ? `by each item’s ${r.by === 'KG' ? 'weight' : 'CBM'}` : p.qty > 0 ? `${n2(pa / p.qty)} per piece` : ''}</div>}</div>
+                                  {!isSplit && <div className="text-[10px] text-gray-500">{r.by !== 'QTY' && p.items.length > 1 ? `each item: own ${r.by === 'KG' ? 'kg' : 'CBM'} × rate` : p.qty > 0 ? `${n2(pa / p.qty)} per piece` : ''}</div>}</div>
                               </div>
                               <div className="text-[11px] text-gray-500 mt-1">{p.items.map((i) => i.item_name).join(', ')}</div>
                               {!isSplit && inputs(pe, autoQty({ cbm: p.cbm, kg: p.kg, qty: p.qty }, pe.basis), (b) => setPlBasis(p, b), (f, v) => setPlField(p.key, f, v))}
+                              {!isSplit && p.items.length > 1 && r.by !== 'QTY' && (
+                                <div className="text-[11px] text-gray-600 bg-green-50/60 border border-green-100 rounded px-2 py-1 mt-2 space-y-0.5">
+                                  {p.items.map((i) => { const m = pe.basis === 'KG' ? i.weight_kg : i.cbm; const a = amountOf(i.id); return (
+                                    <div key={i.id} className="flex justify-between gap-2"><span>{i.item_name}</span><span className="tabular-nums text-right">{pe.basis === 'KG' ? `${n2(m)} kg` : `${n3(m)} CBM`} × {n0(num(pe.rate))} = <b>Rs {n0(a)}</b></span></div>); })}
+                                </div>
+                              )}
                               {!isSplit && p.items.length > 1 && r.missing.length > 0 && (
-                                <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">Shared by quantity for now. Fill the {pe.basis === 'KG' ? 'kg' : 'CBM'} of <b>{r.missing.join(', ')}</b> in Packing List to share by {pe.basis === 'KG' ? 'weight' : 'CBM'}, then Save again.</div>
+                                <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">{r.by === 'QTY' ? <>No item has its {pe.basis === 'KG' ? 'kg' : 'CBM'} yet — shared by quantity for now.</> : <>Not charged yet — no {pe.basis === 'KG' ? 'kg' : 'CBM'}: <b>{r.missing.join(', ')}</b>. Enter it in Packing List, then Save again.</>}</div>
                               )}
                               {isSplit && p.items.map((i) => {
                                 const e = edits[i.id]; if (!e) return null; const a = itemEditAmount(i.id);
@@ -490,18 +506,27 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                                         {!isSplit && (() => {
                                           const r = shareRule(p);
                                           if (p.items.length === 1) return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per ${p.items[0].unit || 'piece'}` : 'no qty — can’t divide'}</div>;
-                                          if (r.by !== 'QTY') return <div className="text-[10px] text-green-700">shared by each item’s {r.by === 'KG' ? 'weight' : 'CBM'}</div>;
+                                          if (r.by !== 'QTY') return <div className="text-[10px] text-green-700">each item: its own {r.by === 'KG' ? 'kg' : 'CBM'} × rate</div>;
                                           return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece (by quantity)` : 'no qty — can’t divide'}</div>;
                                         })()}
                                       </td>
                                     </tr>
+                                    {!isSplit && p.items.length > 1 && shareRule(p).by !== 'QTY' && (
+                                      <tr><td colSpan={9} className="px-3 pb-2 pt-0">
+                                        <div className="text-[11px] text-gray-600 bg-green-50/60 border border-green-100 rounded px-2 py-1 grid sm:grid-cols-2 gap-x-6 gap-y-0.5 whitespace-normal">
+                                          {p.items.map((i) => { const m = pe.basis === 'KG' ? i.weight_kg : i.cbm; const a = amountOf(i.id); return (
+                                            <div key={i.id} className="flex justify-between gap-3"><span>{i.item_name}</span><span className="tabular-nums">{pe.basis === 'KG' ? `${n2(m)} kg` : `${n3(m)} CBM`} × {n0(num(pe.rate))} = <b>Rs {n0(a)}</b>{i.quantity > 0 ? <span className="text-gray-400"> · {n2(a / i.quantity)}/{i.unit || 'pc'}</span> : null}</span></div>); })}
+                                        </div>
+                                      </td></tr>
+                                    )}
                                     {!isSplit && p.items.length > 1 && (() => {
                                       const r = shareRule(p); if (r.missing.length === 0) return null;
                                       const what = plEdits[p.key]?.basis === 'KG' ? 'kg' : 'CBM';
                                       return (
                                         <tr><td colSpan={9} className="px-3 pb-2 pt-0">
                                           <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 whitespace-normal">
-                                            Shared by quantity for now. To share by each item’s {what === 'kg' ? 'weight' : 'CBM'}, fill the {what} of: <b>{r.missing.join(', ')}</b> in Packing List, then Save here again.
+                                            {r.by === 'QTY' ? <>No item has its {what} yet, so it is shared by quantity for now. Fill each item’s {what} in Packing List, then Save here again.</>
+                                              : <>Not charged yet — no {what} in Packing List: <b>{r.missing.join(', ')}</b>. Enter their {what}, then Save here again.</>}
                                           </div>
                                         </td></tr>
                                       );

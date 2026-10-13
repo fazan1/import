@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Calculator, RefreshCw, Plus, Trash2, Download, Search, X, History, ChevronDown, Printer, AlertTriangle, CheckCircle2, Truck } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import ChangeHistory from './ChangeHistory';
 import CostingDutyPrint, { summarizeCosting, fmt0, fmt2 } from './CostingDutyPrint';
 import type { CostingPrintLine } from './CostingDutyPrint';
 import { fetchAllPages, selectByIds } from '../lib/fetchAll';
@@ -140,6 +141,7 @@ export default function CostingDutySheet() {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const batchToken = useRef('');
 
   useEffect(() => {
@@ -644,6 +646,7 @@ export default function CostingDutySheet() {
 
   return (
     <>
+      {historyOpen && activeBatch && <ChangeHistory batch={activeBatch} onClose={() => setHistoryOpen(false)} />}
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -881,6 +884,7 @@ export default function CostingDutySheet() {
                 {chargeCols && (
                   <div className="flex items-center gap-2">
                     {syncMsg && <span className="text-xs text-gray-500">{syncMsg}</span>}
+                    <button onClick={() => setHistoryOpen(true)} className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"><History className="w-3.5 h-3.5" />History</button>
                     <button
                       onClick={updateFromShipping}
                       disabled={syncing}
