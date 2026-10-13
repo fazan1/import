@@ -340,7 +340,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center sm:p-4" onClick={() => !saving && onClose()}>
+    <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4" onClick={() => !saving && onClose()}>
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-6xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
           <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Put a charge on each packing list (per kg, per CBM, per piece or a fixed amount). It is shared by the PL’s items by their own weight / CBM (or by quantity if those are not filled in); Costing shows it per piece.</p></div>
@@ -383,7 +383,61 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                       ))}
                     </div>
                   )}
-                  <div className="overflow-x-auto border border-gray-200 rounded-lg max-w-full">
+                  {/* phone: one card per packing list (no sideways scrolling) */}
+                  <div className="sm:hidden space-y-3">
+                    {groups.map((g) => (
+                      <div key={g.key}>
+                        <div className="text-xs mb-1.5"><span className="font-semibold text-gray-900">{g.title}</span>{g.sub && <span className="text-gray-500"> · {g.sub}</span>}</div>
+                        {g.pls.map((p) => {
+                          const pe = plEdits[p.key]; if (!pe) return null;
+                          const isSplit = !!split[p.key]; const pa = plAmount(p); const r = shareRule(p);
+                          const inputs = (e: Edit, auto: number, onBasis: (b: Basis) => void, onF: (f: keyof Edit, v: string) => void) => (
+                            <div className="grid grid-cols-3 gap-2 mt-2">
+                              <div><div className="text-[10px] text-gray-500">Type</div>
+                                <select value={e.basis} onChange={(ev) => onBasis(ev.target.value as Basis)} className="w-full px-2 py-2 border border-gray-300 rounded text-sm">
+                                  {BASES.map((x) => <option key={x} value={x}>{x === 'FIXED' ? 'Fixed' : x}</option>)}
+                                </select></div>
+                              {e.basis === 'FIXED' ? (
+                                <div className="col-span-2"><div className="text-[10px] text-gray-500">Amount (Rs)</div><input className={cell} inputMode="decimal" value={e.fixed} onChange={(ev) => onF('fixed', ev.target.value)} /></div>
+                              ) : (<>
+                                <div><div className="text-[10px] text-gray-500">{e.basis === 'KG' ? 'Kg' : e.basis === 'CBM' ? 'CBM' : 'Pieces'}</div><input className={cell} inputMode="decimal" value={e.qty} onChange={(ev) => onF('qty', ev.target.value)} />
+                                  {auto === 0 && !(num(e.qty) > 0) && <div className="text-[10px] text-amber-600 leading-tight mt-0.5">Not in packing list — type it</div>}</div>
+                                <div><div className="text-[10px] text-gray-500">Rate (Rs)</div><input className={cell} inputMode="decimal" value={e.rate} onChange={(ev) => onF('rate', ev.target.value)} /></div>
+                              </>)}
+                            </div>
+                          );
+                          return (
+                            <div key={p.key} className="border border-gray-200 rounded-lg p-3 mb-2 bg-white">
+                              <div className="flex justify-between gap-2">
+                                <div className="min-w-0"><div className="font-semibold text-gray-900">PL {p.plNo} <span className="font-normal text-gray-500">· {p.items.length} item{p.items.length === 1 ? '' : 's'}</span></div>
+                                  <div className="text-[11px] text-gray-500">{nq(p.qty)} pcs · {n2(p.kg)} kg · {n3(p.cbm)} CBM</div></div>
+                                <div className="text-right shrink-0"><div className="font-bold tabular-nums">Rs {n0(pa)}</div>
+                                  {!isSplit && <div className="text-[10px] text-gray-500">{r.by !== 'QTY' && p.items.length > 1 ? `by each item’s ${r.by === 'KG' ? 'weight' : 'CBM'}` : p.qty > 0 ? `${n2(pa / p.qty)} per piece` : ''}</div>}</div>
+                              </div>
+                              <div className="text-[11px] text-gray-500 mt-1">{p.items.map((i) => i.item_name).join(', ')}</div>
+                              {!isSplit && inputs(pe, autoQty({ cbm: p.cbm, kg: p.kg, qty: p.qty }, pe.basis), (b) => setPlBasis(p, b), (f, v) => setPlField(p.key, f, v))}
+                              {!isSplit && p.items.length > 1 && r.missing.length > 0 && (
+                                <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">Shared by quantity for now. Fill the {pe.basis === 'KG' ? 'kg' : 'CBM'} of <b>{r.missing.join(', ')}</b> in Packing List to share by {pe.basis === 'KG' ? 'weight' : 'CBM'}, then Save again.</div>
+                              )}
+                              {isSplit && p.items.map((i) => {
+                                const e = edits[i.id]; if (!e) return null; const a = itemEditAmount(i.id);
+                                return (
+                                  <div key={i.id} className="border-t border-gray-100 mt-2 pt-2">
+                                    <div className="flex justify-between text-sm"><span className="text-gray-900">{i.item_name} <span className="text-[11px] text-gray-500">{nq(i.quantity)} {i.unit}</span></span><span className="font-semibold tabular-nums">Rs {n0(a)}</span></div>
+                                    {inputs(e, autoQty(i, e.basis), (b) => setBasis(i, b), (f, v) => setField(i.id, f, v))}
+                                    <div className="text-[10px] text-gray-500 mt-1">{i.quantity > 0 ? `${n2(a / i.quantity)} per ${i.unit || 'unit'}` : 'no qty — can’t divide'}</div>
+                                  </div>
+                                );
+                              })}
+                              {p.items.length > 1 && <button type="button" onClick={() => setSplit({ ...split, [p.key]: !isSplit })} className="text-[12px] text-teal-700 underline mt-2">{isSplit ? 'One charge for the whole PL' : 'Charge items separately'}</button>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))}
+                    <div className="flex justify-between font-semibold bg-gray-50 border border-gray-200 rounded-lg px-3 py-2"><span>Items total</span><span className="tabular-nums">Rs {n0(itemsTotal)}</span></div>
+                  </div>
+                  <div className="hidden sm:block overflow-x-auto border border-gray-200 rounded-lg max-w-full">
                     <table className="w-full text-sm whitespace-nowrap">
                       <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
                         <tr>
@@ -437,11 +491,21 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                                           const r = shareRule(p);
                                           if (p.items.length === 1) return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per ${p.items[0].unit || 'piece'}` : 'no qty — can’t divide'}</div>;
                                           if (r.by !== 'QTY') return <div className="text-[10px] text-green-700">shared by each item’s {r.by === 'KG' ? 'weight' : 'CBM'}</div>;
-                                          return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece (by quantity)` : 'no qty — can’t divide'}
-                                            {r.missing.length > 0 && <div className="text-amber-600 whitespace-normal max-w-[190px] ml-auto">Fill the {plEdits[p.key]?.basis === 'KG' ? 'kg' : 'CBM'} of {r.missing.length === p.items.length ? 'each item' : r.missing.slice(0, 3).join(', ') + (r.missing.length > 3 ? ` +${r.missing.length - 3}` : '')} in Packing List to share by {plEdits[p.key]?.basis === 'KG' ? 'weight' : 'CBM'}</div>}</div>;
+                                          return <div className="text-[10px] text-gray-400 tabular-nums">{p.qty > 0 ? `${n2(pa / p.qty)} per piece (by quantity)` : 'no qty — can’t divide'}</div>;
                                         })()}
                                       </td>
                                     </tr>
+                                    {!isSplit && p.items.length > 1 && (() => {
+                                      const r = shareRule(p); if (r.missing.length === 0) return null;
+                                      const what = plEdits[p.key]?.basis === 'KG' ? 'kg' : 'CBM';
+                                      return (
+                                        <tr><td colSpan={9} className="px-3 pb-2 pt-0">
+                                          <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 whitespace-normal">
+                                            Shared by quantity for now. To share by each item’s {what === 'kg' ? 'weight' : 'CBM'}, fill the {what} of: <b>{r.missing.join(', ')}</b> in Packing List, then Save here again.
+                                          </div>
+                                        </td></tr>
+                                      );
+                                    })()}
                                     {isSplit && p.items.map((i) => {
                                       const e = edits[i.id]; if (!e) return null;
                                       const a = itemEditAmount(i.id);
