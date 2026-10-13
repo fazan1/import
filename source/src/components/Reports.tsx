@@ -144,7 +144,7 @@ export default function Reports() {
       .filter((r) => (!from || r.date >= from) && (!to || r.date <= to) && (!onlyShipping || !!shipmentByNo[r.batch]))
       .filter((r) => modeFilter === 'all' || r.mode === modeFilter)
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [costRows, shipmentByNo, from, to, modeFilter]);
+  }, [costRows, shipmentByNo, from, to, modeFilter, onlyShipping]);
 
   const shipmentTotals = useMemo(() => {
     const sum = (key: keyof (typeof shipmentReport)[number], rows = shipmentReport) =>

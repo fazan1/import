@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Check, ShoppingCart, ChevronDown, ChevronUp, FileText, Pencil, Package, Printer, Search, Link } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { replaceLines } from '../lib/lines';
 import SalesOrderPrint from './SalesOrderPrint';
 
 interface Customer {
@@ -337,11 +338,10 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
       if (updateError) {
         console.error('Error updating order:', updateError);
+        alert('Could not save the sales order: ' + updateError.message);
         setSaving(false);
         return;
       }
-
-      await supabase.from('busy_sales_order_items').delete().eq('sales_order_id', editingOrder.id);
 
       const itemsToInsert = validItems.map(item => ({
         sales_order_id: editingOrder.id,
@@ -353,7 +353,12 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
         total: parseFloat(item.quantity) * parseFloat(item.unit_price)
       }));
 
-      await supabase.from('busy_sales_order_items').insert(itemsToInsert);
+      const linesErr = await replaceLines('busy_sales_order_items', 'sales_order_id', editingOrder.id, itemsToInsert);
+      if (linesErr) {
+        alert('The sales order header was saved, but its item lines could not be saved: ' + linesErr);
+        setSaving(false);
+        return;
+      }
     } else {
       const orderNumber = await generateOrderNumber();
 
@@ -437,12 +442,39 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
       return;
     }
 
-    await supabase.from('so_po_links').delete().eq('sales_order_id', id);
-    await supabase.from('busy_sales_order_items').delete().eq('sales_order_id', id);
+    // Put removed child rows back if a later step fails, so nothing is lost
+    async function putBack(what: string): Promise<string> {
+      const problems: string[] = [];
+      if (soLinks && soLinks.length > 0) {
+        const { error: e } = await supabase.from('so_po_links').insert(soLinks);
+        if (e) problems.push('PO links: ' + e.message);
+      }
+      if (what === 'all' && orderItems && orderItems.length > 0) {
+        const { error: e } = await supabase.from('busy_sales_order_items').insert(orderItems);
+        if (e) problems.push('item lines: ' + e.message);
+      }
+      return problems.length
+        ? '\n\nSome removed rows could not be put back (' + problems.join('; ') + '). They are saved in the Recycle Bin entry.'
+        : '\n\nThe order and its lines were kept.';
+    }
+
+    const { error: linksErr } = await supabase.from('so_po_links').delete().eq('sales_order_id', id);
+    if (linksErr) {
+      alert('Could not delete sales order (its PO links could not be removed): ' + linksErr.message);
+      return;
+    }
+    const { error: itemsErr } = await supabase.from('busy_sales_order_items').delete().eq('sales_order_id', id);
+    if (itemsErr) {
+      alert('Could not delete sales order (its item lines could not be removed): ' + itemsErr.message + await putBack('links'));
+      loadData();
+      return;
+    }
 
     const { error } = await supabase.from('busy_sales_orders').delete().eq('id', id);
     if (error) {
       console.error('Error deleting order:', error);
+      alert('Could not delete sales order: ' + error.message + await putBack('all'));
+      loadData();
     } else {
       loadData();
     }

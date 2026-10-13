@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, Check, Users, Search, ChevronLeft, FileText, CreditCard, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { openingBal } from '../lib/book';
 
 interface Customer {
   id: string;
@@ -111,6 +112,8 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
   async function loadData() {
     setLoading(true);
 
+    // Quote the name so commas, brackets or dots in it don't break the filter
+    const quotedName = '"' + (customer.name || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
     const [invRes, payRes] = await Promise.all([
       supabase
         .from('busy_sales_invoices')
@@ -119,7 +122,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
           subtotal, tax_amount, total_amount, amount_paid, amount_due, notes,
           busy_sales_invoice_items (id, item_name, quantity, unit, unit_price, total)
         `)
-        .or(`customer_id.eq.${customer.id},customer_name.eq.${customer.name}`)
+        .or(`customer_id.eq.${customer.id},customer_name.eq.${quotedName}`)
         .order('invoice_date', { ascending: false }),
       supabase
         .from('busy_sales_payments')
@@ -128,10 +131,13 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
           reference_number, notes, sales_invoice_id,
           busy_sales_invoices (invoice_number)
         `)
-        .or(`customer_id.eq.${customer.id},customer_name.eq.${customer.name}`)
+        .or(`customer_id.eq.${customer.id},customer_name.eq.${quotedName}`)
         .order('payment_date', { ascending: false }),
     ]);
 
+    if (invRes.error || payRes.error) {
+      alert('Could not load this customer\'s invoices/payments: ' + (invRes.error || payRes.error)?.message);
+    }
     setInvoices((invRes.data || []) as Invoice[]);
     setPayments((payRes.data || []) as SalesPayment[]);
     setLoading(false);
@@ -148,7 +154,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
   const totalBilled = invoices.reduce((s, i) => s + i.total_amount, 0);
   const totalPaid = invoices.reduce((s, i) => s + i.amount_paid, 0);
   const totalDue = invoices.reduce((s, i) => s + i.amount_due, 0);
-  const openingBalance = customer.opening_balance || 0;
+  const openingBalance = openingBal(customer.opening_balance);
   const netOutstanding = totalDue + openingBalance;
 
   if (loading) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, Plus, Lock, Unlock, Pencil, Printer, Download, X, Trash2, Check as CheckIcon, Lightbulb, Settings2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 
 /* =====================================================================
    CAPITAL — the money-exchange business, one row a month.
@@ -382,12 +383,12 @@ export default function Growth() {
       .l{font-size:12px;margin:5px 0;padding-left:10px;border-left:3px solid #999}.good{border-color:#16a34a}.warn{border-color:#d97706}.bad{border-color:#dc2626}
       .plan{display:flex;gap:18px;margin:8px 0}.plan div{border:1px solid #ccc;padding:8px 12px}.plan b{display:block;font-size:15px}</style></head><body>
       <h1>Capital — money exchange</h1><h2>${mlong(latest.month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
-      <div class="grade">${v.grade} MONTH</div><p class="head">${v.headline}</p>
-      <h3>This month's plan</h3><div class="plan">${v.plan.map((p) => `<div>${p.label}<b>${p.value}</b><small>${p.note}</small></div>`).join('')}</div>
-      <h3>What the numbers say</h3>${v.lines.map((l) => `<p class="l ${l.tone}">${l.text}</p>`).join('')}
+      <div class="grade">${v.grade} MONTH</div><p class="head">${esc(v.headline)}</p>
+      <h3>This month's plan</h3><div class="plan">${v.plan.map((p) => `<div>${esc(p.label)}<b>${esc(p.value)}</b><small>${esc(p.note)}</small></div>`).join('')}</div>
+      <h3>What the numbers say</h3>${v.lines.map((l) => `<p class="l ${esc(l.tone)}">${esc(l.text)}</p>`).join('')}
       <h3>All months</h3><table><thead><tr><th>Month</th><th>Capital</th><th>Gross</th><th>Expenses</th><th>Net</th><th>Return</th><th>Put in</th><th>Taken out</th></tr></thead><tbody>
       ${rows.map((r, i) => { const x = derive(rows, i, cfg); return `<tr><td>${ml(r.month)}</td><td>${n0(r.net_capital)}</td><td>${n0(r.profit)}</td><td>${n0(r.expenses)}</td><td>${n0(x.net)}</td><td>${p1(x.roc)}</td><td>${r.capital_added ? n0(r.capital_added) : ''}</td><td>${r.withdrawn ? n0(r.withdrawn) : ''}</td></tr>`; }).join('')}
-      </tbody></table>${latest.note ? `<h3>Decision</h3><p style="font-size:12px">${latest.note}</p>` : ''}</body></html>`);
+      </tbody></table>${latest.note ? `<h3>Decision</h3><p style="font-size:12px">${esc(latest.note)}</p>` : ''}</body></html>`);
     w.document.close(); w.print();
   }
 

@@ -120,11 +120,21 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
         const { error } = await supabase.from('shipment_charges').upsert(rows, { onConflict: 'shipment_id,purchase_bill_id' });
         if (error) throw new Error(error.message);
       }
-      // bills taken out of the shipment: drop their old charge lines
-      const keep = bills.map((b) => b.id);
-      const del = supabase.from('shipment_charges').delete().eq('shipment_id', shipment.id);
-      const { error: e2 } = keep.length ? await del.not('purchase_bill_id', 'in', `(${keep.join(',')})`) : await del;
-      if (e2) throw new Error(e2.message);
+      // bills taken out of the shipment: drop their old charge lines.
+      // Only bills of THIS book that moved away — a bill of another book (not listed here) keeps its charge.
+      const keep = new Set(bills.map((b) => b.id));
+      const { data: oldCh, error: e1 } = await supabase.from('shipment_charges').select('purchase_bill_id').eq('shipment_id', shipment.id);
+      if (e1) throw new Error(e1.message);
+      const gone = [...new Set((oldCh ?? []).map((c: { purchase_bill_id: string }) => c.purchase_bill_id))].filter((id) => !keep.has(id));
+      if (gone.length) {
+        const { data: mine, error: e1b } = await supabase.from('purchase_bills').select('id').in('id', gone);
+        if (e1b) throw new Error(e1b.message);
+        const drop = (mine ?? []).map((b: { id: string }) => b.id);
+        if (drop.length) {
+          const { error: e2 } = await supabase.from('shipment_charges').delete().eq('shipment_id', shipment.id).in('purchase_bill_id', drop);
+          if (e2) throw new Error(e2.message);
+        }
+      }
       // 2. the shipment itself
       const up: Record<string, unknown> = { agent_id: agentId || null, other_charges: otherV, agent_invoice: invoiceV, actual_charges: Math.round((invoiceV > 0 ? invoiceV : total) * 100) / 100 };
       if (agent) up.forwarder = agent.name;

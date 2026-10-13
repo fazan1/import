@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 
 interface Prod { id: string; name: string; unit: string; master_item_id: string | null; avg_cost: number; sell_price: number; is_active: boolean; }
 interface Note { id: string; kind: 'in' | 'issue' | 'transfer' | 'adjust'; note_date: string; sales_invoice_id: string | null; }
@@ -84,10 +85,10 @@ export default function WarehouseReport({ startDate = '' }: { startDate?: string
   }
   function print() {
     const w = window.open('', '_blank'); if (!w) return;
-    const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i ? 'r' : ''}">${x}</td>`).join('')}</tr>`;
+    const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i ? 'r' : ''}">${esc(x)}</td>`).join('')}</tr>`;
     const tbl = (t: string, h: string[], b: string) => `<h3>${t}</h3><table><thead><tr>${h.map((x, i) => `<th class="${i ? 'r' : ''}">${x}</th>`).join('')}</tr></thead><tbody>${b}</tbody></table>`;
     w.document.write(`<html><head><title>Warehouse report</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:13px;color:#555;margin:2px 0 12px;font-weight:normal}h3{font-size:13px;margin:14px 0 4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#f3f4f6;font-size:11px}.r{text-align:right}</style></head><body>
-      <h1>Warehouse report</h1><h2>${from} to ${to} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
+      <h1>Warehouse report</h1><h2>${esc(from)} to ${esc(to)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
       ${tbl('Profit from warehouse sales', ['Month', 'Qty', 'Revenue', 'Cost', 'Profit', 'Margin'], byMonth.map((m) => row([ml(m.key), n0(m.qty), n0(m.rev), n0(m.cost), n0(m.profit), pct(m.margin)])).join(''))}
       ${tbl('Stock value at month end', ['Month', 'Value Rs'], valueSeries.map((v) => row([ml(v.key), n0(v.value)])).join(''))}
       ${tbl('Movement', ['Item', 'Opening', 'In', 'Out', 'Adjust', 'Closing', 'Value Rs'], movement.map((r) => row([r.p.name, n0(r.open), n0(r.inn), n0(r.out), n0(r.adj), n0(r.close), n0(Math.max(0, r.close) * r.p.avg_cost)])).join(''))}

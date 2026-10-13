@@ -9,6 +9,19 @@ interface RecycleBinEntry {
   portal: 'cn' | 'sl';
 }
 
+// Drop joined/nested data (e.g. line arrays or a joined customer object) that was loaded with the row;
+// it is not a column of the table, so inserting it back would fail.
+function stripNested(row: unknown): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (!row || typeof row !== 'object') return out;
+  for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+    if (Array.isArray(v) && v.some(x => x !== null && typeof x === 'object')) continue;
+    if (v !== null && typeof v === 'object' && !Array.isArray(v) && !(v instanceof Date)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
 export async function moveToRecycleBin(entry: RecycleBinEntry): Promise<{ success: boolean; error?: string }> {
   const { data: userData } = await supabase.auth.getUser();
 
@@ -18,7 +31,7 @@ export async function moveToRecycleBin(entry: RecycleBinEntry): Promise<{ succes
       user_id: userData?.user?.id || null,
       source_table: entry.source_table,
       source_id: entry.source_id,
-      record_data: entry.record_data,
+      record_data: stripNested(entry.record_data),
       related_data: entry.related_data || {},
       display_name: entry.display_name,
       portal: entry.portal,
@@ -48,18 +61,27 @@ export async function restoreFromRecycleBin(
 
   const { error: restoreError } = await supabase
     .from(source_table)
-    .insert(record_data);
+    .insert(stripNested(record_data));
 
   if (restoreError) {
     return { success: false, error: restoreError.message };
   }
 
+  const failed: string[] = [];
   if (related_data && typeof related_data === 'object') {
     for (const [relatedTable, records] of Object.entries(related_data)) {
       if (Array.isArray(records) && records.length > 0) {
-        await supabase.from(relatedTable).insert(records);
+        const { error: relErr } = await supabase.from(relatedTable).insert(records.map(stripNested));
+        if (relErr) failed.push(`${relatedTable}: ${relErr.message}`);
       }
     }
+  }
+
+  if (failed.length > 0) {
+    return {
+      success: false,
+      error: `The main record was restored, but some of its lines could not be restored (${failed.join('; ')}). The item was kept in the Recycle Bin so nothing is lost.`,
+    };
   }
 
   const { error: deleteError } = await supabase

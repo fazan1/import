@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LogIn, Mail, Lock, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
-  onSwitchToSignUp: () => void;
+  onSwitchToSignUp?: () => void;
 }
 
 export default function Login({ onSwitchToSignUp }: LoginProps) {
@@ -96,7 +96,7 @@ export default function Login({ onSwitchToSignUp }: LoginProps) {
             </button>
           </form>
 
-          <div className="mt-6 text-center">
+          {onSwitchToSignUp && <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
               Don't have an account?{' '}
               <button
@@ -106,7 +106,7 @@ export default function Login({ onSwitchToSignUp }: LoginProps) {
                 Create account
               </button>
             </p>
-          </div>
+          </div>}
         </div>
       </div>
     </div>

@@ -40,6 +40,7 @@ export default function CollectPaymentModal({
   const [error, setError] = useState('');
 
   const ALL = '__all__';
+  const OPENING = '__opening__';
   const selectedInvoiceData = invoices.find(inv => inv.id === selectedInvoice);
   const sortedInvoices = [...invoices].filter(i => i.sell_due > 0).sort((a, b) => a.date.localeCompare(b.date));
   const totalDue = sortedInvoices.reduce((t, i) => t + i.sell_due, 0);
@@ -150,7 +151,7 @@ export default function CollectPaymentModal({
         setSaving(false);
         return;
       }
-    } else if (selectedInvoice) {
+    } else if (selectedInvoice && selectedInvoice !== OPENING) {
       // Payment against a busy_sales_invoice — trigger will update amounts
       const { error: insertError } = await supabase
         .from('busy_sales_payments')
@@ -197,6 +198,10 @@ export default function CollectPaymentModal({
         setSaving(false);
         return;
       }
+    } else {
+      setError('Nothing was saved: please choose an invoice, or this customer has no opening balance to pay.');
+      setSaving(false);
+      return;
     }
 
     setSaving(false);
@@ -257,7 +262,7 @@ export default function CollectPaymentModal({
                   </option>
                 ))}
                 {openingBalance > 0 && (
-                  <option value="">Opening Balance - Due: {formatCurrency(openingBalance)}</option>
+                  <option value={OPENING}>Opening Balance - Due: {formatCurrency(openingBalance)}</option>
                 )}
               </select>
             </div>

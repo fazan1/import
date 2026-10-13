@@ -1,6 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, X, Check, Package, ChevronDown, ChevronUp, Receipt, ShoppingCart, Search, Calendar, Layers, Pencil, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { replaceLines } from '../lib/lines';
+
+// a row read with select('*') can be written back as long as joined data is left out
+function stripJoined(row: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) if (v === null || typeof v !== 'object') out[k] = v;
+  return out;
+}
 import { moveToRecycleBin } from '../lib/recycleBin';
 import PurchaseBillPage from './PurchaseBillPage';
 import PurchaseOrderPrint from './PurchaseOrderPrint';
@@ -404,7 +412,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
     if (order.purchase_order_items && order.purchase_order_items.length > 0) {
       const editItems = order.purchase_order_items.map(item => ({
         item_name: item.item_name,
-        item_id: null,
+        item_id: (item as unknown as { item_id?: string | null }).item_id ?? null,
         quantity: String(item.quantity),
         unit_price_cny: String(item.unit_price_cny),
         unit: item.unit || 'Piece',
@@ -464,10 +472,29 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         return;
       }
 
-      await supabase
+      const oldPoItems = (editingOrder.purchase_order_items || []) as unknown as Record<string, unknown>[];
+
+      // Bills of this PO, read BEFORE the PO lines change (so nothing can be lost)
+      const { data: linkedBills, error: billsLookupError } = await supabase
+        .from('purchase_bills')
+        .select('id, bill_number, cnv_invoice_number, purchase_bill_items (*)')
+        .eq('purchase_order_id', editingOrder.id);
+      if (billsLookupError) {
+        console.error('Error looking up linked bills:', billsLookupError);
+        alert('Could not check the bills of this PO, so the PO lines were not changed: ' + billsLookupError.message);
+        setSaving(false);
+        return;
+      }
+
+      const { error: delPoError } = await supabase
         .from('purchase_order_items')
         .delete()
         .eq('purchase_order_id', editingOrder.id);
+      if (delPoError) {
+        alert('Could not update the PO lines: ' + delPoError.message);
+        setSaving(false);
+        return;
+      }
 
       const itemsToInsert = validItems.map(item => ({
         purchase_order_id: editingOrder.id,
@@ -485,47 +512,65 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         .insert(itemsToInsert)
         .select();
 
-      if (itemsError) {
+      if (itemsError || !insertedItems) {
         console.error('Error updating order items:', itemsError);
+        if (oldPoItems.length) await supabase.from('purchase_order_items').insert(oldPoItems.map(stripJoined));
+        alert('Could not save the PO lines: ' + (itemsError?.message || '') + '\nThe previous lines were kept.');
         setSaving(false);
         return;
       }
 
-      // Sync all linked bills — replace their items to match the updated PO
-      const { data: linkedBills, error: billsLookupError } = await supabase
-        .from('purchase_bills')
-        .select('id')
-        .eq('purchase_order_id', editingOrder.id);
+      // Bills: a bill that is still an exact copy of the old PO follows the PO.
+      // A bill with its own quantities or prices (what really arrived) is NEVER overwritten.
+      const lineKey = (name: unknown, qty: unknown, price: unknown) =>
+        `${String(name ?? '').trim().toLowerCase()}|${Number(qty) || 0}|${Number(price) || 0}`;
+      const sameLines = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join('\n') === [...b].sort().join('\n');
+      const oldPoKeys = oldPoItems.map(i => lineKey(i.item_name, i.quantity, i.unit_price_cny));
+      const newIdByName = new Map(insertedItems.map(i => [String(i.item_name).trim().toLowerCase(), i.id as string]));
+      const keptBills: string[] = [];
 
-      if (billsLookupError) {
-        console.error('Error looking up linked bills:', billsLookupError);
-      }
+      for (const bill of linkedBills || []) {
+        const billLines = ((bill as { purchase_bill_items?: Record<string, unknown>[] }).purchase_bill_items || []);
+        const billKeys = billLines.map(i => lineKey(i.item_name, i.quantity_received, i.unit_price_cny));
+        const label = bill.cnv_invoice_number || bill.bill_number || 'bill';
 
-      if (linkedBills && linkedBills.length > 0 && insertedItems) {
-        for (const bill of linkedBills) {
-          await supabase
-            .from('purchase_bill_items')
-            .delete()
-            .eq('purchase_bill_id', bill.id);
-
-          const billItemsToInsert = insertedItems.map(item => ({
+        if (sameLines(billKeys, oldPoKeys)) {
+          const err = await replaceLines('purchase_bill_items', 'purchase_bill_id', bill.id, insertedItems.map(item => ({
             purchase_bill_id: bill.id,
             purchase_order_item_id: item.id,
             item_name: item.item_name,
             quantity_received: item.quantity,
             unit_price_cny: item.unit_price_cny,
             unit: item.unit
-          }));
-
-          const { error: billItemsError } = await supabase
-            .from('purchase_bill_items')
-            .insert(billItemsToInsert);
-
-          if (billItemsError) {
-            console.error(`Error syncing bill items for bill ${bill.id}:`, billItemsError);
-            alert(`Warning: Bill items could not be synced. Please check the bill manually.`);
+          })));
+          if (err) { alert(`Bill ${label} could not follow the PO change: ${err}`); continue; }
+          // keep packing-list lines pointing at the new bill lines
+          const { data: newLines } = await supabase.from('purchase_bill_items').select('id, item_name').eq('purchase_bill_id', bill.id);
+          const newLineByName = new Map((newLines || []).map(l => [String(l.item_name).trim().toLowerCase(), l.id as string]));
+          for (const old of billLines) {
+            const nid = newLineByName.get(String(old.item_name ?? '').trim().toLowerCase());
+            if (nid && old.id) await supabase.from('packing_list_items').update({ purchase_bill_item_id: nid }).eq('purchase_bill_item_id', old.id as string);
+          }
+        } else {
+          keptBills.push(label);
+          // its lines stay as they are; only re-point them to the new PO lines (and restore them if the database removed them)
+          const { data: still } = await supabase.from('purchase_bill_items').select('id').eq('purchase_bill_id', bill.id);
+          if ((still || []).length === 0 && billLines.length) {
+            await supabase.from('purchase_bill_items').insert(billLines.map(l => ({
+              ...stripJoined(l),
+              purchase_order_item_id: newIdByName.get(String(l.item_name ?? '').trim().toLowerCase()) ?? null,
+            })));
+          } else {
+            for (const l of billLines) {
+              await supabase.from('purchase_bill_items')
+                .update({ purchase_order_item_id: newIdByName.get(String(l.item_name ?? '').trim().toLowerCase()) ?? null })
+                .eq('id', l.id as string);
+            }
           }
         }
+      }
+      if (keptBills.length) {
+        alert(`PO saved. These bills have their own quantities/prices and were NOT changed: ${keptBills.join(', ')}.\nIf they should change too, edit them on the Bills page.`);
       }
 
       await supabase

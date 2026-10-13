@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Users, Plus, KeyRound, Shield, X, Check, Trash2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { MODULE_GROUPS, ALL_MODULE_IDS, PRESETS } from '../lib/modules';
 import type { AppUser } from '../lib/modules';
 import { BOOK_BRO } from '../lib/book';
@@ -10,7 +10,7 @@ const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 f
 
 // A second client that never touches the admin's own session — used only to create accounts.
 function tempClient() {
-  return createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
+  return createClient(supabaseUrl || '', supabaseAnonKey || '', { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } });
 }
 
 export default function UsersPanel({ isAdmin, myId }: { isAdmin: boolean; myId: string }) {

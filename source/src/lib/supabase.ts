@@ -4,8 +4,8 @@ import { BOOKED_TABLES, MAIN_BOOKS, getBook, isAllBooks, writeBook } from './boo
 // Runtime config (set in index.html) wins over build-time env, so one build can serve several sites.
 declare global { interface Window { APP_CONFIG?: { SUPABASE_URL?: string; SUPABASE_ANON_KEY?: string; MODE?: 'full' | 'shop'; COMPANY?: string; TITLE?: string } } }
 const cfg = (typeof window !== 'undefined' && window.APP_CONFIG) || {};
-const supabaseUrl = cfg.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = cfg.SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const supabaseUrl = cfg.SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL;
+export const supabaseAnonKey = cfg.SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const APP_MODE: 'full' | 'shop' = cfg.MODE || 'full';
 export const APP_COMPANY = cfg.COMPANY || 'HDR&CO';
 export const APP_TITLE = cfg.TITLE || 'IMPORT CRM';
@@ -32,6 +32,23 @@ const stamp = (rows: Row | Row[]) => {
   return Array.isArray(rows) ? rows.map(one) : one(rows);
 };
 
+// "All books" is a reading view. Saving a NEW record there would silently file it under LCL 2026,
+// even when it belongs to an OLD bill or invoice, so new records must be added inside one book.
+export const ALL_BOOKS_SAVE_MSG = 'You are viewing "All books" (read-only). Switch to one book (LCL 2026 or OLD) to add records.';
+const refused = (): any => {
+  const result = { data: null, error: { message: ALL_BOOKS_SAVE_MSG, details: '', hint: '', code: 'ALL_BOOKS' }, count: null, status: 400, statusText: 'All books' };
+  // behaves like a query: .select() / .single() / ... can be chained, awaiting it gives the error
+  const p: any = new Proxy(function () { /* chainable */ }, {
+    get(_t, prop) {
+      if (prop === 'then') return (ok: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => Promise.resolve(result).then(ok, bad);
+      return () => p;
+    },
+    apply() { return p; },
+  });
+  alert(ALL_BOOKS_SAVE_MSG);
+  return p;
+};
+
 try {
   const client = supabase as any;
   const rawFrom = client.from.bind(client);
@@ -45,9 +62,9 @@ try {
         return isAllBooks() ? q.in('book', MAIN_BOOKS) : q.eq('book', getBook());
       };
       const origInsert = qb.insert.bind(qb);
-      qb.insert = (rows: Row | Row[], ...rest: unknown[]) => origInsert(stamp(rows), ...rest);
+      qb.insert = (rows: Row | Row[], ...rest: unknown[]) => (isAllBooks() ? refused() : origInsert(stamp(rows), ...rest));
       const origUpsert = qb.upsert.bind(qb);
-      qb.upsert = (rows: Row | Row[], ...rest: unknown[]) => origUpsert(stamp(rows), ...rest);
+      qb.upsert = (rows: Row | Row[], ...rest: unknown[]) => (isAllBooks() ? refused() : origUpsert(stamp(rows), ...rest));
     } catch (e) {
       console.error('book filter not applied for', table, e);
     }

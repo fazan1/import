@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 import { Package, ChevronDown, ChevronRight, Search, Printer, X, Building2, FileDown } from 'lucide-react';
 import { saveAsPdf } from '../lib/pdfUtils';
 
@@ -234,9 +235,9 @@ export default function BatchInvoice() {
     tempDiv.style.width = '800px';
     tempDiv.innerHTML = `
       <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h1 style="color: #1a365d; margin-bottom: 5px;">BATCH ${batch.batch_number}</h1>
+        <h1 style="color: #1a365d; margin-bottom: 5px;">BATCH ${esc(batch.batch_number)}</h1>
         <div style="color: #666; margin-bottom: 20px;">
-          <p>Suppliers: ${batch.suppliers.join(', ')}</p>
+          <p>Suppliers: ${batch.suppliers.map(esc).join(', ')}</p>
           <p>Total Items: ${batch.items.length}</p>
         </div>
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
@@ -252,9 +253,9 @@ export default function BatchInvoice() {
           <tbody>
             ${batch.items.map((item, idx) => `
               <tr style="background: ${idx % 2 === 0 ? '#fff' : '#f9f9f9'};">
-                <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px;">${item.item_name}</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px;">${esc(item.item_name)}</td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px; text-align: right;">${formatCurrency(item.quantity)}</td>
-                <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px;">${item.unit}</td>
+                <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px;">${esc(item.unit)}</td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px; text-align: right;">${formatCurrency(item.unit_price_cny)}</td>
                 <td style="padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px; text-align: right;">${formatCurrency(item.total_cny)}</td>
               </tr>
@@ -283,7 +284,7 @@ export default function BatchInvoice() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Batch ${batch.batch_number} Invoice</title>
+        <title>Batch ${esc(batch.batch_number)} Invoice</title>
         <style>
           body { font-family: Arial, sans-serif; padding: 20px; }
           h1 { color: #1a365d; margin-bottom: 5px; }
@@ -299,9 +300,9 @@ export default function BatchInvoice() {
         </style>
       </head>
       <body>
-        <h1>BATCH ${batch.batch_number}</h1>
+        <h1>BATCH ${esc(batch.batch_number)}</h1>
         <div class="header-info">
-          <p>Suppliers: ${batch.suppliers.join(', ')}</p>
+          <p>Suppliers: ${batch.suppliers.map(esc).join(', ')}</p>
           <p>Total Items: ${batch.items.length}</p>
         </div>
         <table>
@@ -317,9 +318,9 @@ export default function BatchInvoice() {
           <tbody>
             ${batch.items.map(item => `
               <tr>
-                <td>${item.item_name}</td>
+                <td>${esc(item.item_name)}</td>
                 <td class="text-right">${formatCurrency(item.quantity)}</td>
-                <td>${item.unit}</td>
+                <td>${esc(item.unit)}</td>
                 <td class="text-right">${formatCurrency(item.unit_price_cny)}</td>
                 <td class="text-right">${formatCurrency(item.total_cny)}</td>
               </tr>

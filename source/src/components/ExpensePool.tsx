@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Wallet, Plus, ChevronLeft, ChevronRight, Printer, Download, Pencil, Trash2, X, ArrowLeftRight, Scale, Settings2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 
 interface Cat { id: string; name: string; budget: number; sort_order: number; is_active: boolean; }
 interface Dep { id: string; entry_date: string; amount: number; via: 'Bank' | 'Cash'; note: string | null; }
@@ -81,7 +82,7 @@ export default function ExpensePool() {
   }
   function printMonth() {
     const w = window.open('', '_blank'); if (!w) return;
-    const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i >= c.length - 1 || typeof x === 'number' ? 'r' : ''}">${x}</td>`).join('')}</tr>`;
+    const row = (c: (string | number)[]) => `<tr>${c.map((x, i) => `<td class="${i >= c.length - 1 || typeof x === 'number' ? 'r' : ''}">${esc(x)}</td>`).join('')}</tr>`;
     w.document.write(`<html><head><title>Expense pool — ${monthName(month)}</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}h3{font-size:13px;margin:14px 0 4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:5px 6px;text-align:left}th{background:#f3f4f6;font-size:11px}.r{text-align:right}.tot td{font-weight:bold;background:#f9fafb}</style></head><body>
       <h1>Expense pool — ${monthName(month)}</h1><h2>printed ${new Date().toLocaleDateString('en-GB')}</h2>
       <h3>Pool summary</h3><table><tr class="tot"><td>Balance left this month</td><td class="r">${n0(mIn - mSpent)}</td></tr><tr><td>In the bank</td><td class="r">${n0(pool.bank)}</td></tr><tr><td>Cash drawer</td><td class="r">${n0(pool.cash)}</td></tr><tr class="tot"><td>Pool holds</td><td class="r">${n0(pool.total)}</td></tr><tr><td>Deposits this month</td><td class="r">${n0(mIn)}</td></tr><tr><td>Spent this month</td><td class="r">${n0(mSpent)}</td></tr></table>

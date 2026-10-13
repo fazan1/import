@@ -3,7 +3,8 @@
 --   OLD        = everything you have entered up to now
 --   LCL 2026   = the fresh start (empty)
 -- Nothing is deleted. Every existing record is simply tagged OLD.
--- Safe to run more than once. Run on your MAIN project only.
+-- ALREADY APPLIED. Step 2 now skips itself once any OLD record exists, so running this
+-- file again can never move your LCL 2026 records into OLD. Run on your MAIN project only.
 -- =====================================================================
 
 -- 1. add the book column to every transaction table, defaulting new rows to LCL 2026
@@ -28,6 +29,12 @@ END $$;
 DO $$
 DECLARE t text; n bigint; total bigint := 0;
 BEGIN
+  -- already done once? then stop: a second run would move every LCL 2026 record into OLD
+  IF EXISTS (SELECT 1 FROM public.purchase_bills WHERE book = 'OLD')
+     OR EXISTS (SELECT 1 FROM public.purchase_orders WHERE book = 'OLD') THEN
+    RAISE NOTICE 'OLD books already exist - step 2 skipped, nothing moved';
+    RETURN;
+  END IF;
   FOREACH t IN ARRAY ARRAY[
     'purchase_orders','purchase_bills','purchase_payments','shipments',
     'costing_duty_sheet','packing_lists','pl_input',

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Receipt, Search, Calendar, Building2, ChevronRight, Plus, X, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { deletePurchaseBill } from '../lib/bills';
 import PurchaseBillPage from './PurchaseBillPage';
 
 interface Supplier {
@@ -115,8 +116,9 @@ export default function PurchaseBills({ preselectedBillId, onClearPreselection }
 
   async function handleDelete(e: React.MouseEvent, billId: string, billNumber: string | null) {
     e.stopPropagation();
-    if (!confirm(`Delete bill "${billNumber || 'this bill'}"? This cannot be undone.`)) return;
-    await supabase.from('purchase_bills').delete().eq('id', billId);
+    if (!confirm(`Delete bill "${billNumber || 'this bill'}" with its items and payments? It goes to the Recycle Bin and can be restored.`)) return;
+    const err = await deletePurchaseBill(billId);
+    if (err) alert('Could not delete the bill: ' + err);
     loadData();
   }
 

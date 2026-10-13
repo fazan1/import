@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, X, Check, CreditCard, Search, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
+import { esc } from '../lib/html';
 
 interface SalesInvoice {
   id: string;
@@ -201,6 +202,8 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
     if (error) {
       console.error('Error creating payment:', error);
       alert(`Could not save payment: ${error.message}`);
+      setSaving(false);
+      return;
     }
     setSaving(false);
     resetForm();
@@ -210,18 +213,21 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
   async function handleDeletePayment(id: string) {
     if (!confirm('Delete this payment? Any invoice balance will be restored.')) return;
     const { error } = await supabase.from('busy_sales_payments').delete().eq('id', id);
-    if (error) console.error('Error deleting payment:', error);
+    if (error) {
+      console.error('Error deleting payment:', error);
+      alert(`Could not delete payment: ${error.message}`);
+    }
     loadData();
   }
 
   function printReceipt(p: SalesPayment) {
     const w = window.open('', '_blank', 'width=720,height=900');
-    if (!w) return;
+    if (!w) { alert('Could not open the receipt window. Please allow pop-ups for this site and try again.'); return; }
     const applied = p.sales_invoice_id ? `Invoice ${p.busy_sales_invoices?.invoice_number || ''}` : 'On account (opening balance)';
     const modeLine = p.payment_mode === 'cheque'
       ? `Cheque No. ${p.cheque_number || p.reference_number || ''}${p.bank_name ? ` · ${p.bank_name}` : ''}`
       : `${formatPaymentMode(p.payment_mode)}${p.reference_number ? ` · Ref ${p.reference_number}` : ''}`;
-    w.document.write(`<!doctype html><html><head><title>Receipt ${p.payment_number || ''}</title>
+    w.document.write(`<!doctype html><html><head><title>Receipt ${esc(p.payment_number || '')}</title>
 <style>
  body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:32px;}
  .box{max-width:640px;margin:0 auto;border:1px solid #ccc;padding:28px 32px;}
@@ -235,12 +241,12 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
  @media print{body{padding:0}.box{border:0}}
 </style></head><body><div class="box">
  <h1>${COMPANY_NAME}</h1><div class="addr">${COMPANY_ADDRESS}</div>
- <div class="title">PAYMENT RECEIPT</div><div class="no">${p.payment_number || ''} · ${fmtDate(p.payment_date)}</div>
+ <div class="title">PAYMENT RECEIPT</div><div class="no">${esc(p.payment_number || '')} · ${fmtDate(p.payment_date)}</div>
  <table>
-  <tr><td>Received from</td><td><strong>${p.customer_name}</strong></td></tr>
-  <tr><td>Applied to</td><td>${applied}</td></tr>
-  <tr><td>Payment mode</td><td>${modeLine}</td></tr>
-  ${p.notes ? `<tr><td>Notes</td><td>${p.notes}</td></tr>` : ''}
+  <tr><td>Received from</td><td><strong>${esc(p.customer_name)}</strong></td></tr>
+  <tr><td>Applied to</td><td>${esc(applied)}</td></tr>
+  <tr><td>Payment mode</td><td>${esc(modeLine)}</td></tr>
+  ${p.notes ? `<tr><td>Notes</td><td>${esc(p.notes)}</td></tr>` : ''}
  </table>
  <div class="amt">${lkr(p.amount)}</div>
  <div class="foot"><div>Printed ${new Date().toLocaleString('en-GB')}</div><div class="sig">Authorised signature</div></div>

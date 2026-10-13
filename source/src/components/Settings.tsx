@@ -13,9 +13,9 @@ export default function Settings({ isAdmin, myId }: { isAdmin: boolean; myId: st
   async function clearAllData() {
     setClearing(true);
     try {
-      await supabase.from('calls').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('sales_invoices').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('customers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      { const { error } = await supabase.from('calls').delete().neq('id', '00000000-0000-0000-0000-000000000000'); if (error) throw error; }
+      { const { error } = await supabase.from('sales_invoices').delete().neq('id', '00000000-0000-0000-0000-000000000000'); if (error) throw error; }
+      { const { error } = await supabase.from('customers').delete().neq('id', '00000000-0000-0000-0000-000000000000'); if (error) throw error; }
 
       setShowClearConfirm(false);
       alert('All data has been cleared successfully');
@@ -30,8 +30,8 @@ export default function Settings({ isAdmin, myId }: { isAdmin: boolean; myId: st
   async function clearCeoData() {
     setClearingCeo(true);
     try {
-      await supabase.from('financial_targets').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-      await supabase.from('financial_records').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      { const { error } = await supabase.from('financial_targets').delete().neq('id', '00000000-0000-0000-0000-000000000000'); if (error) throw error; }
+      { const { error } = await supabase.from('financial_records').delete().neq('id', '00000000-0000-0000-0000-000000000000'); if (error) throw error; }
 
       setShowClearCeoConfirm(false);
       alert('CEO financial data has been cleared successfully');
@@ -62,8 +62,9 @@ export default function Settings({ isAdmin, myId }: { isAdmin: boolean; myId: st
           <div className="max-w-2xl space-y-6">
             <UsersPanel isAdmin={isAdmin} myId={myId} />
 
-            <BackupRestore />
+            {isAdmin && <BackupRestore />}
 
+            {isAdmin && <>
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-6">
               <div className="flex items-start space-x-4">
                 <div className="bg-amber-100 rounded-full p-3 flex-shrink-0">
@@ -105,6 +106,7 @@ export default function Settings({ isAdmin, myId }: { isAdmin: boolean; myId: st
                 </div>
               </div>
             </div>
+            </>}
           </div>
         </div>
       </div>

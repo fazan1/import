@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { Package, Plus, Check, Clock, Truck, CircleCheck as CheckCircle, Search, RefreshCw, Trash2, X, FileText, Calendar, ChevronDown, History, ChevronRight, Building2, CircleAlert as AlertCircle } from 'lucide-react';
@@ -36,15 +36,20 @@ interface BillBatchGroup {
   supplierNames: string[];
 }
 
+// Only plain-number batches ("02" and "2") count as the same batch.
+// Shipment numbers like LCL-2610-01 and FCL-2610-01 must stay separate, so they are compared as whole text.
 function normalizeBatchNum(b: string): number {
-  return parseInt(b.replace(/\D/g, ''), 10);
+  const t = b.trim();
+  return /^\d+$/.test(t) ? parseInt(t, 10) : NaN;
 }
 
+// for ordering only: newest (highest digits) first, then by text
 function sortBatches(batches: string[]): string[] {
+  const digits = (x: string) => parseInt(x.replace(/\D/g, ''), 10);
   return [...batches].sort((a, b) => {
-    const numA = normalizeBatchNum(a);
-    const numB = normalizeBatchNum(b);
-    if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+    const numA = digits(a);
+    const numB = digits(b);
+    if (!isNaN(numA) && !isNaN(numB) && numA !== numB) return numB - numA;
     return b.localeCompare(a);
   });
 }
@@ -68,6 +73,8 @@ export default function PLInput() {
   const [activeBatch, setActiveBatch] = useState<string>('');
   const [availableBills, setAvailableBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const importingRef = useRef(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
@@ -189,8 +196,16 @@ export default function PLInput() {
 
   async function addFromBills() {
     if (selectedBillIds.size === 0 || !addFormSelectedBatch) return;
+    if (importingRef.current) return; // a double-click must not import the same bills twice
+    importingRef.current = true; setImporting(true);
+    try { await doAddFromBills(); } finally { importingRef.current = false; setImporting(false); }
+  }
 
-    const billsToAdd = availableBills.filter((b) => selectedBillIds.has(b.id));
+  async function doAddFromBills() {
+    if (!addFormSelectedBatch) return;
+    // a bill that is already in PL Input is never imported again
+    const billsToAdd = availableBills.filter((b) => selectedBillIds.has(b.id) && !importedBillIds.has(b.id));
+    if (billsToAdd.length === 0) { alert('These bills are already in PL Input.'); return; }
     const targetBatch = addFormSelectedBatch.canonicalBatch;
 
     // Count existing non-manual records in THIS batch only so numbering starts fresh per batch
@@ -217,6 +232,7 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error adding PL Input:', error);
+      alert('Could not import the bills: ' + error.message);
       return;
     }
 
@@ -265,7 +281,7 @@ export default function PLInput() {
 
       if (packingListRows.length > 0) {
         const { error: plError } = await supabase.from('packing_list_items').insert(packingListRows);
-        if (plError) console.error('Error creating packing list items:', plError);
+        if (plError) { console.error('Error creating packing list items:', plError); alert('The bills were added, but their packing list lines could not be created: ' + plError.message); }
       }
     }
 
@@ -1031,7 +1047,7 @@ export default function PLInput() {
                   </button>
                   <button
                     onClick={addFromBills}
-                    disabled={selectedBillIds.size === 0}
+                    disabled={selectedBillIds.size === 0 || importing}
                     className="flex items-center gap-2 px-5 py-2 text-sm bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Plus className="w-4 h-4" />

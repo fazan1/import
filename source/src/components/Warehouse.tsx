@@ -75,7 +75,7 @@ export default function Warehouse() {
     w.document.write(`<html><head><title>Price list</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f6;font-size:11px;text-transform:uppercase}.r{text-align:right}.foot{font-size:10px;color:#666;margin-top:12px}</style></head><body>
       <h1>BLINE Traders (Pvt) Ltd — Price list</h1><h2>No. 73, Quarry Road, Colombo 12 · 0777 177 344 / 074 343 4772 · ${new Date().toLocaleDateString('en-GB')}</h2>
       <table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th class="r">Price (Rs)</th><th class="r">In stock</th></tr></thead><tbody>
-      ${rows.map((p, i) => `<tr><td>${i + 1}</td><td>${p.name}</td><td>${p.unit}</td><td class="r"><b>${fmtQ(p.sell_price ?? 0)}</b></td><td class="r">${fmtQ(total(p.id))}</td></tr>`).join('')}
+      ${rows.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.unit || "")}</td><td class="r"><b>${fmtQ(p.sell_price ?? 0)}</b></td><td class="r">${fmtQ(total(p.id))}</td></tr>`).join('')}
       </tbody></table><p class="foot">Prices exclude delivery and may change without notice. Stock as at time of printing.</p>
       <script>window.print()</script></body></html>`);
     w.document.close();

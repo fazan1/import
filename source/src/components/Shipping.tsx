@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 import { useAuth } from '../contexts/AuthContext';
 import { Ship, Plus, Pencil, Trash2, X, RefreshCw, Container, Boxes, Printer, Banknote } from 'lucide-react';
 import ShipmentCharges from './ShipmentCharges';
@@ -262,7 +263,7 @@ export default function Shipping() {
     const tLanded = crow.reduce((a, r) => a + (Number(r.total_landed_cost) || 0), 0);
     const tCharges = crow.reduce((a, r) => a + (Number(r.duty_per_unit) || 0) * (Number(r.qty) || 0), 0);
     const basisRate = s.default_basis === 'KG' ? `LKR ${n(s.rate_kg, 0)} / kg` : s.default_basis === 'PCS' ? `LKR ${n(s.rate_pcs, 0)} / pc` : `LKR ${n(s.rate_cbm, 0)} / CBM`;
-    w.document.write(`<!doctype html><html><head><title>${s.shipment_no}</title><style>
+    w.document.write(`<!doctype html><html><head><title>${esc(s.shipment_no)}</title><style>
       body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:28px;font-size:12px} h1{font-size:20px;margin:0} h2{font-size:14px;margin:22px 0 6px;border-bottom:2px solid #0d9488;padding-bottom:3px;color:#0f766e}
       .sub{color:#555;font-size:11px} .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px} .box{border:1px solid #ddd;border-radius:6px;padding:8px} .box .l{font-size:10px;color:#666;text-transform:uppercase} .box .v{font-size:14px;font-weight:700;margin-top:2px}
@@ -270,9 +271,9 @@ export default function Shipping() {
       .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e6fffa;color:#0f766e;font-weight:600;font-size:11px} .note{margin-top:18px;color:#555;font-size:11px} @media print{body{padding:0}}
     </style></head><body>
       <div class="head"><div><h1>HDR &amp; CO</h1><div class="sub">NO 149/5 New Chetty Street Col 11</div></div>
-      <div style="text-align:right"><div style="font-size:16px;font-weight:700">${s.shipment_no}</div><div class="sub">${s.mode === 'LCL' ? 'Loose cargo (LCL)' : 'Container (FCL)'} · <span class="badge">${s.status}</span></div><div class="sub">Printed ${new Date().toLocaleDateString('en-GB')}</div></div></div>
+      <div style="text-align:right"><div style="font-size:16px;font-weight:700">${esc(s.shipment_no)}</div><div class="sub">${s.mode === 'LCL' ? 'Loose cargo (LCL)' : 'Container (FCL)'} · <span class="badge">${esc(s.status)}</span></div><div class="sub">Printed ${new Date().toLocaleDateString('en-GB')}</div></div></div>
       <div class="grid">
-        <div class="box"><div class="l">Forwarder</div><div class="v">${s.forwarder || '—'}</div></div>
+        <div class="box"><div class="l">Forwarder</div><div class="v">${esc(s.forwarder || '—')}</div></div>
         <div class="box"><div class="l">ETD</div><div class="v">${d(s.eta)}</div></div>
         <div class="box"><div class="l">Rate</div><div class="v">${basisRate}</div></div>
         <div class="box"><div class="l">Charges</div><div class="v">${s.actual_charges > 0 ? `LKR ${n(s.actual_charges, 0)}` : tCharges > 0 ? `LKR ${n(tCharges, 0)} (est)` : '—'}</div></div>
@@ -283,17 +284,17 @@ export default function Shipping() {
       </div>
       <h2>Bills in this shipment</h2>
       <table><thead><tr><th>Bill</th><th>Supplier</th><th>Date</th><th class="r">Value CNY</th></tr></thead>
-      <tbody>${linked.map((b) => `<tr><td>${b.cnv_invoice_number || b.bill_number}</td><td>${b.supplier_name}</td><td>${d(b.bill_date)}</td><td class="r">${n(b.total_cny)}</td></tr>`).join('') || '<tr><td colspan="4">No bills linked</td></tr>'}</tbody>
+      <tbody>${linked.map((b) => `<tr><td>${esc(b.cnv_invoice_number || b.bill_number)}</td><td>${esc(b.supplier_name)}</td><td>${d(b.bill_date)}</td><td class="r">${n(b.total_cny)}</td></tr>`).join('') || '<tr><td colspan="4">No bills linked</td></tr>'}</tbody>
       <tfoot><tr><td colspan="3">Total</td><td class="r">${n(tCny)}</td></tr></tfoot></table>
       <h2>Packing list</h2>
       <table><thead><tr><th>PL</th><th>Item</th><th class="r">Qty</th><th>Unit</th><th class="r">Pkgs</th><th class="r">Kg</th><th class="r">CBM</th></tr></thead>
-      <tbody>${rows.map((r) => `<tr><td>${r.packing_list_no}</td><td>${r.item_name}</td><td class="r">${n(r.quantity, 0)}</td><td>${r.unit || ''}</td><td class="r">${n(r.no_of_pkgs, 0)}</td><td class="r">${n(r.weight_kg, 1)}</td><td class="r">${n(r.cbm, 3)}</td></tr>`).join('') || '<tr><td colspan="7">No packing list rows yet</td></tr>'}</tbody>
+      <tbody>${rows.map((r) => `<tr><td>${esc(r.packing_list_no)}</td><td>${esc(r.item_name)}</td><td class="r">${n(r.quantity, 0)}</td><td>${esc(r.unit || '')}</td><td class="r">${n(r.no_of_pkgs, 0)}</td><td class="r">${n(r.weight_kg, 1)}</td><td class="r">${n(r.cbm, 3)}</td></tr>`).join('') || '<tr><td colspan="7">No packing list rows yet</td></tr>'}</tbody>
       <tfoot><tr><td colspan="4">Total</td><td class="r">${n(tPk, 0)}</td><td class="r">${n(tKg, 1)}</td><td class="r">${n(tCbm, 3)}</td></tr></tfoot></table>
       ${crow.length > 0 ? `<h2>Landed cost</h2>
       <table><thead><tr><th>Item</th><th>Type</th><th class="r">Qty</th><th class="r">CNY</th><th class="r">Rate</th><th class="r">Charges/unit</th><th class="r">Landed/unit</th><th class="r">Total landed</th></tr></thead>
-      <tbody>${crow.map((r) => `<tr><td>${r.description}</td><td>${r.type}</td><td class="r">${n(r.qty, 0)}</td><td class="r">${n(r.unit_price_cny)}</td><td class="r">${n(r.cny_rate)}</td><td class="r">${n(r.duty_per_unit)}</td><td class="r">${n(r.landed_cost_per_unit)}</td><td class="r">${n(r.total_landed_cost, 0)}</td></tr>`).join('')}</tbody>
+      <tbody>${crow.map((r) => `<tr><td>${esc(r.description)}</td><td>${esc(r.type)}</td><td class="r">${n(r.qty, 0)}</td><td class="r">${n(r.unit_price_cny)}</td><td class="r">${n(r.cny_rate)}</td><td class="r">${n(r.duty_per_unit)}</td><td class="r">${n(r.landed_cost_per_unit)}</td><td class="r">${n(r.total_landed_cost, 0)}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td colspan="7">Total</td><td class="r">${n(tLanded, 0)}</td></tr></tfoot></table>` : ''}
-      ${s.notes ? `<div class="note"><b>Notes:</b> ${s.notes}</div>` : ''}
+      ${s.notes ? `<div class="note"><b>Notes:</b> ${esc(s.notes)}</div>` : ''}
       <script>window.onload=function(){window.print()}</script>
     </body></html>`);
     w.document.close();

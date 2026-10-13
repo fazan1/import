@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V94)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `text-neutral-600">vNN<` (current: V95)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -28,10 +28,26 @@ All useState/useEffect hooks must sit ABOVE any early `return` in App.tsx — ot
 ## Pages added recently
 CnHome (shop/CN dashboard), CnReports (purchase-side reports), ClearingAgents (+ agent_ledger), ShipmentCharges (per-bill freight, opened from Shipping "Charges" button), ShipmentJourney (dashboard widget), Growth.tsx = the "Capital" page (money-exchange monthly mentor, savings ledger in capital_savings).
 
+## Repo layout (since v95)
+Built files go at the top level (Vercel serves them). Source lives in /source (src, sql, configs).
+source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY for a build.
+
+## Security rules (v95, sql/security-lock.sql)
+- anon (the public key) has no table access; every public table has a RESTRICTIVE "members only" policy (active app_users row).
+- Only an admin can insert/update/delete app_users; others read only their own row.
+- ANY NEW TABLE: re-run security-lock.sql after creating it (health-check.sql shows if one is missing).
+- Print/PDF HTML: always wrap DB text in esc() from src/lib/html.ts.
+- "All books" is read-only for new records (supabase.ts refuses insert/upsert on booked tables).
+- Detail lines: use replaceLines() from src/lib/lines.ts (puts old lines back if the insert fails); bills: deletePurchaseBill() in src/lib/bills.ts.
+- No public sign-up link; logins are made in Settings -> Users.
+
 ## SQL files already applied to the live database (all in /sql)
 book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. health-check.sql is read-only and verifies all of it.
 
 ## Open items
-- PL Input: selection/"2 bills"/can't deselect bug reported once; never diagnosed (plinput-check.sql).
+- security-lock.sql (v95) written and tested locally - not yet confirmed applied on live.
+- PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
+- Not fixed yet: customer balance rules differ between screens; some totals stop at 1000 rows; Backup exports only the current book;
+  packing_list_items / purchase_bill_items not in BOOKED_TABLES; SECURITY DEFINER bulk_import is callable by any member.
 - Warehouse items without cost; hide OLD book later when old customers settle.
 - Shipping cost per bill is in CN Reports but not yet pulled into Costing & Duty landed cost.

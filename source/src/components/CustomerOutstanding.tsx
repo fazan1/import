@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { esc } from '../lib/html';
 import { openingBal } from '../lib/book';
 import { Users, DollarSign, RefreshCw, ChevronDown, ChevronRight, Search, ListFilter as Filter, FileText, Phone, Calendar, CreditCard, Printer } from 'lucide-react';
 import CustomerDetailModal from './CustomerDetailModal';
@@ -216,10 +217,10 @@ export default function CustomerOutstanding() {
     const w = window.open('', '_blank', 'width=800,height=1000');
     if (!w) return;
     const total = c.total_due + c.opening_balance;
-    const rows = c.invoices.map((inv) => `<tr><td>${new Date(inv.date).toLocaleDateString('en-GB')}</td><td>${inv.voucher_no}</td><td class="r">${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.total_paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.sell_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`).join('');
+    const rows = c.invoices.map((inv) => `<tr><td>${new Date(inv.date).toLocaleDateString('en-GB')}</td><td>${esc(inv.voucher_no)}</td><td class="r">${inv.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.total_paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td><td class="r">${inv.sell_due.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`).join('');
     const opening = c.opening_balance > 0 ? `<tr><td></td><td>Opening balance b/f${c.on_account_paid > 0 ? ` (after ${c.on_account_paid.toLocaleString()} received on account)` : ''}</td><td class="r"></td><td class="r"></td><td class="r">${c.opening_balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>`
       : c.opening_balance < 0 ? `<tr><td></td><td>Less: received on account (credit)</td><td class="r"></td><td class="r"></td><td class="r">−${(-c.opening_balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr>` : '';
-    w.document.write(`<!doctype html><html><head><title>Statement - ${c.customer_name}</title><style>
+    w.document.write(`<!doctype html><html><head><title>Statement - ${esc(c.customer_name)}</title><style>
       body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:32px;} h1{font-size:20px;margin:0} .sub{color:#555;font-size:12px}
       .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px} .cust{font-size:15px;font-weight:700}
       table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px} th,td{padding:7px 8px;border-bottom:1px solid #ddd;text-align:left} th{background:#f3f4f6;font-size:11px;text-transform:uppercase} .r{text-align:right}
@@ -227,7 +228,7 @@ export default function CustomerOutstanding() {
       .note{margin-top:28px;font-size:12px;color:#555} @media print{body{padding:0}}
     </style></head><body>
       <div class="head"><div><h1>HDR &amp; CO</h1><div class="sub">NO 149/5 New Chetty Street Col 11</div></div><div class="sub" style="text-align:right">STATEMENT OF ACCOUNT<br/>${new Date().toLocaleDateString('en-GB')}</div></div>
-      <div class="cust">${c.customer_name}</div>${c.phone ? `<div class="sub">${c.phone}</div>` : ''}
+      <div class="cust">${esc(c.customer_name)}</div>${c.phone ? `<div class="sub">${esc(c.phone)}</div>` : ''}
       <table><thead><tr><th>Date</th><th>Invoice</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th></tr></thead>
       <tbody>${opening}${rows}</tbody>
       <tfoot><tr><td colspan="4">Total outstanding</td><td class="r">LKR ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td></tr></tfoot></table>

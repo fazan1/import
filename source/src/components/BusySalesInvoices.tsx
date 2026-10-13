@@ -3,6 +3,7 @@ import { Plus, Trash2, X, Check, FileText, ChevronDown, ChevronUp, CreditCard, P
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { replaceLines } from '../lib/lines';
 import InvoicePrint from './InvoicePrint';
 
 interface Customer {
@@ -483,11 +484,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
       if (updateError) {
         console.error('Error updating invoice:', updateError);
+        alert('Could not save the invoice: ' + updateError.message);
         setSaving(false);
         return;
       }
-
-      await supabase.from('busy_sales_invoice_items').delete().eq('sales_invoice_id', editingInvoice.id);
 
       const itemsToInsert = validItems.map(item => ({
         sales_invoice_id: editingInvoice.id,
@@ -500,7 +500,12 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         total: parseFloat(item.quantity) * parseFloat(item.unit_price)
       }));
 
-      await supabase.from('busy_sales_invoice_items').insert(itemsToInsert);
+      const linesErr = await replaceLines('busy_sales_invoice_items', 'sales_invoice_id', editingInvoice.id, itemsToInsert);
+      if (linesErr) {
+        alert('The invoice header was saved, but its item lines could not be saved: ' + linesErr);
+        setSaving(false);
+        return;
+      }
     } else {
       const invoiceNumber = await generateInvoiceNumber();
 
@@ -542,7 +547,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         total: parseFloat(item.quantity) * parseFloat(item.unit_price)
       }));
 
-      await supabase.from('busy_sales_invoice_items').insert(itemsToInsert);
+      const { error: itemsErr } = await supabase.from('busy_sales_invoice_items').insert(itemsToInsert);
+      if (itemsErr) {
+        alert(`Invoice ${invoiceNumber} was created, but its item lines could not be saved: ${itemsErr.message}\n\nPlease open the invoice and add the items again.`);
+        setSaving(false);
+        loadData();
+        return;
+      }
     }
 
     for (const item of validItems) {
@@ -557,8 +568,6 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
     const orderId = editingInvoice?.sales_order_id || selectedOrder;
     if (orderId) {
-      await supabase.from('busy_sales_order_items').delete().eq('sales_order_id', orderId);
-
       const soItemsToInsert = validItems.map(item => ({
         sales_order_id: orderId,
         item_id: item.item_id,
@@ -569,7 +578,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         total: parseFloat(item.quantity) * parseFloat(item.unit_price)
       }));
 
-      await supabase.from('busy_sales_order_items').insert(soItemsToInsert);
+      const soLinesErr = await replaceLines('busy_sales_order_items', 'sales_order_id', orderId, soItemsToInsert);
+      if (soLinesErr) {
+        alert('The invoice was saved, but the linked sales order lines could not be updated: ' + soLinesErr);
+        setSaving(false);
+        loadData();
+        return;
+      }
 
       await supabase
         .from('busy_sales_orders')
@@ -616,11 +631,24 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       return;
     }
 
-    await supabase.from('busy_sales_invoice_items').delete().eq('sales_invoice_id', id);
+    const { error: linesErr } = await supabase.from('busy_sales_invoice_items').delete().eq('sales_invoice_id', id);
+    if (linesErr) {
+      alert('Could not delete invoice (its item lines could not be removed): ' + linesErr.message);
+      return;
+    }
 
     const { error } = await supabase.from('busy_sales_invoices').delete().eq('id', id);
     if (error) {
-      alert('Could not delete invoice: ' + error.message);
+      // Put the lines back so the invoice is not left empty
+      if (invoiceItems && invoiceItems.length > 0) {
+        const { error: backErr } = await supabase.from('busy_sales_invoice_items').insert(invoiceItems);
+        if (backErr) {
+          alert('Could not delete invoice: ' + error.message + '\n\nIts item lines were removed and could not be put back (' + backErr.message + '). They are saved in the Recycle Bin entry.');
+          loadData();
+          return;
+        }
+      }
+      alert('Could not delete invoice: ' + error.message + '\n\nThe invoice and its lines were kept.');
       return;
     }
 

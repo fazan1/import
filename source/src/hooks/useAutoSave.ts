@@ -8,6 +8,7 @@ interface AutoSaveOptions {
 export function useAutoSave({ onSave, debounceMs = 500 }: AutoSaveOptions) {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isSavingRef = useRef(false);
+  const pendingRef = useRef(false);
   const onSaveRef = useRef(onSave);
 
   useEffect(() => {
@@ -15,13 +16,19 @@ export function useAutoSave({ onSave, debounceMs = 500 }: AutoSaveOptions) {
   }, [onSave]);
 
   const triggerSave = useCallback(async () => {
-    if (isSavingRef.current) return;
+    // a change made while a save is running is saved right after it, never dropped
+    if (isSavingRef.current) { pendingRef.current = true; return; }
 
     isSavingRef.current = true;
     try {
-      await onSaveRef.current();
-    } catch (error) {
-      console.error('Auto-save failed:', error);
+      do {
+        pendingRef.current = false;
+        try {
+          await onSaveRef.current();
+        } catch (error) {
+          console.error('Auto-save failed:', error);
+        }
+      } while (pendingRef.current);
     } finally {
       isSavingRef.current = false;
     }

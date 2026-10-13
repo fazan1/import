@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, Save, Trash2, Receipt, Calendar, Package, Plus, CreditCard, X, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { deletePurchaseBill } from '../lib/bills';
 import PurchaseBillPrint from './PurchaseBillPrint';
 
 interface Supplier {
@@ -15,6 +16,7 @@ interface PurchaseOrderItem {
   item_name: string;
   quantity: number;
   unit_price_cny: number;
+  unit?: string | null;
 }
 
 interface PurchaseOrder {
@@ -33,6 +35,7 @@ interface BillItem {
   item_name: string;
   quantity_received: string;
   unit_price_cny: string;
+  unit?: string;
 }
 
 interface PurchaseBill {
@@ -186,7 +189,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
             purchase_order_item_id: item.purchase_order_item_id,
             item_name: item.item_name,
             quantity_received: String(item.quantity_received),
-            unit_price_cny: String(item.unit_price_cny)
+            unit_price_cny: String(item.unit_price_cny),
+            unit: item.unit || undefined
           }));
           setBillItems(loadedItems);
           setSearchTerms(loadedItems.map(item => item.item_name));
@@ -210,7 +214,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       purchase_order_item_id: item.id,
       item_name: item.item_name,
       quantity_received: String(item.quantity),
-      unit_price_cny: String(item.unit_price_cny)
+      unit_price_cny: String(item.unit_price_cny),
+      unit: item.unit || undefined
     }));
     setBillItems(initialItems);
     setSearchTerms(initialItems.map(item => item.item_name));
@@ -309,6 +314,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
     );
 
     if (validItems.length === 0) return;
+    // an empty rate used to be saved as 1, which made every LKR figure ~40x too small
+    if (!(parseFloat(exchangeRate) > 0)) { alert('Please enter the exchange rate (LKR per RMB) before saving.'); return; }
 
     setSaving(true);
 
@@ -320,7 +327,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       bill_date: billDate,
       due_date: dueDate || (billDate ? new Date(new Date(billDate).getTime() + 30 * 86400000).toISOString().slice(0, 10) : null),
       status: getStatus(),
-      exchange_rate: parseFloat(exchangeRate) || 1,
+      exchange_rate: parseFloat(exchangeRate),
       shipping_cost: 0,
       customs_duty: 0,
       other_charges: 0,
@@ -329,6 +336,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
     };
 
     let billId: string;
+    // the lines as they are now, so they can be put back if saving the new lines fails
+    let oldLines: Record<string, unknown>[] = [];
 
     if (existingBill) {
       const { error } = await supabase
@@ -338,10 +347,15 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
       if (error) {
         console.error('Error updating bill:', error);
+        alert('Could not save the bill: ' + error.message);
         setSaving(false);
         return;
       }
       billId = existingBill.id;
+
+      const { data: before, error: readError } = await supabase.from('purchase_bill_items').select('*').eq('purchase_bill_id', billId);
+      if (readError) { alert('Could not save the bill lines: ' + readError.message); setSaving(false); return; }
+      oldLines = before || [];
 
       const { error: deleteError } = await supabase
         .from('purchase_bill_items')
@@ -350,6 +364,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
       if (deleteError) {
         console.error('Error deleting old bill items:', deleteError);
+        alert('Could not save the bill lines: ' + deleteError.message);
         setSaving(false);
         return;
       }
@@ -362,6 +377,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
       if (error || !data) {
         console.error('Error creating bill:', error);
+        alert('Could not create the bill: ' + (error?.message || 'unknown error'));
         setSaving(false);
         return;
       }
@@ -373,7 +389,8 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
       purchase_order_item_id: item.purchase_order_item_id,
       item_name: item.item_name.trim(),
       quantity_received: parseFloat(item.quantity_received),
-      unit_price_cny: parseFloat(item.unit_price_cny) || 0
+      unit_price_cny: parseFloat(item.unit_price_cny) || 0,
+      ...(item.unit ? { unit: item.unit } : {})
     }));
 
     const { data: insertedItems, error: itemsError } = await supabase
@@ -383,6 +400,11 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
     if (itemsError) {
       console.error('Error saving bill items:', itemsError);
+      // never leave a bill with no lines: put the old ones back and stay on the page
+      if (oldLines.length) await supabase.from('purchase_bill_items').insert(oldLines);
+      alert('Could not save the bill lines: ' + itemsError.message + (oldLines.length ? '\nYour previous lines were kept.' : ''));
+      setSaving(false);
+      return;
     }
 
     // Re-link packing list items that were generated from this bill
@@ -490,11 +512,10 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
 
   async function handleDeleteBill() {
     if (!existingBill) return;
-    if (!confirm(`Delete this bill? All bill items and payments will be removed. This cannot be undone.`)) return;
+    if (!confirm(`Delete this bill with its items and payments? It goes to the Recycle Bin and can be restored.`)) return;
 
-    await supabase.from('purchase_payments').delete().eq('purchase_bill_id', existingBill.id);
-    await supabase.from('purchase_bill_items').delete().eq('purchase_bill_id', existingBill.id);
-    await supabase.from('purchase_bills').delete().eq('id', existingBill.id);
+    const err = await deletePurchaseBill(existingBill.id);
+    if (err) { alert('Could not delete the bill: ' + err); return; }
 
     onBack();
   }
