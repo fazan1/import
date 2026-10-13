@@ -42,7 +42,7 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 - No public sign-up link; logins are made in Settings -> Users.
 
 ## SQL files already applied to the live database (all in /sql)
-book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v100): security-lock, packing-lines-book, old-collection-only, books-separate, charity-setup. health-check.sql is read-only and verifies all of it.
+book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop. To run (v95-v100): security-lock, packing-lines-book, old-collection-only, books-separate, charity-setup, bulk-import-admin-only. health-check.sql is read-only and verifies all of it.
 
 ## Open items
 - security-lock.sql (v95) and packing-lines-book.sql (v96) written and tested locally - not yet confirmed applied on live.
@@ -64,6 +64,6 @@ book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipm
 - No per-LC books: each LC is a shipment in LCL 2026. Shop sees prices/costs (costing-duty in SHOP_MODULES);
   admin corrects shop records by switching to BLINE SHOP.
 - PL Input "2 bills": fixed in v95 (LCL-2610-01 and FCL-2610-01 were merged as the same batch).
-- Not fixed yet: SECURITY DEFINER bulk_import (code not in repo) is callable by any member - needs its definition.
+- bulk-import-admin-only.sql wraps bulk_import with an admin check (original kept as bulk_import_unchecked).
 - Warehouse items without cost; hide OLD book later when old customers settle.
 - Shipping cost per bill is in CN Reports but not yet pulled into Costing & Duty landed cost.
