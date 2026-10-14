@@ -336,13 +336,14 @@ function AIInsights({ records }: { records: FinancialRecord[] }) {
   );
 }
 
-function EditableCell({ record, field, value, editingCell, setEditingCell, updateCell }: {
+function EditableCell({ record, field, value, editingCell, setEditingCell, updateCell, estimate }: {
   record: FinancialRecord;
   field: string;
   value: number;
   editingCell: { id: string; field: string } | null;
   setEditingCell: (v: { id: string; field: string } | null) => void;
   updateCell: (id: string, field: string, value: number) => void;
+  estimate?: number;   // shown (grey, with *) while nothing is typed — e.g. cost of sales from the margin %
 }) {
   const [localValue, setLocalValue] = useState(value.toString());
   const isEditing = editingCell?.id === record.id && editingCell?.field === field;
@@ -378,7 +379,9 @@ function EditableCell({ record, field, value, editingCell, setEditingCell, updat
       onClick={() => setEditingCell({ id: record.id, field })}
       className="w-full px-2 py-1 text-right cursor-pointer hover:bg-teal-50 rounded-md text-xs tabular-nums transition-colors"
     >
-      {formatNumber(value)}
+      {value === 0 && estimate && estimate > 0
+        ? <span className="text-gray-400 italic" title="Worked out from Sales and Margin % — type a figure to replace it">{formatNumber(estimate)}*</span>
+        : formatNumber(value)}
     </div>
   );
 }
@@ -426,7 +429,7 @@ const columnGroups: { label: string; color: string; columns: { key: string; labe
     color: 'bg-green-700',
     columns: [
       { key: 'monthly_sales', label: 'Sales' },
-      { key: 'margin_percent', label: 'Margin %' },
+      { key: 'margin_percent', label: 'Margin % (20–25)' },
       { key: 'cost_of_sales', label: 'Cost of sales' },
       { key: 'gross_profit', label: 'Gross profit', computed: grossProfitOf },
       { key: 'monthly_expenses', label: 'Expenses' },
@@ -546,6 +549,7 @@ function RecordsTable({
                           editingCell={editingCell}
                           setEditingCell={setEditingCell}
                           updateCell={updateCell}
+                          estimate={col.key === 'cost_of_sales' && record.margin_percent > 0 ? record.monthly_sales * (1 - record.margin_percent / 100) : undefined}
                         />
                       )}
                     </td>
