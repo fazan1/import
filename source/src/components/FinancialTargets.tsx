@@ -23,6 +23,10 @@ interface FinancialRecord {
   cost_of_sales: number;
   gross_profit: number;
   property_deposit: number;
+  supplier_payable?: number;
+  agent_payable?: number;
+  bank_loan?: number;
+  cheques_issued?: number;
 }
 
 interface FinancialTarget {
@@ -63,7 +67,8 @@ function calculateTotalAssets(r: FinancialRecord) {
 }
 
 function calculateNetCapital(r: FinancialRecord) {
-  return calculateTotalAssets(r) - r.investor_liability;
+  // what we own minus everything we owe (same rule as the CEO Network cards)
+  return calculateTotalAssets(r) - r.investor_liability - (r.supplier_payable || 0) - (r.agent_payable || 0) - (r.bank_loan || 0) - (r.cheques_issued || 0);
 }
 
 function calculateGPPercent(r: FinancialRecord) {
