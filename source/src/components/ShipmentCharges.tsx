@@ -67,7 +67,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   const [historyOpen, setHistoryOpen] = useState(false);
   const [didSave, setDidSave] = useState(false);
   // 'total' = the whole shipment's kg / CBM typed here (from the agent), before the packing list is ready
-  const [mode, setMode] = useState<'pl' | 'total'>('pl');
+  const [mode, setMode] = useState<'pl' | 'total'>('total');   // v118: always the whole shipment (Costing does the detail)
   const [whole, setWhole] = useState<{ basis: ChargeBasis; qty: string; rate: string; fixed: string }>({ basis: 'CBM', qty: '', rate: '', fixed: '' });
   // the Shipping list is refreshed when this window closes (refreshing it earlier would reset this window)
   const close = () => { if (didSave) onSaved(); onClose(); };
@@ -133,7 +133,17 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       if (w) {
         setMode('total');
         setWhole({ basis: w.basis, qty: w.basis === 'FIXED' ? '' : (w.qty ? String(w.qty) : ''), rate: w.basis === 'FIXED' ? '' : (w.rate ? String(w.rate) : ''), fixed: w.basis === 'FIXED' ? String(w.amount || '') : '' });
-      } else if (rows.length === 0) setMode('total');
+      } else {
+        // charged per packing list before v118: show it as one whole-shipment figure (saving converts it)
+        const old = [...pc.values()].filter((c) => c.pl_key !== SHIPMENT_KEY);
+        if (old.length) {
+          const sameWay = old.every((c) => c.basis === old[0].basis && c.rate === old[0].rate && c.basis !== 'FIXED');
+          const tot = old.reduce((t, c) => t + c.amount, 0);
+          setWhole(sameWay
+            ? { basis: old[0].basis, qty: String(Math.round(old.reduce((t, c) => t + c.qty, 0) * 1000) / 1000), rate: String(old[0].rate), fixed: '' }
+            : { basis: 'FIXED', qty: '', rate: '', fixed: String(Math.round(tot * 100) / 100) });
+        }
+      }
       setLoading(false);
     })().catch((err) => { setLoadErr(plain((err as Error).message).replace(/^Could not save: /, 'Could not load: ')); setLoading(false); });
   }, [shipment.id, shipment.shipment_no]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -252,7 +262,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4">
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-4xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
-          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><ol className="text-xs text-gray-500 mt-0.5 space-y-0.5 list-decimal ml-4"><li>Type the <b>whole shipment</b>’s total kg / CBM — or use <b>By packing list</b> (totals come from Packing List).</li><li>Pick <b>KG</b> or <b>CBM</b> and type the agent’s <b>all-in rate</b> (freight + duty + clearing).</li><li>The <b>total bill</b> shows below — bill the agent, then make <b>Costing</b> and compare.</li></ol></div>
+          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><ol className="text-xs text-gray-500 mt-0.5 space-y-0.5 list-decimal ml-4"><li>Pick <b>KG</b> or <b>CBM</b> and type the shipment’s <b>total</b> from the agent.</li><li>Type the agent’s <b>all-in rate</b> (freight + duty + clearing) — the <b>total bill</b> shows.</li><li>Bill the agent. When the Packing List is ready, make <b>Costing</b> — the difference shows here.</li></ol></div>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setHistoryOpen(true)} className="text-xs px-2 py-1 border border-gray-300 rounded flex items-center gap-1 text-gray-700"><History className="w-3.5 h-3.5" />History</button>
             <button onClick={close} className="text-gray-400"><X className="w-5 h-5" /></button>
@@ -278,11 +288,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                 {agents.length === 0 && <p className="text-[11px] text-amber-700 mt-1">No agents yet — add one in Masters → Clearing Agents.</p>}
               </div>
 
-              <div className="flex rounded-lg border border-gray-300 overflow-hidden mb-3 text-sm">
-                <button type="button" onClick={() => setMode('total')} className={`flex-1 px-3 py-2 ${mode === 'total' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>Whole shipment (type total)</button>
-                <button type="button" onClick={() => setMode('pl')} className={`flex-1 px-3 py-2 ${mode === 'pl' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>By packing list</button>
-              </div>
-              {mode === 'total' ? (
+              {(
                 <div className="border border-gray-200 rounded-lg p-3">
                   <div className="flex items-start justify-between gap-2">
                     <div><div className="font-semibold text-gray-900">Whole shipment</div><div className="text-xs text-gray-500">Type the total kg or CBM from the agent — no packing list needed.{items.length > 0 && <> Packing List has {n2(pls.reduce((t, p) => t + p.kg, 0))} kg · {n3(pls.reduce((t, p) => t + p.cbm, 0))} CBM.</>}</div></div>
@@ -305,55 +311,13 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                       {num(whole.qty) > 0 && num(whole.rate) > 0 && <span className="text-xs text-gray-500 tabular-nums">{n2(num(whole.qty))} {word(whole.basis)} × {n2(num(whole.rate))} = Rs {n0(wholeAmount)}</span>}
                     </>)}
                   </div>
-                  {plCharges.size > 0 && !plCharges.has(SHIPMENT_KEY) && <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">Saving this replaces the charges per packing list (the bill uses one or the other, never both).</p>}
-                </div>
-              ) : items.length === 0 ? (
-                <p className="text-sm bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-600">No packing list items for this shipment yet — use <b>Whole shipment</b> above, or import them in PL Input / Packing List first.</p>
-              ) : (
-                <div className="space-y-2">
-                  {pls.map((p) => {
-                    const e = edits[p.key] ?? { basis: 'KG' as ChargeBasis, rate: '', fixed: '' };
-                    const amt = plAmount(p); const cost = costingOf(p); const d = amt - cost;
-                    const tot = totalOf(p, e.basis);
-                    return (
-                      <div key={p.key} className="border border-gray-200 rounded-lg p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <div className="font-semibold text-gray-900">PL {p.plNo}{manyBills && p.bill ? <span className="font-normal text-gray-500 text-xs"> · Bill {p.bill}</span> : null} <span className="font-normal text-gray-500 text-xs">· {p.items.length} item{p.items.length === 1 ? '' : 's'}</span></div>
-                            <div className="text-xs text-gray-600 tabular-nums mt-0.5">
-                              <span className={e.basis === 'KG' ? 'font-bold text-gray-900' : ''}>{n2(p.kg)} kg</span> · <span className={e.basis === 'CBM' ? 'font-bold text-gray-900' : ''}>{n3(p.cbm)} CBM</span> · <span className={e.basis === 'PCS' ? 'font-bold text-gray-900' : ''}>{n2(p.pcs)} pcs</span>
-                            </div>
-                          </div>
-                          <div className="text-right shrink-0"><div className="text-[10px] text-gray-500">Charge</div><div className="font-bold tabular-nums text-gray-900">Rs {n0(amt)}</div></div>
-                        </div>
-                        <div className="flex items-center gap-2 mt-2 flex-wrap">
-                          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-                            {BASES.map((x) => (
-                              <button key={x} type="button" onClick={() => setBasis(p, x)} className={`px-3 py-1.5 text-sm ${e.basis === x ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>{x === 'FIXED' ? 'Fixed' : x}</button>
-                            ))}
-                          </div>
-                          {e.basis === 'FIXED' ? (<>
-                            <span className="text-sm text-gray-500">Amount Rs</span>
-                            <input className="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" value={e.fixed} onChange={(ev) => setField(p, 'fixed', ev.target.value)} />
-                          </>) : (<>
-                            <span className="text-sm text-gray-500" title="all-in: freight + duty + clearing">All-in rate Rs</span>
-                            <input className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" placeholder={`per ${word(e.basis)}`} value={e.rate} onChange={(ev) => setField(p, 'rate', ev.target.value)} />
-                            {num(e.rate) > 0 && <span className="text-xs text-gray-500 tabular-nums">{n2(tot)} {word(e.basis)} × {n2(num(e.rate))} = Rs {n0(amt)}</span>}
-                          </>)}
-                        </div>
-                        {e.basis !== 'FIXED' && !(tot > 0) && <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">No {word(e.basis)} in Packing List for this packing list yet — fill it in there.</p>}
-                        <div className={`text-[11px] mt-2 tabular-nums ${amt <= 0 ? 'text-gray-400' : Math.abs(d) < 1 ? 'text-green-700' : 'text-amber-700'}`}>
-                          Costing: Rs {n0(cost)}{amt > 0 && (Math.abs(d) < 1 ? ' ✓ same' : ` · difference Rs ${n0(Math.abs(d))} ${d > 0 ? '(costing less)' : '(costing more)'}`)}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {plCharges.size > 0 && !plCharges.has(SHIPMENT_KEY) && <p className="text-[11px] text-sky-800 bg-sky-50 border border-sky-200 rounded px-2 py-1 mt-2">This shipment was charged per packing list before — shown here as one total. Save to keep it this way.</p>}
                 </div>
               )}
 
               {/* totals */}
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Total bill ({mode === 'total' ? 'whole shipment' : 'all packing lists'})</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
+                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Total bill</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
                 <div className="rounded-lg bg-gray-50 border border-gray-200 p-2"><div className="text-[11px] text-gray-600">Costing (items)</div><div className="text-lg font-bold tabular-nums text-gray-900">Rs {n0(onItems)}</div></div>
                 <div className={`rounded-lg border p-2 ${Math.abs(bulk - onItems) < 1 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}><div className="text-[11px]">Difference</div><div className="text-lg font-bold tabular-nums">{Math.abs(bulk - onItems) < 1 ? <><Check className="w-4 h-4 inline" /> 0</> : `Rs ${n0(Math.abs(bulk - onItems))}`}</div></div>
               </div>
