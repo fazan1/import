@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V112)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V113)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -83,6 +83,9 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   bar applies a type+rate to the shown (filtered) items. Kg/CBM/qty always come from Packing List (costingCharges.ts
   saveItemCharges / refreshShipmentCharges / syncCostingCharges). Check strip: Bulk vs On items vs Difference (no spreading).
   ShipmentCharges refreshes the Shipping list only when it closes (refreshing earlier remounted it and reset the form).
+- v113 Import Calculator: Exchange Rate box is what counts (a saved import_settings CNY rate only pre-fills it; before it
+  silently overrode the box); Duty Rate (%) per line now counts (duty = buy price LKR x %); Cubic = the item's TOTAL CBM
+  (owner: 90000 x 3 CBM / qty = per piece), labelled "Total CBM (item)"; Import Tax % is a note only; CSV quotes commas.
 - v112 CN Portal review: every list/total uses fetchAllPages (no 1000-row cut), local-date defaults (not toISOString),
   failed saves/loads now alert, PO/bill lines via replaceLines, PO with a bill can't be deleted, bill save re-reads paid
   total, PL numbers = highest+1 + double-click guards, PL Input batch change moves its packing lines, Shipment History

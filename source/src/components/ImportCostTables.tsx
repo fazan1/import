@@ -31,7 +31,7 @@ export const DEFAULT_COLUMN_LABELS: ColumnLabels = {
   qty: 'Qty',
   weight: 'Weight (Kg)',
   weightTotal: 'Weight Total',
-  cubic: 'Cubic (M3)',
+  cubic: 'Total CBM (item)',
   cubicTotal: 'Cubic Total',
   buyLocal: 'Buy',
   dutyCost: 'Ship Cost/Unit',

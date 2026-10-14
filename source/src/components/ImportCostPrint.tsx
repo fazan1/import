@@ -160,10 +160,10 @@ export default function ImportCostPrint({
                   <td className="border border-gray-300 px-1 py-0.5 text-right">{line.buyPrice ? fmt(line.buyPrice) : '-'}</td>
                   <td className="border border-gray-300 px-1 py-0.5 text-center">{line.qty ?? '-'}</td>
                   <td className="border border-gray-300 px-1 py-0.5 text-right">
-                    {allocMode === 'cbm' ? (line.cubic ? line.cubic.toFixed(2) : '-') : (line.weight ?? '-')}
+                    {allocMode === 'cbm' ? (line.cubic ? line.cubic.toFixed(3) : '-') : (line.weight ?? '-')}
                   </td>
                   <td className="border border-gray-300 px-1 py-0.5 text-right">
-                    {allocMode === 'cbm' ? (line.cubic ? line.cubic.toFixed(2) : '-') : (weightTotal > 0 ? weightTotal.toLocaleString() : '-')}
+                    {allocMode === 'cbm' ? (line.cubic ? line.cubic.toFixed(3) : '-') : (weightTotal > 0 ? weightTotal.toLocaleString() : '-')}
                   </td>
                   <td className="border border-gray-300 px-1 py-0.5 text-right">{fmt(c.buyPriceLocal)}</td>
                   <td className="border border-gray-300 px-1 py-0.5 text-right">{fmt(c.extraCosts)}</td>

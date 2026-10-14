@@ -96,6 +96,8 @@ export default function ImportCostCalculator() {
         .maybeSingle();
 
       if (data) {
+        // a saved CNY rate pre-fills the Exchange Rate box (the box is what the calculation uses)
+        if (Number(data.cny_to_lkr_rate) > 0) setExchangeRate(Number(data.cny_to_lkr_rate));
         setBoostedSettings({
           customsDutyLKR: data.customs_duty_lkr,
           otherChargesLKR: data.other_charges_lkr,
@@ -175,7 +177,8 @@ export default function ImportCostCalculator() {
     }
   }, []);
 
-  const rate = boostedSettings.cnyToLkrRate ?? exchangeRate ?? 0;
+  // the Exchange Rate box (before: a rate saved in settings silently overrode what was typed here)
+  const rate = exchangeRate ?? 0;
   const sfVal = seafreight ?? 0;
   const ticVal = totalImportCost ?? 0;
 
@@ -227,6 +230,7 @@ export default function ImportCostCalculator() {
     [lines]
   );
 
+  // Cubic = the item's TOTAL CBM (the whole row), not per piece
   const grandTotalCbm = useMemo(
     () => lines.reduce((s, l) => s + (l.cubic ?? 0), 0),
     [lines]
@@ -247,6 +251,7 @@ export default function ImportCostCalculator() {
         const totalExtraCosts = sfVal + ticVal;
         if (allocMode === 'cbm') {
           if (grandTotalCbm > 0) {
+            // item's share = cost per CBM x its total CBM, then / its qty = per piece
             const cbmAllocation = (totalExtraCosts / grandTotalCbm) * cbm;
             dutyCostPerUnit = q > 0 ? cbmAllocation / q : 0;
           }
@@ -257,7 +262,9 @@ export default function ImportCostCalculator() {
           }
         }
 
-        const landed = bpLocal + dutyCostPerUnit;
+        // Duty Rate (%) per line: duty on the item's buy price in LKR (before: typed but never counted)
+        const dutyPerUnit = bpLocal * ((l.dutyRate ?? 0) / 100);
+        const landed = bpLocal + dutyCostPerUnit + dutyPerUnit;
 
         let sell: number;
         let margin: number;
@@ -292,12 +299,12 @@ export default function ImportCostCalculator() {
         return {
           buyPriceLocal: bpLocal,
           extraCosts: dutyCostPerUnit,
-          dutyAmount: 0,
+          dutyAmount: dutyPerUnit,
           totalAlloc,
           landedCostEx: landed,
           importCostPerUnit: 0,
           landedTotal: landed * q,
-          importCostTotal: dutyCostPerUnit * q,
+          importCostTotal: (dutyCostPerUnit + dutyPerUnit) * q,
           margin,
           sellPerUnit: sell,
           sellTotal: hasSellInput ? sell * q : 0,
@@ -483,7 +490,7 @@ export default function ImportCostCalculator() {
     ];
 
     const csvContent = [...config, header, ...rows]
-      .map((row) => row.join(','))
+      .map((row) => row.map((v) => { const t = String(v ?? ''); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; }).join(','))
       .join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -574,7 +581,7 @@ export default function ImportCostCalculator() {
             <div>
               <h3 className="font-bold text-amber-900">Paste Spreadsheet Data</h3>
               <p className="text-xs text-amber-700 mt-0.5">
-                Copy rows from Excel/Sheets with columns: Code, Buy Price, Qty, Weight, Cubic (M3)
+                Copy rows from Excel/Sheets with columns: Code, Buy Price, Qty, Weight per unit (kg), Total CBM of the item (M3)
               </p>
             </div>
             <button
@@ -773,6 +780,7 @@ export default function ImportCostCalculator() {
               <tr>
                 <td className="px-4 py-2.5 font-semibold text-gray-800 bg-gray-50 w-28">
                   Import Tax
+                  <div className="text-[10px] font-normal text-gray-500">Note only — not added to costs</div>
                 </td>
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-2">
@@ -884,7 +892,7 @@ export default function ImportCostCalculator() {
                   <div className="font-bold text-gray-900 text-sm">By Cubic</div>
                   <div className="text-xs text-sky-600 font-semibold mt-0.5">CBM</div>
                   <div className="text-xs text-gray-500 mt-1 leading-relaxed">
-                    Spread costs by<br />cubic volume per row
+                    Spread costs by<br />each item's total CBM
                   </div>
                 </div>
               </button>
