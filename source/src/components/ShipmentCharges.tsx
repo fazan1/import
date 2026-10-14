@@ -233,7 +233,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4">
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-4xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
-          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><p className="text-xs text-gray-500">Kg / CBM / pieces come from Packing List. Pick the type and type the rate for each packing list. Costing is done separately and compared here.</p></div>
+          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><ol className="text-xs text-gray-500 mt-0.5 space-y-0.5 list-decimal ml-4"><li>Total kg / CBM / pieces of each packing list come from <b>Packing List</b>.</li><li>Pick <b>KG</b> or <b>CBM</b> and type the agent’s <b>all-in rate</b> (freight + duty + clearing).</li><li>The <b>total bill</b> shows below — bill the agent, then make <b>Costing</b> and compare.</li></ol></div>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setHistoryOpen(true)} className="text-xs px-2 py-1 border border-gray-300 rounded flex items-center gap-1 text-gray-700"><History className="w-3.5 h-3.5" />History</button>
             <button onClick={close} className="text-gray-400"><X className="w-5 h-5" /></button>
@@ -288,7 +288,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                             <span className="text-sm text-gray-500">Amount Rs</span>
                             <input className="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" value={e.fixed} onChange={(ev) => setField(p, 'fixed', ev.target.value)} />
                           </>) : (<>
-                            <span className="text-sm text-gray-500">Rate Rs</span>
+                            <span className="text-sm text-gray-500" title="all-in: freight + duty + clearing">All-in rate Rs</span>
                             <input className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" placeholder={`per ${word(e.basis)}`} value={e.rate} onChange={(ev) => setField(p, 'rate', ev.target.value)} />
                             {num(e.rate) > 0 && <span className="text-xs text-gray-500 tabular-nums">{n2(tot)} {word(e.basis)} × {n2(num(e.rate))} = Rs {n0(amt)}</span>}
                           </>)}
@@ -305,12 +305,12 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
 
               {/* totals */}
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Bulk (packing lists)</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
+                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Total bill (all packing lists)</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
                 <div className="rounded-lg bg-gray-50 border border-gray-200 p-2"><div className="text-[11px] text-gray-600">Costing (items)</div><div className="text-lg font-bold tabular-nums text-gray-900">Rs {n0(onItems)}</div></div>
                 <div className={`rounded-lg border p-2 ${Math.abs(bulk - onItems) < 1 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}><div className="text-[11px]">Difference</div><div className="text-lg font-bold tabular-nums">{Math.abs(bulk - onItems) < 1 ? <><Check className="w-4 h-4 inline" /> 0</> : `Rs ${n0(Math.abs(bulk - onItems))}`}</div></div>
               </div>
               <div className="mt-3">
-                <label className="text-xs text-gray-500">Agent’s invoice — only if the agent billed a different total (Rs)</label>
+                <label className="text-xs text-gray-500">Agent’s invoice — only if the agent’s bill is different (e.g. duty billed separately) (Rs)</label>
                 <input className={`${input} text-right tabular-nums`} inputMode="decimal" value={invoice} onChange={(e) => setInvoice(e.target.value)} placeholder="leave empty if the same as the bulk" />
                 {invoiceV > 0 && Math.abs(invoiceV - bulk) >= 1 && <p className="text-[11px] text-amber-700 mt-0.5"><AlertTriangle className="w-3 h-3 inline mr-0.5" />Rs {n0(Math.abs(invoiceV - bulk))} {invoiceV > bulk ? 'more' : 'less'} than the packing lists — Rs {n0(invoiceV)} is billed to the agent.</p>}
               </div>
