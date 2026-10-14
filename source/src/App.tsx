@@ -226,6 +226,7 @@ function App() {
       return <div className="max-w-md mx-auto mt-16 bg-white border border-gray-200 rounded-xl p-8 text-center"><h2 className="text-lg font-semibold text-gray-900 mb-2">No access yet</h2><p className="text-sm text-gray-600">Your account ({user?.email}) has not been given any modules. Ask the admin to open Settings → Users & permissions and enable it.</p></div>;
     }
     if (!canView({ id: currentView })) return <div className="p-6 text-gray-500">You don't have access to this screen.</div>;
+    if (currentView === 'ceo' && book !== BOOK_NEW) return <div className="p-6 text-gray-500">CEO Network is part of the {BOOK_NEW} book. <button onClick={() => changeBook(BOOK_NEW)} className="text-teal-700 underline">Switch to {BOOK_NEW}</button></div>;
     if (book === BOOK_BRO && currentView !== 'settings' && !SHOP_MODULES.includes(currentView)) return <div className="p-6 text-gray-500">This screen is not part of the BLINE SHOP book. <button onClick={() => setCurrentView('cn-home')} className="text-teal-700 underline">Go to the shop's Home</button></div>;
     if (inToolsGroup(currentView) && !toolsUnlocked) return <div className="p-6 text-gray-500">Tools is locked. <button onClick={() => askToolsPin(currentView)} className="text-teal-700 underline">Enter password</button></div>;
     if (currentView === 'settings' && !settingsUnlocked) return <div className="p-6 text-gray-500">Settings is locked. <button onClick={openSettings} className="text-teal-700 underline">Enter password</button></div>;
@@ -413,7 +414,7 @@ function App() {
     { key: 'factory', label: 'Factory', items: [bottomMenuItems[3], bottomMenuItems[4]] },
     { key: 'tools', label: 'Tools', items: [{ id: 'growth' as View, label: 'Capital', icon: TrendingUp }, { id: 'expenses' as View, label: 'Expenses', icon: Wallet }, mainMenuItems[1], mainMenuItems[2], mainMenuItems[3], bottomMenuItems[1], bottomMenuItems[5]] },
   ].filter((g) => APP_MODE !== 'shop' || ['home', 'masters', 'cn', 'reports'].includes(g.key))
-   .map((g) => ({ ...g, items: g.items.filter(canView).filter((i) => book !== BOOK_BRO || SHOP_MODULES.includes(i.id)).filter((i) => APP_MODE !== 'shop' || (g.key === 'cn' || ['main-dashboard', 'suppliers', 'items', 'reports'].includes(i.id))) })).filter((g) => g.items.length > 0);
+   .map((g) => ({ ...g, items: g.items.filter(canView).filter((i) => book !== BOOK_BRO || SHOP_MODULES.includes(i.id)).filter((i) => i.id !== 'ceo' || book === BOOK_NEW).filter((i) => APP_MODE !== 'shop' || (g.key === 'cn' || ['main-dashboard', 'suppliers', 'items', 'reports'].includes(i.id))) })).filter((g) => g.items.length > 0);
   const activeGroup = groups.find((g) => g.items.some((i) => i.id === currentView)) ?? groups[0];
   const inToolsGroup = (id: View) => groups.find((g) => g.key === 'tools')?.items.some((i) => i.id === id) ?? false;
   const goItem = (id: View) => { setMoreOpen(false); if (id === 'hunt') window.open(HUNT_URL, '_blank', 'noopener'); else if (id === 'settings') openSettings(); else if (inToolsGroup(id) && !toolsUnlocked) askToolsPin(id); else setCurrentView(id); };
@@ -434,7 +435,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V119</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V120</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -463,7 +464,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v119</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v120</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
