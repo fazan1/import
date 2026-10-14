@@ -265,6 +265,7 @@ function AIInsights({ records }: { records: FinancialRecord[] }) {
   if (current.monthly_sales > 0 && current.shop_receivable > 0) insights.risk.push(recvDays > 45 ? `Shop customers take about ${recvDays.toFixed(0)} days to pay — too long (${m(current.shop_receivable)} outstanding)` : recvDays > 30 ? `Shop customers take about ${recvDays.toFixed(0)} days to pay — aim for under 30` : `Shop customers pay in about ${recvDays.toFixed(0)} days — good`);
 
   // --- STOCK ---
+  if (current.shop_stock_value > 0) insights.stock.push('Shop stock is counted at selling price, so “We own” and Net capital include the profit you will make when it sells — the real cost value is lower');
   insights.stock.push(`${stockShare.toFixed(0)}% of everything you own is stock (${m(stockNow)})${stockShare > 60 ? ' — most of your wealth is on shelves; if sales slow down this becomes a problem' : stockShare > 40 ? ' — a balanced level' : ' — lean, good for cash'}`);
   if (dStock > 0 && dAssets > 0 && dStock / dAssets > 0.7) insights.stock.push(`${((dStock / dAssets) * 100).toFixed(0)}% of the growth ${since} is more stock (+${m(dStock)}) — the business looks bigger, but it has not turned into money yet`);
   if (current.import_goods_value > 0) insights.stock.push(`${m(current.import_goods_value)} in import goods${previous.import_goods_value > 0 && current.import_goods_value > previous.import_goods_value * 1.5 ? ` (was ${m(previous.import_goods_value)})` : ''} — locked until sold`);
@@ -400,7 +401,7 @@ const columnGroups: { label: string; color: string; columns: { key: string; labe
     color: 'bg-[#e8552a]',
     columns: [
       { key: 'total_factory_inventory', label: 'Factory stock' },
-      { key: 'shop_stock_value', label: 'Shop stock' },
+      { key: 'shop_stock_value', label: 'Shop stock (sell. price)' },
       { key: 'shop_receivable', label: 'Shop customers' },
       { key: 'cheques_in_hand', label: 'Cheques in hand' },
       { key: 'import_goods_value', label: 'Import goods' },
