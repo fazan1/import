@@ -25,6 +25,7 @@ interface Edit { basis: ChargeBasis; rate: string; fixed: string }
 interface LedgerLine { id: string; agent_id: string; kind: 'charge' | 'payment'; amount: number; entry_date: string; payment_mode: string | null; reference: string | null }
 
 const BASES: ChargeBasis[] = ['KG', 'CBM', 'PCS', 'FIXED'];
+const SHIPMENT_KEY = 'SHIPMENT';   // the whole-shipment row in shipment_pl_charges (typed total, not from Packing List)
 const MODES = ['Bank', 'Cash', 'Cheque', 'Online', 'Other'];
 const n0 = (v: number) => Math.round(v).toLocaleString('en-US');
 const n2 = (v: number) => v.toLocaleString('en-US', { maximumFractionDigits: 2 });
@@ -65,6 +66,9 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   const [okMsg, setOkMsg] = useState('');
   const [historyOpen, setHistoryOpen] = useState(false);
   const [didSave, setDidSave] = useState(false);
+  // 'total' = the whole shipment's kg / CBM typed here (from the agent), before the packing list is ready
+  const [mode, setMode] = useState<'pl' | 'total'>('pl');
+  const [whole, setWhole] = useState<{ basis: ChargeBasis; qty: string; rate: string; fixed: string }>({ basis: 'CBM', qty: '', rate: '', fixed: '' });
   // the Shipping list is refreshed when this window closes (refreshing it earlier would reset this window)
   const close = () => { if (didSave) onSaved(); onClose(); };
 
@@ -125,6 +129,11 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
         else e[k] = { basis: start, rate: defaultRate(start) ? String(defaultRate(start)) : '', fixed: '' };
       });
       setEdits(e);
+      const w = pc.get(SHIPMENT_KEY);
+      if (w) {
+        setMode('total');
+        setWhole({ basis: w.basis, qty: w.basis === 'FIXED' ? '' : (w.qty ? String(w.qty) : ''), rate: w.basis === 'FIXED' ? '' : (w.rate ? String(w.rate) : ''), fixed: w.basis === 'FIXED' ? String(w.amount || '') : '' });
+      } else if (rows.length === 0) setMode('total');
       setLoading(false);
     })().catch((err) => { setLoadErr(plain((err as Error).message).replace(/^Could not save: /, 'Could not load: ')); setLoading(false); });
   }, [shipment.id, shipment.shipment_no]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -142,8 +151,9 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
 
   const plAmount = (p: PL) => { const e = edits[p.key]; if (!e) return 0; return e.basis === 'FIXED' ? num(e.fixed) : totalOf(p, e.basis) * num(e.rate); };
   const costingOf = (p: PL) => p.items.reduce((t, i) => t + (itemCharges.get(i.id)?.amount ?? 0), 0);
-  const bulk = pls.reduce((t, p) => t + plAmount(p), 0);
-  const onItems = pls.reduce((t, p) => t + costingOf(p), 0);
+  const wholeAmount = whole.basis === 'FIXED' ? num(whole.fixed) : num(whole.qty) * num(whole.rate);
+  const bulk = mode === 'total' ? wholeAmount : pls.reduce((t, p) => t + plAmount(p), 0);
+  const onItems = [...itemCharges.values()].reduce((t, c) => t + c.amount, 0);
   const invoiceV = num(invoice);
   const billAmount = invoiceV > 0 ? invoiceV : bulk;
   const agent = agents.find((a) => a.id === agentId) || null;
@@ -161,12 +171,15 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
   async function save(post: boolean) {
     setMsg(''); setOkMsg('');
     if (post && !agentId) { setMsg('Pick the agent first.'); return; }
-    if (post && !(billAmount > 0)) { setMsg('Nothing to bill — put a rate on the packing lists first.'); return; }
+    if (post && !(billAmount > 0)) { setMsg(mode === 'total' ? 'Nothing to bill — type the total and the rate first.' : 'Nothing to bill — put a rate on the packing lists first.'); return; }
     setSaving(true);
     try {
-      // 1. the charge of each packing list (PLs with no rate / amount are not written)
+      // 1. the charge of each packing list (PLs with no rate / amount are not written) — or of the whole shipment
       const rows: PlCharge[] = [];
-      pls.forEach((p) => {
+      if (mode === 'total') {
+        rows.push({ shipment_id: shipment.id, pl_key: SHIPMENT_KEY, pl_input_id: null, packing_list_no: 'Whole shipment', basis: whole.basis,
+          qty: whole.basis === 'FIXED' ? 0 : num(whole.qty), rate: whole.basis === 'FIXED' ? 0 : num(whole.rate), amount: r2(wholeAmount) });
+      } else pls.forEach((p) => {
         const e = edits[p.key]; if (!e) return;
         const amt = plAmount(p);
         if (!(amt > 0) && !plCharges.has(p.key) && !(num(e.rate) > 0)) return;
@@ -175,6 +188,12 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
       });
       if (rows.length) {
         const { error } = await supabase.from('shipment_pl_charges').upsert(rows, { onConflict: 'shipment_id,pl_key' });
+        if (error) throw new Error(error.message);
+      }
+      // one way only: the whole-shipment figure OR the packing lists (never both, or the bill counts twice)
+      const drop = mode === 'total' ? [...plCharges.keys()].filter((k) => k !== SHIPMENT_KEY) : (plCharges.has(SHIPMENT_KEY) ? [SHIPMENT_KEY] : []);
+      if (drop.length) {
+        const { error } = await supabase.from('shipment_pl_charges').delete().eq('shipment_id', shipment.id).in('pl_key', drop);
         if (error) throw new Error(error.message);
       }
 
@@ -187,7 +206,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
 
       // 3. bill the agent (one line per shipment; posting again updates it)
       if (post) {
-        const line = { agent_id: agentId, amount: r2(billAmount), reference: `Shipment ${shipment.shipment_no}`, note: `${pls.length} packing list${pls.length === 1 ? '' : 's'}`, shipment_id: shipment.id, kind: 'charge' as const };
+        const line = { agent_id: agentId, amount: r2(billAmount), reference: `Shipment ${shipment.shipment_no}`, note: mode === 'total' ? 'Whole shipment' : `${pls.length} packing list${pls.length === 1 ? '' : 's'}`, shipment_id: shipment.id, kind: 'charge' as const };
         if (posted) {
           const { error: e4 } = await supabase.from('agent_ledger').update(line).eq('id', posted.id);
           if (e4) throw new Error(e4.message);
@@ -233,7 +252,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
     <div className="fixed inset-0 bg-black/40 z-[70] flex items-end sm:items-center justify-center sm:p-4">
       <div onClick={(e) => e.stopPropagation()} className="bg-white sm:rounded-xl shadow-xl w-full max-w-4xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col">
         <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-2">
-          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><ol className="text-xs text-gray-500 mt-0.5 space-y-0.5 list-decimal ml-4"><li>Total kg / CBM / pieces of each packing list come from <b>Packing List</b>.</li><li>Pick <b>KG</b> or <b>CBM</b> and type the agent’s <b>all-in rate</b> (freight + duty + clearing).</li><li>The <b>total bill</b> shows below — bill the agent, then make <b>Costing</b> and compare.</li></ol></div>
+          <div><h3 className="font-semibold text-gray-900">Shipping charges — {shipment.shipment_no}</h3><ol className="text-xs text-gray-500 mt-0.5 space-y-0.5 list-decimal ml-4"><li>Type the <b>whole shipment</b>’s total kg / CBM — or use <b>By packing list</b> (totals come from Packing List).</li><li>Pick <b>KG</b> or <b>CBM</b> and type the agent’s <b>all-in rate</b> (freight + duty + clearing).</li><li>The <b>total bill</b> shows below — bill the agent, then make <b>Costing</b> and compare.</li></ol></div>
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={() => setHistoryOpen(true)} className="text-xs px-2 py-1 border border-gray-300 rounded flex items-center gap-1 text-gray-700"><History className="w-3.5 h-3.5" />History</button>
             <button onClick={close} className="text-gray-400"><X className="w-5 h-5" /></button>
@@ -259,8 +278,37 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
                 {agents.length === 0 && <p className="text-[11px] text-amber-700 mt-1">No agents yet — add one in Masters → Clearing Agents.</p>}
               </div>
 
-              {items.length === 0 ? (
-                <p className="text-sm bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-600">No packing list items for this shipment yet — import them in PL Input / Packing List first.</p>
+              <div className="flex rounded-lg border border-gray-300 overflow-hidden mb-3 text-sm">
+                <button type="button" onClick={() => setMode('total')} className={`flex-1 px-3 py-2 ${mode === 'total' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>Whole shipment (type total)</button>
+                <button type="button" onClick={() => setMode('pl')} className={`flex-1 px-3 py-2 ${mode === 'pl' ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>By packing list</button>
+              </div>
+              {mode === 'total' ? (
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div><div className="font-semibold text-gray-900">Whole shipment</div><div className="text-xs text-gray-500">Type the total kg or CBM from the agent — no packing list needed.{items.length > 0 && <> Packing List has {n2(pls.reduce((t, p) => t + p.kg, 0))} kg · {n3(pls.reduce((t, p) => t + p.cbm, 0))} CBM.</>}</div></div>
+                    <div className="text-right shrink-0"><div className="text-[10px] text-gray-500">Charge</div><div className="font-bold tabular-nums text-gray-900">Rs {n0(wholeAmount)}</div></div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+                      {(['KG', 'CBM', 'FIXED'] as ChargeBasis[]).map((x) => (
+                        <button key={x} type="button" onClick={() => setWhole({ ...whole, basis: x })} className={`px-3 py-1.5 text-sm ${whole.basis === x ? 'bg-teal-600 text-white' : 'bg-white text-gray-700'}`}>{x === 'FIXED' ? 'Fixed' : x}</button>
+                      ))}
+                    </div>
+                    {whole.basis === 'FIXED' ? (<>
+                      <span className="text-sm text-gray-500">Amount Rs</span>
+                      <input className="w-32 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" value={whole.fixed} onChange={(ev) => setWhole({ ...whole, fixed: ev.target.value })} />
+                    </>) : (<>
+                      <span className="text-sm text-gray-500">Total {whole.basis === 'KG' ? 'kg' : 'CBM'}</span>
+                      <input className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" value={whole.qty} onChange={(ev) => setWhole({ ...whole, qty: ev.target.value })} />
+                      <span className="text-sm text-gray-500" title="all-in: freight + duty + clearing">All-in rate Rs</span>
+                      <input className="w-28 px-2 py-1.5 border border-gray-300 rounded text-sm text-right tabular-nums" inputMode="decimal" placeholder={`per ${word(whole.basis)}`} value={whole.rate} onChange={(ev) => setWhole({ ...whole, rate: ev.target.value })} />
+                      {num(whole.qty) > 0 && num(whole.rate) > 0 && <span className="text-xs text-gray-500 tabular-nums">{n2(num(whole.qty))} {word(whole.basis)} × {n2(num(whole.rate))} = Rs {n0(wholeAmount)}</span>}
+                    </>)}
+                  </div>
+                  {plCharges.size > 0 && !plCharges.has(SHIPMENT_KEY) && <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-2">Saving this replaces the charges per packing list (the bill uses one or the other, never both).</p>}
+                </div>
+              ) : items.length === 0 ? (
+                <p className="text-sm bg-gray-50 border border-gray-200 rounded-lg p-3 text-gray-600">No packing list items for this shipment yet — use <b>Whole shipment</b> above, or import them in PL Input / Packing List first.</p>
               ) : (
                 <div className="space-y-2">
                   {pls.map((p) => {
@@ -305,7 +353,7 @@ export default function ShipmentCharges({ shipment, onClose, onSaved }: { shipme
 
               {/* totals */}
               <div className="grid grid-cols-3 gap-2 mt-4 text-center">
-                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Total bill (all packing lists)</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
+                <div className="rounded-lg bg-teal-50 border border-teal-200 p-2"><div className="text-[11px] text-teal-700">Total bill ({mode === 'total' ? 'whole shipment' : 'all packing lists'})</div><div className="text-lg font-bold tabular-nums text-teal-900">Rs {n0(bulk)}</div></div>
                 <div className="rounded-lg bg-gray-50 border border-gray-200 p-2"><div className="text-[11px] text-gray-600">Costing (items)</div><div className="text-lg font-bold tabular-nums text-gray-900">Rs {n0(onItems)}</div></div>
                 <div className={`rounded-lg border p-2 ${Math.abs(bulk - onItems) < 1 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}><div className="text-[11px]">Difference</div><div className="text-lg font-bold tabular-nums">{Math.abs(bulk - onItems) < 1 ? <><Check className="w-4 h-4 inline" /> 0</> : `Rs ${n0(Math.abs(bulk - onItems))}`}</div></div>
               </div>

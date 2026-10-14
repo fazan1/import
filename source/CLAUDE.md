@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V116)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V117)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -94,6 +94,9 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v114 Product Ref: Total CBM = No. of CTN x 1 CTN volume (qty x volume only when no cartons), worked out on load too;
   shows CBM / Piece. Open question for owner: investor ledger split by book.
   v116 Costing "Charge the items" bar has "— none (clear) —" to remove leftover item rates (old v104-v110 copies).
+  v117 Shipping -> Charges "Whole shipment (type total)": owner types the agent's total kg or CBM + all-in rate (or Fixed)
+  before the packing list is ready; saved in shipment_pl_charges with pl_key 'SHIPMENT' (refreshPlCharges skips it; the
+  SQL trigger never matches it). One way only: saving whole-shipment deletes the PL rows and vice versa.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own

@@ -615,7 +615,7 @@ export default function CostingDutySheet() {
   const itemChargeTotal = [...itemCharges.values()].reduce((s, c) => s + c.amount, 0);
   const target = shipInfo
     ? shipInfo.agent_invoice > 0 ? { amount: shipInfo.agent_invoice, label: "agent's invoice" }
-      : shipInfo.plTotal !== null ? { amount: shipInfo.plTotal, label: 'packing lists in Shipping' }
+      : shipInfo.plTotal !== null ? { amount: shipInfo.plTotal, label: 'Shipping charges' }
       : { amount: 0, label: '' }
     : null;
   const diff = target ? summary.shipping - target.amount : 0;

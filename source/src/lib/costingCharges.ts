@@ -153,7 +153,8 @@ async function refreshPlCharges(shipmentId: string): Promise<{ total: number | n
   if (error) return { total: null, error };
   let total = 0;
   for (const c of pc.map.values()) {
-    if (c.basis !== 'FIXED') {
+    // 'SHIPMENT' = the whole shipment's total typed in Charges (not from Packing List): keep it as typed
+    if (c.basis !== 'FIXED' && c.pl_key !== 'SHIPMENT') {
       const q = r4(items.filter((i) => plKeyOf(i) === c.pl_key).reduce((t, i) => t + chargeQty(i, c.basis), 0));
       const amt = r2(q * c.rate);
       if (Math.abs(q - c.qty) >= 0.00005 || Math.abs(amt - c.amount) >= 0.005) {
