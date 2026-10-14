@@ -147,7 +147,7 @@ export default function CostingDutySheet() {
   const [syncMsg, setSyncMsg] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [applyBasis, setApplyBasis] = useState<ChargeBasis>('KG');
+  const [applyBasis, setApplyBasis] = useState<ChargeBasis | 'NONE'>('KG');
   const [applyRate, setApplyRate] = useState('');
   const batchToken = useRef('');
 
@@ -526,6 +526,14 @@ export default function CostingDutySheet() {
 
   async function applyToShown() {
     const rate = parseFloat(applyRate.replace(/,/g, '')) || 0;
+    if (applyBasis === 'NONE') {
+      // take the shipping charge off the shown items (e.g. rates left over from older versions)
+      const ids = [...new Set(filteredRecords.filter(chargeable).map(r => r.packing_list_item_id as string))].filter(id => itemCharges.has(id));
+      if (ids.length === 0) { alert('None of the shown items has a shipping charge.'); return; }
+      if (!confirm(`Remove the shipping charge from ${ids.length} item${ids.length === 1 ? '' : 's'}?`)) return;
+      await setCharges(ids.map(itemId => ({ itemId, basis: null, rate: 0 })));
+      return;
+    }
     if (applyBasis !== 'FIXED' && !(rate > 0)) { alert('Type the rate first.'); return; }
     const ids = [...new Set(filteredRecords.filter(chargeable).map(r => r.packing_list_item_id as string))];
     if (ids.length === 0) { alert('No packing list items shown.'); return; }
@@ -1000,7 +1008,8 @@ export default function CostingDutySheet() {
               {shipInfo && chargeCols && (
                 <div className="flex items-center gap-2 flex-wrap bg-gray-50 border border-gray-200 rounded-lg px-2 py-1.5 text-xs text-gray-700">
                   <span className="font-medium">Charge the {filtersOn ? 'shown' : ''} items:</span>
-                  <select value={applyBasis} onChange={e => setApplyBasis(e.target.value as ChargeBasis)} className="px-1.5 py-1 border border-gray-300 rounded bg-white">
+                  <select value={applyBasis} onChange={e => setApplyBasis(e.target.value as ChargeBasis | 'NONE')} className="px-1.5 py-1 border border-gray-300 rounded bg-white">
+                    <option value="NONE">— none (clear) —</option>
                     {SHIP_BASES.filter(b => b !== 'FIXED').map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                   <span>Rate Rs</span>
