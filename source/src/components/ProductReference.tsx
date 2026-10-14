@@ -57,6 +57,11 @@ const emptyForm = {
   notes: '',
 };
 
+/** Total CBM = cartons x volume of 1 carton; without a carton count, quantity x carton volume (the old way). */
+function totalCbmOf(ctns: number, ctnVolume: number, qty: number): number {
+  return ctns > 0 ? ctns * ctnVolume : qty * ctnVolume;
+}
+
 export default function ProductReference() {
   const [products, setProducts] = useState<AlibabaProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,7 +93,8 @@ export default function ProductReference() {
       console.error('Load error:', error);
       alert('Could not load products: ' + error.message);
     } else if (data) {
-      setProducts(data);
+      // Total CBM = No. of CTN x 1 CTN volume (older records were saved as quantity x CTN volume)
+      setProducts(data.map((p) => ({ ...p, total_cbm: totalCbmOf(Number(p.number_of_ctns) || 0, Number(p.cbm_per_unit) || 0, Number(p.quantity) || 0) })));
     }
     setLoading(false);
   }
@@ -190,7 +196,7 @@ export default function ProductReference() {
       cbm_per_unit: cbmPerUnit,
       number_of_ctns: parseFloat(formData.number_of_ctns) || 0,
       quantity: qty,
-      total_cbm: qty * cbmPerUnit,
+      total_cbm: totalCbmOf(parseFloat(formData.number_of_ctns) || 0, cbmPerUnit, qty),
       total_weight_kg: qty * weightPerUnit,
       notes: formData.notes.trim() || null,
     };
@@ -548,6 +554,7 @@ export default function ProductReference() {
                       <DetailItem label="Quantity" value={product.quantity ? `${product.quantity.toLocaleString()} ${product.unit}` : '-'} />
                       <DetailItem label="Total Weight" value={product.total_weight_kg ? `${product.total_weight_kg.toFixed(2)} KG` : '-'} />
                       <DetailItem label="Total CBM" value={product.total_cbm ? product.total_cbm.toFixed(4) : '-'} />
+                      <DetailItem label="CBM / Piece" value={product.total_cbm && product.quantity ? (product.total_cbm / product.quantity).toFixed(6) : '-'} />
 
                       <DetailItem label="Supplier" value={product.supplier_name || '-'} />
                       <DetailItem label="Contact Person" value={product.contact_person || '-'} />
@@ -816,10 +823,13 @@ export default function ProductReference() {
                         const qty = parseFloat(formData.quantity) || 0;
                         const w = parseFloat(formData.weight_kg) || 0;
                         const cbm = parseFloat(formData.cbm_per_unit) || 0;
-                        if (qty === 0) return 'Enter quantity';
+                        const ctns = parseFloat(formData.number_of_ctns) || 0;
+                        if (qty === 0 && ctns === 0) return 'Enter quantity';
                         const parts = [];
-                        if (w > 0) parts.push(`${(qty * w).toFixed(2)} KG`);
-                        if (cbm > 0) parts.push(`${(qty * cbm).toFixed(4)} CBM`);
+                        if (w > 0 && qty > 0) parts.push(`${(qty * w).toFixed(2)} KG`);
+                        const tc = totalCbmOf(ctns, cbm, qty);
+                        if (tc > 0) parts.push(`${tc.toFixed(4)} CBM`);
+                        if (tc > 0 && qty > 0) parts.push(`${(tc / qty).toFixed(6)} CBM/pc`);
                         return parts.length > 0 ? parts.join(' | ') : 'Enter weight or dimensions';
                       })()}
                     </div>
