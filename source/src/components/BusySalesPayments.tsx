@@ -223,9 +223,9 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
     const modeLine = p.payment_mode === 'cheque'
       ? `Cheque No. ${p.cheque_number || p.reference_number || ''}${p.bank_name ? ` · ${p.bank_name}` : ''}`
       : `${formatPaymentMode(p.payment_mode)}${p.reference_number ? ` · Ref ${p.reference_number}` : ''}`;
-    w.document.write(`<!doctype html><html><head><title>Receipt ${esc(p.payment_number || '')}</title>
+    w.document.write(`<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Receipt ${esc(p.payment_number || '')}</title>
 <style>
- body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;padding:32px;}
+ body{font-family:'IBM Plex Sans',Arial,sans-serif;color:#111;margin:0;padding:32px;}
  .box{max-width:640px;margin:0 auto;border:1px solid #ccc;padding:28px 32px;}
  h1{font-size:22px;margin:0;} .addr{color:#555;font-size:12px;margin-top:2px;}
  .title{font-size:18px;font-weight:700;letter-spacing:2px;margin:20px 0 4px;} .no{color:#555;font-size:12px;}

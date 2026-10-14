@@ -242,9 +242,9 @@ export default function BatchInvoice() {
     tempDiv.style.top = '0';
     tempDiv.style.width = '800px';
     tempDiv.innerHTML = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
+      <div style="font-family:'IBM Plex Sans',Arial,sans-serif; padding: 20px;">
         <div style="font-weight: bold; font-size: 14px;">${esc(companyFor().name)}</div>
-        <h1 style="color: #1a365d; margin-bottom: 5px;">BATCH ${esc(batch.batch_number)}</h1>
+        <h1 style="color: #111111; margin-bottom: 5px;">BATCH ${esc(batch.batch_number)}</h1>
         <div style="color: #666; margin-bottom: 20px;">
           <p>Suppliers: ${batch.suppliers.map(esc).join(', ')}</p>
           <p>Total Items: ${batch.items.length} · Printed ${new Date().toLocaleDateString('en-GB')}</p>
@@ -252,11 +252,11 @@ export default function BatchInvoice() {
         <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
           <thead>
             <tr>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: left; font-size: 12px;">FULL DESCRIPTION OF GOODS</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">QTY</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: left; font-size: 12px;">UNIT OF MEASURE</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">UNIT PRICE (CNY)</th>
-              <th style="background: #1a365d; color: white; padding: 10px; text-align: right; font-size: 12px;">TOTAL (CNY)</th>
+              <th style="background: #111111; color: white; padding: 10px; text-align: left; font-size: 12px;">FULL DESCRIPTION OF GOODS</th>
+              <th style="background: #111111; color: white; padding: 10px; text-align: right; font-size: 12px;">QTY</th>
+              <th style="background: #111111; color: white; padding: 10px; text-align: left; font-size: 12px;">UNIT OF MEASURE</th>
+              <th style="background: #111111; color: white; padding: 10px; text-align: right; font-size: 12px;">UNIT PRICE (CNY)</th>
+              <th style="background: #111111; color: white; padding: 10px; text-align: right; font-size: 12px;">TOTAL (CNY)</th>
             </tr>
           </thead>
           <tbody>
@@ -270,11 +270,11 @@ export default function BatchInvoice() {
               </tr>
             `).join('')}
             <tr style="background: #e8f4f8; font-weight: bold;">
-              <td style="padding: 10px; border-top: 2px solid #1a365d; font-size: 12px;">TOTAL</td>
-              <td style="padding: 10px; border-top: 2px solid #1a365d; font-size: 12px; text-align: right;">${formatCurrency(batch.total_quantity)}</td>
-              <td style="padding: 10px; border-top: 2px solid #1a365d;"></td>
-              <td style="padding: 10px; border-top: 2px solid #1a365d;"></td>
-              <td style="padding: 10px; border-top: 2px solid #1a365d; font-size: 12px; text-align: right;">${formatCurrency(batch.total_amount_cny)}</td>
+              <td style="padding: 10px; border-top: 2px solid #111111; font-size: 12px;">TOTAL</td>
+              <td style="padding: 10px; border-top: 2px solid #111111; font-size: 12px; text-align: right;">${formatCurrency(batch.total_quantity)}</td>
+              <td style="padding: 10px; border-top: 2px solid #111111;"></td>
+              <td style="padding: 10px; border-top: 2px solid #111111;"></td>
+              <td style="padding: 10px; border-top: 2px solid #111111; font-size: 12px; text-align: right;">${formatCurrency(batch.total_amount_cny)}</td>
             </tr>
           </tbody>
         </table>
@@ -292,19 +292,19 @@ export default function BatchInvoice() {
     const html = `
       <!DOCTYPE html>
       <html>
-      <head>
+      <head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
         <title>Batch ${esc(batch.batch_number)} Invoice</title>
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          h1 { color: #1a365d; margin-bottom: 5px; }
+          body { font-family:'IBM Plex Sans',Arial,sans-serif; padding: 20px; }
+          h1 { color: #111111; margin-bottom: 5px; }
           .header-info { color: #666; margin-bottom: 20px; }
           table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-          th { background: #1a365d; color: white; padding: 10px; text-align: left; font-size: 12px; }
+          th { background: #111111; color: white; padding: 10px; text-align: left; font-size: 12px; }
           td { padding: 8px 10px; border-bottom: 1px solid #ddd; font-size: 12px; }
           tr:nth-child(even) { background: #f9f9f9; }
           .text-right { text-align: right; }
           .total-row { background: #e8f4f8 !important; font-weight: bold; }
-          .total-row td { border-top: 2px solid #1a365d; }
+          .total-row td { border-top: 2px solid #111111; }
           @media print { body { padding: 0; } }
         </style>
       </head>

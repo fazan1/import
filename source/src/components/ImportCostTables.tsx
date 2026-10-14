@@ -186,13 +186,13 @@ export default function ImportCostTables({
   return (
     <div className="space-y-6">
       <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="px-4 py-2.5 bg-slate-700 flex items-center justify-between rounded-t-lg">
+        <div className="px-4 py-2.5 bg-[#111111] flex items-center justify-between rounded-t-lg">
           <h3 className="font-bold text-white text-sm tracking-wide uppercase">
             Enter Product Details (Delete The Lines That Are Not Needed.)
           </h3>
           <button
             onClick={onAdd}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-slate-200 bg-slate-600 rounded hover:bg-slate-500 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-[#e8552a] rounded hover:bg-[#cf4a22] transition-colors"
           >
             <Plus className="w-3 h-3" /> Add Line
           </button>
@@ -394,7 +394,7 @@ export default function ImportCostTables({
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg">
-        <div className="px-4 py-2.5 bg-emerald-600 rounded-t-lg">
+        <div className="px-4 py-2.5 bg-[#111111] rounded-t-lg">
           <h3 className="font-bold text-white text-sm tracking-wide uppercase">
             Landed Cost, Sell & Profit Calculation
           </h3>
@@ -412,7 +412,7 @@ export default function ImportCostTables({
                 <th className="px-2 py-2 text-right font-bold text-gray-700 uppercase tracking-wider w-28">
                   <EditableHeader label={columnLabels.dutyCost} labelKey="dutyCost" onSave={onColumnLabelChange} className="justify-end" />
                 </th>
-                <th className="px-2 py-2 text-right font-bold text-white uppercase tracking-wider bg-slate-600 w-28">
+                <th className="px-2 py-2 text-right font-bold text-white uppercase tracking-wider bg-[#111111] w-28">
                   <EditableHeader label={columnLabels.totalAlloc} labelKey="totalAlloc" onSave={onColumnLabelChange} className="justify-end" subtext="(LKR)" />
                 </th>
                 <th className="px-2 py-2 text-right font-bold text-gray-700 uppercase tracking-wider bg-teal-50 w-28">

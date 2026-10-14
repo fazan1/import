@@ -79,7 +79,7 @@ export default function ShipmentHistoryPrint({ shipments, batchFilter, totals, o
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
-          <div className="p-6 print:p-4" id="shipment-history-content" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="p-6 print:p-4" id="shipment-history-content" style={{ fontFamily: "'IBM Plex Sans', Arial, sans-serif" }}>
             <div className="text-center mb-5">
               <div className="text-base font-bold text-gray-900">{companyFor().name}</div>
               <h1 className="text-xl font-bold text-gray-900">SHIPMENT HISTORY</h1>

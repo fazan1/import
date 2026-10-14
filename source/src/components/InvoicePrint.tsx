@@ -119,7 +119,7 @@ export default function InvoicePrint({
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
-          <div className="p-6 print:p-4" id="invoice-content" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="p-6 print:p-4" id="invoice-content" style={{ fontFamily: "'IBM Plex Sans', Arial, sans-serif" }}>
             <div className="flex justify-between items-start mb-1">
               <div className="text-sm">
                 <span className="font-medium">VAT No. :</span> {vatNumber}

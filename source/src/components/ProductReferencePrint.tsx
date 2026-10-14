@@ -144,7 +144,7 @@ export default function ProductReferencePrint({ products, onClose }: Props) {
       {/* Hidden printable card -- rendered off-screen, used by html2pdf */}
       {printProduct && (
         <div className="fixed left-[-9999px] top-0">
-          <div id="single-product-print" style={{ width: '700px', fontFamily: 'Arial, sans-serif', padding: '32px', background: '#fff' }}>
+          <div id="single-product-print" style={{ width: '700px', fontFamily: "'IBM Plex Sans', Arial, sans-serif", padding: '32px', background: '#fff' }}>
             <div style={{ borderBottom: '2px solid #1f2937', paddingBottom: '16px', marginBottom: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
@@ -189,7 +189,7 @@ export default function ProductReferencePrint({ products, onClose }: Props) {
               {printProduct.unit_price > 0 && printProduct.quantity > 0 && (
                 <div style={{ borderTop: '1px solid #e5e7eb', marginTop: '16px', paddingTop: '12px', textAlign: 'center' }}>
                   <p style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '1px', margin: '0 0 4px' }}>Total Value</p>
-                  <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#0f766e', margin: 0 }}>
+                  <p style={{ fontSize: '20px', fontWeight: 'bold', color: '#c2410c', margin: 0 }}>
                     {printProduct.currency} {(printProduct.unit_price * printProduct.quantity).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
@@ -255,7 +255,7 @@ function DetailRow({ label, value, bold }: { label: string; value: string; bold?
   return (
     <tr>
       <td style={{ padding: '6px 8px', color: '#6b7280', fontSize: '12px', width: '45%', borderBottom: '1px solid #f3f4f6' }}>{label}</td>
-      <td style={{ padding: '6px 8px', color: bold ? '#0f766e' : '#111827', fontWeight: bold ? 700 : 600, fontSize: '13px', borderBottom: '1px solid #f3f4f6' }}>{value}</td>
+      <td style={{ padding: '6px 8px', color: bold ? '#c2410c' : '#111827', fontWeight: bold ? 700 : 600, fontSize: '13px', borderBottom: '1px solid #f3f4f6' }}>{value}</td>
     </tr>
   );
 }

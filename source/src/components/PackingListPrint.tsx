@@ -74,7 +74,7 @@ export default function PackingListPrint({ items, batchNumber, supplierName, onC
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
-          <div className="p-6 print:p-4" id="packing-list-content" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="p-6 print:p-4" id="packing-list-content" style={{ fontFamily: "'IBM Plex Sans', Arial, sans-serif" }}>
             <div className="text-center mb-6">
               <div className="text-lg font-bold text-gray-900">{company.name}</div>
               <div className="text-xs text-gray-600 mb-2">{company.address}</div>

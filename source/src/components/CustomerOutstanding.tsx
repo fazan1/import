@@ -230,8 +230,8 @@ export default function CustomerOutstanding() {
       : c.opening_balance < 0 ? `<tr><td></td><td>Less: received on account (credit)</td><td class="r"></td><td class="r"></td><td class="r">${money(c.opening_balance)}</td><td class="r">${money(run)}</td></tr>` : '';
     const rows = c.invoices.map((inv) => { run += inv.sell_due; return `<tr><td>${d(inv.date)}</td><td>${esc(inv.voucher_no)}</td><td class="r">${money(inv.total_amount)}</td><td class="r">${money(inv.total_paid)}</td><td class="r">${money(inv.sell_due)}</td><td class="r">${money(run)}</td></tr>`; }).join('');
     const co = companyFor();
-    w.document.write(`<!doctype html><html><head><title>Statement - ${esc(c.customer_name)}</title><style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:32px;} h1{font-size:20px;margin:0} .sub{color:#555;font-size:12px}
+    w.document.write(`<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Statement - ${esc(c.customer_name)}</title><style>
+      body{font-family:'IBM Plex Sans',Arial,sans-serif;color:#111;padding:32px;} h1{font-size:20px;margin:0} .sub{color:#555;font-size:12px}
       .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px} .cust{font-size:15px;font-weight:700}
       table{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px} th,td{padding:7px 8px;border-bottom:1px solid #ddd;text-align:left} th{background:#f3f4f6;font-size:11px;text-transform:uppercase} .r{text-align:right}
       tfoot td{font-weight:700;border-top:2px solid #333} .age{margin-top:20px;font-size:12px} .age span{display:inline-block;margin-right:18px}

@@ -416,8 +416,8 @@ export default function Growth() {
   function print() {
     if (!latest || !d || !v) return;
     const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
-    w.document.write(`<html><head><title>Capital — ${mlong(latest.month)}</title><style>
-      body{font-family:ui-monospace,Menlo,monospace;padding:28px;color:#111;max-width:900px}h1{font-size:18px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}h3{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.08em}
+    w.document.write(`<html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Capital — ${mlong(latest.month)}</title><style>
+      body{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;padding:28px;color:#111;max-width:900px}h1{font-size:18px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}h3{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.08em}
       .grade{display:inline-block;padding:3px 10px;border:2px solid #111;font-weight:700;margin-bottom:8px}.head{font-size:14px;margin:0 0 10px}
       table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #ddd;padding:5px 7px;text-align:right}th:first-child,td:first-child{text-align:left}
       .l{font-size:12px;margin:5px 0;padding-left:10px;border-left:3px solid #999}.good{border-color:#16a34a}.warn{border-color:#d97706}.bad{border-color:#dc2626}

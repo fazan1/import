@@ -217,7 +217,7 @@ export default function CostingDutyPrint({ records, summary, batchNumber, book, 
         </div>
 
         <div className="flex-1 overflow-y-auto bg-white print:overflow-visible">
-          <div className="p-4 sm:p-6 print:p-4" id="costing-duty-content" style={{ fontFamily: 'Arial, sans-serif' }}>
+          <div className="p-4 sm:p-6 print:p-4" id="costing-duty-content" style={{ fontFamily: "'IBM Plex Sans', Arial, sans-serif" }}>
             <div className="text-center mb-5">
               <div className="text-base font-bold text-gray-900">{company.name}</div>
               {company.address && <div className="text-xs text-gray-500">{company.address}</div>}

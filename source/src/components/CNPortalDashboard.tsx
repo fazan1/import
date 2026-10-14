@@ -15,7 +15,7 @@ interface Props { onNavigate?: (view: string, filter?: { status?: string; suppli
 const n0 = (v: number) => Math.round(v).toLocaleString();
 const rs = (v: number) => `Rs.${n0(v)}`;
 const cny = (v: number) => `¥${n0(v)}`;
-const ym = (d: string) => d.slice(0, 7);
+const ym = (d: string | null | undefined) => (d || '').slice(0, 7);   // a record with no date must not crash the dashboard
 const monthLabel = (k: string) => new Date(k + '-01').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
 const lastMonths = (n: number) => { const out: string[] = []; const d = new Date(); for (let i = n - 1; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); } return out; };
 const compact = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(0)}k` : `${v}`);
@@ -216,7 +216,7 @@ export default function CNPortalDashboard({ onNavigate, embedded = false }: Prop
               <YAxis tickFormatter={compact} tick={{ fontSize: 11 }} width={44} />
               <Tooltip formatter={(v) => cny(Number(v))} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Purchased" fill="#0d9488" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Purchased" fill="#e8552a" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Paid" fill="#f59e0b" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -256,7 +256,7 @@ export default function CNPortalDashboard({ onNavigate, embedded = false }: Prop
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar yAxisId="r" dataKey="CBM" fill="#ccfbf1" radius={[4, 4, 0, 0]} />
-                <Line yAxisId="l" type="monotone" dataKey="Charges / CBM" stroke="#0d9488" strokeWidth={2} dot={{ r: 4 }} />
+                <Line yAxisId="l" type="monotone" dataKey="Charges / CBM" stroke="#e8552a" strokeWidth={2} dot={{ r: 4 }} />
               </ComposedChart>
             </ResponsiveContainer>
           )}
@@ -271,7 +271,7 @@ export default function CNPortalDashboard({ onNavigate, embedded = false }: Prop
                 <XAxis type="number" tickFormatter={compact} tick={{ fontSize: 11 }} />
                 <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={110} />
                 <Tooltip formatter={(v) => cny(Number(v))} />
-                <Bar dataKey="value" name="Purchased" fill="#0d9488" radius={[0, 4, 4, 0]} />
+                <Bar dataKey="value" name="Purchased" fill="#e8552a" radius={[0, 4, 4, 0]} />
                 <Bar dataKey="unpaid" name="Unpaid" fill="#cbd5e1" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>

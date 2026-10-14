@@ -72,7 +72,7 @@ export default function Warehouse() {
     const rows = products.filter((p) => p.is_active && (p.sell_price ?? 0) > 0 && total(p.id) > 0).sort((a, b) => a.name.localeCompare(b.name));
     if (!rows.length) { alert('No products in stock with a selling price yet. Add prices in Setup → Products.'); return; }
     const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
-    w.document.write(`<html><head><title>Price list</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f6;font-size:11px;text-transform:uppercase}.r{text-align:right}.foot{font-size:10px;color:#666;margin-top:12px}</style></head><body>
+    w.document.write(`<html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Price list</title><style>body{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:12px;margin:24px;color:#111}h1{font-size:18px;margin:0}h2{font-size:12px;color:#555;margin:2px 0 12px;font-weight:normal}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f6;font-size:11px;text-transform:uppercase}.r{text-align:right}.foot{font-size:10px;color:#666;margin-top:12px}</style></head><body>
       <h1>${COMPANY.name} — Price list</h1><h2>${COMPANY.address} · ${COMPANY.phone} · ${new Date().toLocaleDateString('en-GB')}</h2>
       <table><thead><tr><th>#</th><th>Item</th><th>Unit</th><th class="r">Price (Rs)</th><th class="r">In stock</th></tr></thead><tbody>
       ${rows.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.unit || "")}</td><td class="r"><b>${fmtQ(p.sell_price ?? 0)}</b></td><td class="r">${fmtQ(total(p.id))}</td></tr>`).join('')}
@@ -99,8 +99,8 @@ export default function Warehouse() {
     const ls = lines.filter((l) => l.note_id === n.id);
     const k = KIND[n.kind];
     const rows = ls.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(prod(l.product_id)?.name ?? '')}</td><td class="r">${fmtQ(Number(l.qty))}</td><td>${esc(prod(l.product_id)?.unit ?? '')}</td><td>${esc(l.remark ?? '')}</td></tr>`).join('');
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(n.note_no)}</title><style>
-      body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;margin:24px}
+    const html = `<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><meta charset="utf-8"><title>${esc(n.note_no)}</title><style>
+      body{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:13px;color:#111;margin:24px}
       h1{font-size:22px;margin:0}.muted{color:#555}.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
       .box{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin-bottom:14px}.box b{display:inline-block;width:110px;color:#555;font-weight:normal}
       table{width:100%;border-collapse:collapse;margin-top:6px}th,td{border:1px solid #999;padding:6px 8px;text-align:left}th{background:#eee}.r{text-align:right}

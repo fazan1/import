@@ -284,12 +284,12 @@ export default function Shipping() {
     const tLanded = crow.reduce((a, r) => a + (Number(r.total_landed_cost) || 0), 0);
     const tCharges = crow.reduce((a, r) => a + (Number(r.duty_per_unit) || 0) * (Number(r.qty) || 0), 0);
     const basisRate = s.default_basis === 'KG' ? `LKR ${n(s.rate_kg, 0)} / kg` : s.default_basis === 'PCS' ? `LKR ${n(s.rate_pcs, 0)} / pc` : `LKR ${n(s.rate_cbm, 0)} / CBM`;
-    w.document.write(`<!doctype html><html><head><title>${esc(s.shipment_no)}</title><style>
-      body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:28px;font-size:12px} h1{font-size:20px;margin:0} h2{font-size:14px;margin:22px 0 6px;border-bottom:2px solid #0d9488;padding-bottom:3px;color:#0f766e}
+    w.document.write(`<!doctype html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>${esc(s.shipment_no)}</title><style>
+      body{font-family:'IBM Plex Sans',Arial,sans-serif;color:#111;padding:28px;font-size:12px} h1{font-size:20px;margin:0} h2{font-size:14px;margin:22px 0 6px;border-bottom:2px solid #e8552a;padding-bottom:3px;color:#c2410c}
       .sub{color:#555;font-size:11px} .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
       .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px} .box{border:1px solid #ddd;border-radius:6px;padding:8px} .box .l{font-size:10px;color:#666;text-transform:uppercase} .box .v{font-size:14px;font-weight:700;margin-top:2px}
       table{width:100%;border-collapse:collapse;font-size:11.5px} th,td{padding:5px 7px;border-bottom:1px solid #e5e5e5;text-align:left} th{background:#f3f4f6;font-weight:600} .r{text-align:right} tfoot td{font-weight:700;border-top:2px solid #333}
-      .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e6fffa;color:#0f766e;font-weight:600;font-size:11px} .note{margin-top:18px;color:#555;font-size:11px} @media print{body{padding:0}}
+      .badge{display:inline-block;padding:2px 8px;border-radius:10px;background:#e6fffa;color:#c2410c;font-weight:600;font-size:11px} .note{margin-top:18px;color:#555;font-size:11px} @media print{body{padding:0}}
     </style></head><body>
       <div class="head"><div><h1>${esc(companyFor((s as { book?: string | null }).book).name)}</h1><div class="sub">${esc(companyFor((s as { book?: string | null }).book).address)}</div></div>
       <div style="text-align:right"><div style="font-size:16px;font-weight:700">${esc(s.shipment_no)}</div><div class="sub">${s.mode === 'LCL' ? 'Loose cargo (LCL)' : 'Container (FCL)'} · <span class="badge">${esc(s.status)}</span></div><div class="sub">Printed ${new Date().toLocaleDateString('en-GB')}</div></div></div>

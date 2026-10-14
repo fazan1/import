@@ -136,7 +136,7 @@ export default function PurchaseOrderPrint({ orderId, onClose }: PurchaseOrderPr
       <div
         id="purchase-order-content"
         className="bg-white rounded-xl shadow-2xl w-full max-w-3xl print:shadow-none print:rounded-none print:max-w-full"
-        style={{ fontFamily: 'system-ui, sans-serif' }}
+        style={{ fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}
       >
         {/* Header */}
         <div className="p-8 pb-4 border-b-2 border-gray-900 print:p-6">

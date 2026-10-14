@@ -280,7 +280,7 @@ export default function BatchGrowthChart() {
                 yAxisId="left"
                 dataKey="valueCNY"
                 name="Batch Value"
-                fill="#0d9488"
+                fill="#e8552a"
                 radius={[4, 4, 0, 0]}
                 barSize={48}
               />

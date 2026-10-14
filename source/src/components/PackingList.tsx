@@ -669,7 +669,7 @@ export default function PackingList() {
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
               activeBatch === b
                 ? 'bg-slate-900 text-white border-slate-900 shadow'
-                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-900 hover:text-[#1a365d]'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-slate-900 hover:text-[#111111]'
             }`}
           >
             {shipmentNos.includes(b) ? b : `Batch ${b}`}

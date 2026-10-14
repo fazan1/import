@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
   color-scheme: light;
   color: #213547;
   background-color: #ffffff;
@@ -68,33 +68,59 @@ body {
   input, select, textarea { font-size: 16px !important; }
 }
 
-/* Industrial (light) theme — black strip, warm grey, square panels, orange accent */
-body { background-color: #f4f4f2; font-variant-numeric: tabular-nums; color: #1a1a1a; }
-.bg-gray-50 { background-color: #f4f4f2; }
+/* House style (v119, design "A"): black bar + orange line, warm grey ground, white cards with soft corners,
+   IBM Plex Sans for text, IBM Plex Mono for figures and small labels. ONE accent: orange #e8552a.
+   Red / green / amber are kept only as status colours. */
+body { background-color: #f4f3f1; font-variant-numeric: tabular-nums; color: #1c1917; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; }
+.bg-gray-50 { background-color: #f4f3f1; }
 .no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { scrollbar-width: none; }
-h1 { text-transform: uppercase; letter-spacing: -0.01em; font-weight: 800; color: #0a0a0a; }
-h2 { text-transform: uppercase; letter-spacing: 0; font-weight: 800; color: #0a0a0a; }
+h1 { letter-spacing: -0.01em; font-weight: 700; color: #0a0a0a; }
+h2 { letter-spacing: -0.01em; font-weight: 700; color: #0a0a0a; }
 h3 { color: #0a0a0a; }
-/* square panels, hairline borders */
-.rounded-lg, .rounded-xl, .rounded-2xl, .rounded-md { border-radius: 2px !important; }
-.bg-white.border.border-gray-200, .bg-white.border-2.border-gray-200, .bg-white.border.border-gray-300, .bg-white.border.border-slate-200 { border-color: #d8d8d4; }
+/* soft corners, hairline borders */
+.rounded-xl, .rounded-2xl { border-radius: 10px !important; }
+.rounded-lg { border-radius: 8px !important; }
+.rounded-md, .rounded { border-radius: 6px !important; }
+.bg-white.border.border-gray-200, .bg-white.border-2.border-gray-200, .bg-white.border.border-gray-300, .bg-white.border.border-slate-200 { border-color: #e7e5e4; }
 .shadow, .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl { box-shadow: none !important; }
-.bg-white.rounded-lg, .bg-white.rounded-xl { border: 1px solid #d8d8d4; }
+.bg-white.rounded-lg, .bg-white.rounded-xl { border: 1px solid #e7e5e4; }
 /* primary actions: orange, square, uppercase */
 .bg-teal-600, .bg-teal-500 { background-color: #e8552a !important; background-image: none; box-shadow: none; }
 .bg-teal-600:hover, .bg-teal-500:hover, .hover\:bg-teal-700:hover { background-color: #cf4a22 !important; background-image: none; }
-button.bg-teal-600, button.bg-teal-500, button.bg-gray-900, button.bg-red-600, button.bg-green-600, button.bg-emerald-600, button.bg-amber-600 { text-transform: uppercase; letter-spacing: .06em; font-weight: 700; font-size: 11px; }
-button.border.border-gray-300, button.border.border-gray-200 { text-transform: uppercase; letter-spacing: .06em; font-weight: 600; font-size: 11px; background: #fff; }
+button.bg-teal-600, button.bg-teal-500, button.bg-gray-900, button.bg-red-600, button.bg-green-600, button.bg-emerald-600, button.bg-amber-600 { font-weight: 600; border-radius: 6px; }
+button.border.border-gray-300, button.border.border-gray-200 { font-weight: 500; background: #fff; border-color: #d6d3d1; }
+/* one accent: other strong colours used for actions become the house orange */
+.bg-blue-600, .bg-blue-700, .bg-blue-800, .bg-sky-600, .bg-indigo-600, .bg-purple-600, .bg-violet-600, .bg-cyan-600 { background-color: #e8552a !important; }
+.hover\:bg-blue-700:hover, .hover\:bg-blue-800:hover, .hover\:bg-indigo-700:hover, .hover\:bg-purple-700:hover { background-color: #cf4a22 !important; }
+/* no gradients: strong ones become orange, dark ones black, pale ones a flat light tint */
+[class*="bg-gradient-to-"] { background-image: none !important; background-color: #e8552a; }
+[class*="bg-gradient-to-"][class*="to-slate-"], [class*="bg-gradient-to-"][class*="to-gray-"] { background-color: #111111; }
+[class*="bg-gradient-to-"][class*="to-red-"] { background-color: #dc2626; }
+[class*="bg-gradient-to-"][class*="-50 "], [class*="bg-gradient-to-"][class$="-50"], [class*="bg-gradient-to-"][class*="to-teal-200"] { background-color: #fafaf9; }
+.focus\:ring-blue-500:focus, .focus\:ring-indigo-500:focus { --tw-ring-color: #e8552a !important; }
 /* instrument labels */
-thead.bg-gray-50 th, thead.bg-gray-100 th, tr.bg-gray-50 th, tr.bg-gray-100 th { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; text-transform: uppercase; letter-spacing: .1em; font-size: 9px; color: #6b6b66; font-weight: 400; }
+thead.bg-gray-50 th, thead.bg-gray-100 th, tr.bg-gray-50 th, tr.bg-gray-100 th { font-family: "IBM Plex Mono", Consolas, "SF Mono", Menlo, monospace; text-transform: uppercase; letter-spacing: .08em; font-size: 10.5px; color: #78716c; font-weight: 500; }
 tr.text-white th, thead.text-white th { color: #fff; }
-.text-xs.text-gray-500, .text-\[11px\].text-gray-500, label.text-xs { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; letter-spacing: .08em; text-transform: uppercase; font-size: 9.5px; }
-table td.text-right, table th.text-right, .text-2xl.font-bold, .text-xl.font-bold, .text-3xl.font-bold { font-family: Consolas, "SF Mono", Menlo, "Courier New", monospace; letter-spacing: -0.01em; }
-/* status pills: outlined */
-.rounded-full.text-xs:not(.bg-teal-600):not(.bg-gray-900):not(.bg-sky-500), .rounded-full.text-\[10px\] { border-radius: 2px !important; border: 1px solid currentColor; font-family: Consolas, "SF Mono", Menlo, monospace; letter-spacing: .06em; text-transform: uppercase; background-clip: padding-box; }
+.text-xs.text-gray-500, .text-\[11px\].text-gray-500, label.text-xs { font-family: "IBM Plex Mono", Consolas, "SF Mono", Menlo, monospace; letter-spacing: .07em; text-transform: uppercase; font-size: 10.5px; }
+table td.text-right, table th.text-right, .text-2xl.font-bold, .text-xl.font-bold, .text-3xl.font-bold { font-family: "IBM Plex Mono", Consolas, "SF Mono", Menlo, monospace; letter-spacing: -0.01em; }
+/* status pills: soft and rounded */
+.rounded-full.text-xs:not(.bg-teal-600):not(.bg-gray-900):not(.bg-sky-500), .rounded-full.text-\[10px\] { border-radius: 999px !important; border: 0; font-weight: 600; }
 /* inputs */
-input, select, textarea { border-radius: 2px !important; }
+input, select, textarea { border-radius: 6px !important; }
 input:focus, select:focus, textarea:focus { box-shadow: none !important; border-color: #e8552a !important; outline: none; }
+/* column titles on a coloured column stay readable (white), and amber action buttons follow the house orange */
+thead th.bg-teal-500, thead th.bg-teal-600, thead th.bg-teal-700, thead th.bg-teal-800, thead th.bg-teal-900, thead th.bg-slate-500, thead th.bg-slate-600, thead th.bg-slate-700, thead th.bg-slate-800, thead th.bg-slate-900, thead th.bg-gray-500, thead th.bg-gray-600, thead th.bg-gray-700, thead th.bg-gray-800, thead th.bg-gray-900, thead th.bg-amber-500, thead th.bg-amber-600, thead th.bg-amber-700, thead th.bg-amber-800, thead th.bg-amber-900, thead th.bg-green-500, thead th.bg-green-600, thead th.bg-green-700, thead th.bg-green-800, thead th.bg-green-900, thead th.bg-emerald-500, thead th.bg-emerald-600, thead th.bg-emerald-700, thead th.bg-emerald-800, thead th.bg-emerald-900, thead th.bg-blue-500, thead th.bg-blue-600, thead th.bg-blue-700, thead th.bg-blue-800, thead th.bg-blue-900, thead th.bg-red-500, thead th.bg-red-600, thead th.bg-red-700, thead th.bg-red-800, thead th.bg-red-900, thead th.bg-orange-500, thead th.bg-orange-600, thead th.bg-orange-700, thead th.bg-orange-800, thead th.bg-orange-900, thead th.bg-indigo-500, thead th.bg-indigo-600, thead th.bg-indigo-700, thead th.bg-indigo-800, thead th.bg-indigo-900, thead th.bg-sky-500, thead th.bg-sky-600, thead th.bg-sky-700, thead th.bg-sky-800, thead th.bg-sky-900, thead th.bg-cyan-500, thead th.bg-cyan-600, thead th.bg-cyan-700, thead th.bg-cyan-800, thead th.bg-cyan-900, thead th.bg-purple-500, thead th.bg-purple-600, thead th.bg-purple-700, thead th.bg-purple-800, thead th.bg-purple-900, thead th.bg-\[\#111111\] { color: #ffffff !important; }
+thead th.text-white span, thead th.text-white div, thead th.bg-teal-600 span, thead th.bg-teal-600 div, thead th.bg-\[\#111111\] span, thead th.bg-\[\#111111\] div { color: rgba(255,255,255,.82) !important; }
+button.bg-amber-600, button.bg-amber-500 { background-color: #e8552a !important; }
+button.bg-amber-600:hover, button.bg-amber-500:hover { background-color: #cf4a22 !important; }
+/* titles in the text font (some big numbers use the figure font, titles never) */
+h1, h2, h3 { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif !important; }
+/* calm cards: the pale blue / purple / pink / cyan info tints become plain white cards with stone text
+   (green, red and amber tints stay — they mean paid / overdue / warning) */
+.bg-blue-50, .bg-indigo-50, .bg-purple-50, .bg-violet-50, .bg-sky-50, .bg-cyan-50, .bg-pink-50, .bg-fuchsia-50 { background-color: #ffffff !important; }
+.border-blue-100, .border-blue-200, .border-indigo-100, .border-indigo-200, .border-purple-100, .border-purple-200, .border-violet-200, .border-sky-100, .border-sky-200, .border-cyan-100, .border-cyan-200, .border-pink-100, .border-pink-200 { border-color: #e7e5e4 !important; }
+.bg-blue-100, .bg-indigo-100, .bg-purple-100, .bg-violet-100, .bg-sky-100, .bg-cyan-100, .bg-pink-100 { background-color: #f5f5f4 !important; }
+.text-blue-600, .text-blue-700, .text-blue-800, .text-blue-900, .text-indigo-600, .text-indigo-700, .text-indigo-900, .text-purple-600, .text-purple-700, .text-purple-800, .text-purple-900, .text-violet-600, .text-violet-700, .text-sky-600, .text-sky-700, .text-sky-800, .text-cyan-600, .text-cyan-700, .text-pink-700 { color: #44403c !important; }
 /* dark table headers (costing, PL, packing) */
 .bg-slate-900 { background-color: #0a0a0a !important; }
 
