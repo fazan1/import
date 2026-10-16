@@ -198,8 +198,10 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
         return;
       }
     }
+    let error: { code?: string; message: string } | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) { // receipt number taken at the same moment -> next number
     const paymentNumber = await generatePaymentNumber();
-    const { error } = await supabase.from('busy_sales_payments').insert({
+    ({ error } = await supabase.from('busy_sales_payments').insert({
       payment_number: paymentNumber,
       sales_invoice_id: kind === 'invoice' ? selectedInvoice : null,
       customer_id: kind === 'invoice' ? selectedInvoiceData?.customer_id || null : selectedCustomer,
@@ -212,7 +214,9 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
       bank_name: isCheque ? bankName.trim() : '',
       cheque_status: 'realised',
       notes: notes.trim() || null,
-    });
+    }));
+    if (!error || error.code !== '23505') break;
+    }
     if (error) {
       console.error('Error creating payment:', error);
       alert(`Could not save payment: ${error.message}`);

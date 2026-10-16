@@ -303,6 +303,10 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
   }
 
   function handleEdit(order: SalesOrder) {
+    if (order.status === 'invoiced') {
+      alert(`${order.order_number} is already invoiced, so it is locked. Edit the invoice instead.`);
+      return;
+    }
     setEditingOrder(order);
     setSelectedCustomer(order.customer_id || '');
     setCustomerName(order.customer_name);
@@ -402,9 +406,12 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
       if (goingDouble) openDoubleModal(editedId);
       return;
     } else {
+      // number = highest + 1; if someone else took it at the same moment (unique per book), try the next one
+      let order: { id: string; order_number: string } | null = null;
+      let orderError: { code?: string; message: string } | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
       const orderNumber = await generateOrderNumber();
-
-      const { data: order, error: orderError } = await supabase
+      ({ data: order, error: orderError } = await supabase
         .from('busy_sales_orders')
         .insert({
           order_number: orderNumber,
@@ -417,7 +424,9 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
           deal_type: formDealType
         })
         .select()
-        .single();
+        .single());
+      if (!orderError || orderError.code !== '23505') break;
+      }
 
       if (orderError || !order) {
         console.error('Error creating order:', orderError);
@@ -442,7 +451,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
         // Do not leave an order with no lines: remove the empty header, keep the form so nothing typed is lost
         const { error: undoErr } = await supabase.from('busy_sales_orders').delete().eq('id', order.id);
         alert('Could not save the order items: ' + itemsErr.message +
-          (undoErr ? `\n\nOrder ${orderNumber} was created without items; please open it and add the items again.` : '\n\nThe order was not created. Your entries are still in the form.'));
+          (undoErr ? `\n\nOrder ${order.order_number} was created without items; please open it and add the items again.` : '\n\nThe order was not created. Your entries are still in the form.'));
         savingRef.current = false;
         setSaving(false);
         if (undoErr) { resetForm(); loadData(); }
@@ -1065,6 +1074,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                         <Package className="w-4 h-4" />
                       </button>
                     )}
+                    {order.status !== 'invoiced' && (
                     <button
                       onClick={(e) => { e.stopPropagation(); handleEdit(order); }}
                       className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
@@ -1072,6 +1082,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
+                    )}
                     {order.status !== 'invoiced' && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}

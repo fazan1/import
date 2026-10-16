@@ -97,19 +97,28 @@ export default function CollectPaymentModal({
 
     setSaving(true);
 
-    // Generate payment number
+    // Receipt numbers: highest + 1 in this book. insertNumbered gives each row the next free number and, if someone
+    // else saved the same number at the same moment (unique per book), tries again with fresh numbers.
     const today = new Date();
     const prefix = `PAY-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}`;
-    const { data: lastPay } = await supabase
-      .from('busy_sales_payments')
-      .select('payment_number')
-      .like('payment_number', `${prefix}%`)
-      .order('payment_number', { ascending: false })
-      .limit(1);
-    const nextNum = lastPay && lastPay.length > 0 && lastPay[0].payment_number
-      ? parseInt(lastPay[0].payment_number.split('-').pop() || '0') + 1
-      : 1;
-    const paymentNumber = `${prefix}-${String(nextNum).padStart(4, '0')}`;
+    const insertNumbered = async (list: Record<string, unknown>[]) => {
+      let res: { error: { code?: string; message: string } | null } = { error: null };
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { data: lastPay } = await supabase
+          .from('busy_sales_payments')
+          .select('payment_number')
+          .like('payment_number', `${prefix}%`)
+          .order('payment_number', { ascending: false })
+          .limit(1);
+        const start = lastPay && lastPay.length > 0 && lastPay[0].payment_number
+          ? parseInt(lastPay[0].payment_number.split('-').pop() || '0') + 1
+          : 1;
+        res = await supabase.from('busy_sales_payments')
+          .insert(list.map((r, i) => ({ ...r, payment_number: `${prefix}-${String(start + i).padStart(4, '0')}` })));
+        if (!res.error || res.error.code !== '23505') break;
+      }
+      return res;
+    };
 
     if (selectedInvoice === ALL) {
       // Bulk payment: split across invoices oldest first, remainder goes on account
@@ -126,7 +135,6 @@ export default function CollectPaymentModal({
       const total = parts.length + (onAccount > 0 ? 1 : 0);
       const rows = parts.map((pt, i) => ({
         ...base,
-        payment_number: `${prefix}-${String(nextNum + i).padStart(4, '0')}`,
         sales_invoice_id: pt.inv.id,
         amount: pt.amount,
         notes: `${notes ? notes + ' — ' : ''}Bulk payment ${formatCurrency(paymentAmount)} (${i + 1}/${total}) → ${pt.inv.voucher_no}`,
@@ -134,7 +142,6 @@ export default function CollectPaymentModal({
       if (onAccount > 0) {
         rows.push({
           ...base,
-          payment_number: `${prefix}-${String(nextNum + parts.length).padStart(4, '0')}`,
           sales_invoice_id: null as unknown as string,
           amount: onAccount,
           notes: `${notes ? notes + ' — ' : ''}Bulk payment ${formatCurrency(paymentAmount)} (${total}/${total}) → on account`,
@@ -145,7 +152,7 @@ export default function CollectPaymentModal({
         setSaving(false);
         return;
       }
-      const { error: insertError } = await supabase.from('busy_sales_payments').insert(rows);
+      const { error: insertError } = await insertNumbered(rows);
       if (insertError) {
         setError('Failed to record payment: ' + insertError.message);
         setSaving(false);
@@ -153,10 +160,7 @@ export default function CollectPaymentModal({
       }
     } else if (selectedInvoice && selectedInvoice !== OPENING) {
       // Payment against a busy_sales_invoice — trigger will update amounts
-      const { error: insertError } = await supabase
-        .from('busy_sales_payments')
-        .insert({
-          payment_number: paymentNumber,
+      const { error: insertError } = await insertNumbered([{
           sales_invoice_id: selectedInvoice,
           customer_id: customerId || null,
           customer_name: customerName,
@@ -167,7 +171,7 @@ export default function CollectPaymentModal({
           cheque_number: paymentMode === 'cheque' ? referenceNumber || '' : '',
           cheque_status: 'realised',
           notes: notes || null,
-        });
+        }]);
 
       if (insertError) {
         setError('Failed to record payment: ' + insertError.message);
@@ -177,10 +181,7 @@ export default function CollectPaymentModal({
     } else if (openingBalance > 0 && customerId) {
       // Payment against opening balance: recorded as an "on account" payment so there is a receipt
       // and history; Outstanding subtracts these from the opening balance.
-      const { error: insertError } = await supabase
-        .from('busy_sales_payments')
-        .insert({
-          payment_number: paymentNumber,
+      const { error: insertError } = await insertNumbered([{
           sales_invoice_id: null,
           customer_id: customerId,
           customer_name: customerName,
@@ -191,7 +192,7 @@ export default function CollectPaymentModal({
           cheque_number: paymentMode === 'cheque' ? referenceNumber || '' : '',
           cheque_status: 'realised',
           notes: notes || null,
-        });
+        }]);
 
       if (insertError) {
         setError('Failed to record payment: ' + insertError.message);

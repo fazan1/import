@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V124)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V125)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -117,6 +117,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   column labelled "Shop stock (sell. price)" and the advice notes Net capital includes unearned profit.
   v123 Margin % column (owner: items are 20-25%); Cost of sales cell shows sales x (1 - margin) in grey with * until typed.
   v124 SL Portal A-Z review: local dates (no UTC day-shift), fetchAllPages on orders/invoices/payments/customers, double-click guards, failed saves alert, order marked invoiced when converted (no double invoicing), invoice paid/balance re-read on edit, overpayment re-checked live, payment delete via Recycle Bin, receipt uses book company, returned cheques left out of Collected (Main dash, Customers), customer rename carries name to invoices/payments, delete refused while records exist, cents in amount-in-words, phone layout wraps; SO/PO print bar no longer squeezes document.
+  v125 Invoiced sales orders are locked (no Edit; edit the invoice). Order/invoice/receipt numbers unique PER BOOK: sql/sales-numbers-unique.sql (replaces any all-books unique rule; skips + lists a table that already has duplicates); app retries the next number on 23505 (orders, invoices, BusySalesPayments, CollectPaymentModal insertNumbered).
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
