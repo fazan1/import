@@ -79,7 +79,14 @@ export default function InvoicePrint({
   const timeString = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
   const totalQuantity = invoice.busy_sales_invoice_items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) || 0;
-  const totalInWords = numberToWords(invoice.total_amount) + ' Only';
+  // words for rupees AND cents (before, 1,250.50 printed as "One Thousand Two Hundred Fifty Only")
+  const grand = Math.round(Math.abs(Number(invoice.total_amount) || 0) * 100);
+  const rupees = Math.floor(grand / 100);
+  const cents = grand % 100;
+  const totalInWords = numberToWords(rupees) + (cents > 0 ? ' and Cents ' + numberToWords(cents) : '') + ' Only';
+  const money = (v: number | null | undefined) => (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // 'YYYY-MM-DD' as a local date (new Date('YYYY-MM-DD') is UTC midnight and can print the day before)
+  const dated = (() => { const [y, m, d] = String(invoice.invoice_date || '').slice(0, 10).split('-'); return y && m && d ? `${d}-${m}-${y}` : (invoice.invoice_date || ''); })();
 
   function handlePrint() {
     window.print();
@@ -151,7 +158,7 @@ export default function InvoicePrint({
                     <div>: {invoice.invoice_number}</div>
                     <div></div>
                     <div>Dated</div>
-                    <div>: {new Date(invoice.invoice_date).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-')}</div>
+                    <div>: {dated}</div>
                     <div>( {timeString} )</div>
                   </div>
                 </div>
@@ -173,10 +180,10 @@ export default function InvoicePrint({
                     <tr key={item.id} className="border-b border-gray-300">
                       <td className="border-r border-black p-1 text-center">{index + 1}.</td>
                       <td className="border-r border-black p-1">{item.item_name}</td>
-                      <td className="border-r border-black p-1 text-right">{item.quantity.toFixed(1)}</td>
+                      <td className="border-r border-black p-1 text-right">{(Number(item.quantity) || 0).toFixed(1)}</td>
                       <td className="border-r border-black p-1">{item.unit}</td>
-                      <td className="border-r border-black p-1 text-right">{item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-1 text-right">{item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="border-r border-black p-1 text-right">{money(item.unit_price)}</td>
+                      <td className="p-1 text-right">{money(item.total)}</td>
                     </tr>
                   ))}
                   {Array.from({ length: Math.max(0, 15 - (invoice.busy_sales_invoice_items?.length || 0)) }).map((_, index) => (
@@ -196,17 +203,17 @@ export default function InvoicePrint({
                 <div className="grid grid-cols-6 text-sm">
                   <div className="col-span-4 border-r border-black p-1"></div>
                   <div className="border-r border-black p-1 text-right font-medium">Total</div>
-                  <div className="p-1 text-right font-medium">{invoice.subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="p-1 text-right font-medium">{money(invoice.subtotal)}</div>
                 </div>
                 <div className="grid grid-cols-6 text-sm border-t border-black">
                   <div className="col-span-4 border-r border-black p-1 text-center italic">Add : Tax</div>
                   <div className="border-r border-black p-1"></div>
-                  <div className="p-1 text-right">{invoice.tax_amount > 0 ? invoice.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</div>
+                  <div className="p-1 text-right">{money(invoice.tax_amount)}</div>
                 </div>
                 <div className="grid grid-cols-6 text-sm border-t border-black font-bold">
                   <div className="col-span-2 border-r border-black p-2 text-center">Grand Total</div>
                   <div className="col-span-2 border-r border-black p-2 text-center">{totalQuantity.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} PCS</div>
-                  <div className="col-span-2 p-2 text-right">{invoice.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="col-span-2 p-2 text-right">{money(invoice.total_amount)}</div>
                 </div>
               </div>
             </div>

@@ -3,7 +3,22 @@ import { Plus, Trash2, X, Check, ShoppingCart, ChevronDown, ChevronUp, FileText,
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { replaceLines } from '../lib/lines';
+import { fetchAllPages } from '../lib/fetchAll';
 import SalesOrderPrint from './SalesOrderPrint';
+
+// Today as YYYY-MM-DD in local time (toISOString gives the UTC date, which is yesterday before 5:30 am in Sri Lanka)
+function todayLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Show a YYYY-MM-DD date as a local date (new Date('YYYY-MM-DD') is read as UTC midnight)
+function showDate(s: string | null | undefined): string {
+  if (!s) return '-';
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString();
+}
 
 interface Customer {
   id: string;
@@ -21,6 +36,7 @@ interface ItemRecord {
 
 interface SalesOrderItem {
   id: string;
+  item_id?: string | null;
   item_name: string;
   quantity: number;
   unit: string;
@@ -64,6 +80,7 @@ interface InvoiceOption {
   invoice_date: string;
   total_amount: number;
   status: string;
+  sales_order_id?: string | null;
 }
 
 interface NewItem {
@@ -93,7 +110,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
   const [editingOrder, setEditingOrder] = useState<SalesOrder | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
+  const [orderDate, setOrderDate] = useState(todayLocal());
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<NewItem[]>([{ item_name: '', item_id: null, quantity: '', unit_price: '', unit: 'Piece' }]);
   const [saving, setSaving] = useState(false);
@@ -118,6 +135,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
   const dropdownRefs = useRef<(HTMLDivElement | null)[]>([]);
   const customerDropdownRef = useRef<HTMLDivElement>(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     loadData();
@@ -143,8 +161,8 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
     setLoading(true);
 
     const [customersRes, ordersRes, itemsRes, invoicesRes] = await Promise.all([
-      supabase.from('customers').select('id, name, phone').order('name'),
-      supabase
+      fetchAllPages<Customer>(() => supabase.from('customers').select('id, name, phone').order('name').order('id')),
+      fetchAllPages<SalesOrder>(() => supabase
         .from('busy_sales_orders')
         .select(`
           *,
@@ -160,18 +178,22 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
             )
           )
         `)
-        .order('order_date', { ascending: false }),
-      supabase.from('items').select('id, item_name, sku, unit, sales_price').order('item_name'),
-      supabase
+        .order('order_date', { ascending: false })
+        .order('id')),
+      fetchAllPages<ItemRecord>(() => supabase.from('items').select('id, item_name, sku, unit, sales_price').order('item_name').order('id')),
+      fetchAllPages<InvoiceOption>(() => supabase
         .from('busy_sales_invoices')
-        .select('id, invoice_number, customer_name, invoice_date, total_amount, status')
+        .select('id, invoice_number, customer_name, invoice_date, total_amount, status, sales_order_id')
         .order('invoice_date', { ascending: false })
+        .order('id'))
     ]);
 
-    if (customersRes.data) setCustomers(customersRes.data);
-    if (ordersRes.data) setOrders(ordersRes.data);
-    if (itemsRes.data) setAllItems(itemsRes.data);
-    if (invoicesRes.data) setInvoices(invoicesRes.data);
+    const loadErr = customersRes.error || ordersRes.error || itemsRes.error || invoicesRes.error;
+    if (loadErr) alert('Could not load all sales orders data: ' + loadErr);
+    if (!customersRes.error) setCustomers(customersRes.data);
+    if (!ordersRes.error) setOrders(ordersRes.data);
+    if (!itemsRes.error) setAllItems(itemsRes.data);
+    if (!invoicesRes.error) setInvoices(invoicesRes.data);
 
     setLoading(false);
   }
@@ -272,7 +294,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
     setSelectedCustomer('');
     setCustomerName('');
     setCustomerSearch('');
-    setOrderDate(new Date().toISOString().split('T')[0]);
+    setOrderDate(todayLocal());
     setNotes('');
     setItems([{ item_name: '', item_id: null, quantity: '', unit_price: '', unit: 'Piece' }]);
     setSearchTerms(['']);
@@ -292,7 +314,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
     if (order.busy_sales_order_items && order.busy_sales_order_items.length > 0) {
       const orderItems = order.busy_sales_order_items.map(item => ({
         item_name: item.item_name,
-        item_id: null,
+        item_id: item.item_id || null,
         quantity: String(item.quantity),
         unit_price: String(item.unit_price),
         unit: item.unit
@@ -315,13 +337,22 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
     );
 
     const finalCustomerName = customerName.trim() || customerSearch.trim();
-    if (!finalCustomerName || validItems.length === 0) return;
+    if (!finalCustomerName) return;
+    if (validItems.length === 0) {
+      alert('Please enter at least one item with a quantity above 0 and a price.');
+      return;
+    }
+    const skipped = items.filter(item => item.item_name.trim() && !validItems.includes(item));
+    if (skipped.length > 0 && !confirm(`${skipped.length} item line(s) have no quantity or price and will NOT be saved:\n${skipped.map(i => i.item_name.trim()).join('\n')}\n\nSave anyway?`)) return;
 
+    if (savingRef.current) return; // stop a double-click creating two orders
+    savingRef.current = true;
     setSaving(true);
 
-    const totalAmount = validItems.reduce((sum, item) => {
+    const totalAmount = Math.round(validItems.reduce((sum, item) => {
       return sum + (parseFloat(item.quantity) * parseFloat(item.unit_price));
-    }, 0);
+    }, 0) * 100) / 100;
+    const goingDouble = formDealType === 'double' && !(editingOrder && editingOrder.deal_type === 'double');
 
     if (editingOrder) {
       const { error: updateError } = await supabase
@@ -332,6 +363,8 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
           order_date: orderDate,
           notes: notes.trim() || null,
           total_amount: totalAmount,
+          deal_type: formDealType,
+          ...(formDealType === 'single' ? { linked_invoice_id: null } : {}),
           updated_at: new Date().toISOString()
         })
         .eq('id', editingOrder.id);
@@ -339,6 +372,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
       if (updateError) {
         console.error('Error updating order:', updateError);
         alert('Could not save the sales order: ' + updateError.message);
+        savingRef.current = false;
         setSaving(false);
         return;
       }
@@ -350,15 +384,23 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
         quantity: parseFloat(item.quantity),
         unit: item.unit,
         unit_price: parseFloat(item.unit_price),
-        total: parseFloat(item.quantity) * parseFloat(item.unit_price)
+        total: Math.round(parseFloat(item.quantity) * parseFloat(item.unit_price) * 100) / 100
       }));
 
       const linesErr = await replaceLines('busy_sales_order_items', 'sales_order_id', editingOrder.id, itemsToInsert);
       if (linesErr) {
         alert('The sales order header was saved, but its item lines could not be saved: ' + linesErr);
+        savingRef.current = false;
         setSaving(false);
         return;
       }
+      const editedId = editingOrder.id;
+      savingRef.current = false;
+      setSaving(false);
+      resetForm();
+      await loadData();
+      if (goingDouble) openDoubleModal(editedId);
+      return;
     } else {
       const orderNumber = await generateOrderNumber();
 
@@ -379,6 +421,8 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
       if (orderError || !order) {
         console.error('Error creating order:', orderError);
+        alert('Could not create the sales order: ' + (orderError?.message || 'unknown error'));
+        savingRef.current = false;
         setSaving(false);
         return;
       }
@@ -390,11 +434,22 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
         quantity: parseFloat(item.quantity),
         unit: item.unit,
         unit_price: parseFloat(item.unit_price),
-        total: parseFloat(item.quantity) * parseFloat(item.unit_price)
+        total: Math.round(parseFloat(item.quantity) * parseFloat(item.unit_price) * 100) / 100
       }));
 
-      await supabase.from('busy_sales_order_items').insert(itemsToInsert);
+      const { error: itemsErr } = await supabase.from('busy_sales_order_items').insert(itemsToInsert);
+      if (itemsErr) {
+        // Do not leave an order with no lines: remove the empty header, keep the form so nothing typed is lost
+        const { error: undoErr } = await supabase.from('busy_sales_orders').delete().eq('id', order.id);
+        alert('Could not save the order items: ' + itemsErr.message +
+          (undoErr ? `\n\nOrder ${orderNumber} was created without items; please open it and add the items again.` : '\n\nThe order was not created. Your entries are still in the form.'));
+        savingRef.current = false;
+        setSaving(false);
+        if (undoErr) { resetForm(); loadData(); }
+        return;
+      }
 
+      savingRef.current = false;
       setSaving(false);
       resetForm();
       await loadData();
@@ -404,12 +459,14 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
       return;
     }
 
-    setSaving(false);
-    resetForm();
-    loadData();
   }
 
   async function handleDeleteOrder(id: string) {
+    const madeInvoice = invoices.find(inv => inv.sales_order_id === id);
+    if (madeInvoice) {
+      alert(`Invoice ${madeInvoice.invoice_number} was made from this sales order. Delete that invoice first, then the order.`);
+      return;
+    }
     if (!confirm('Are you sure you want to delete this sales order? It will be moved to the Recycle Bin.')) return;
 
     const orderToDelete = orders.find(o => o.id === id);
@@ -488,6 +545,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
     if (error) {
       console.error('Error confirming order:', error);
+      alert('Could not confirm the order: ' + error.message);
     } else {
       loadData();
     }
@@ -547,6 +605,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
     if (error) {
       console.error('Error linking invoice:', error);
+      alert('Could not link the invoice: ' + error.message);
     } else {
       closeDoubleModal();
       loadData();
@@ -567,6 +626,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
 
     if (error) {
       console.error('Error unlinking invoice:', error);
+      alert('Could not unlink the invoice: ' + error.message);
     } else {
       loadData();
     }
@@ -576,8 +636,8 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
     if (!invoiceSearch.trim()) return true;
     const term = invoiceSearch.toLowerCase();
     return (
-      inv.invoice_number.toLowerCase().includes(term) ||
-      inv.customer_name.toLowerCase().includes(term)
+      (inv.invoice_number || '').toLowerCase().includes(term) ||
+      (inv.customer_name || '').toLowerCase().includes(term)
     );
   });
 
@@ -647,11 +707,11 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">{inv.invoice_number}</p>
-                        <p className="text-xs text-gray-500">{inv.customer_name} · {new Date(inv.invoice_date).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-500">{inv.customer_name} · {showDate(inv.invoice_date)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium text-gray-800">LKR {inv.total_amount.toLocaleString()}</p>
+                      <p className="text-sm font-medium text-gray-800">LKR {Number(inv.total_amount || 0).toLocaleString()}</p>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusBadge(inv.status)}`}>
                         {inv.status}
                       </span>
@@ -771,7 +831,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
             </div>
 
             <div className="space-y-2">
-              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
+              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1 [&>*]:min-w-0">
                 <div className="col-span-4">Item Name</div>
                 <div className="col-span-1">Unit</div>
                 <div className="col-span-2">Quantity</div>
@@ -786,7 +846,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                 const lineTotal = qty * price;
                 const filteredItems = getFilteredItems(searchTerms[index] || '');
                 return (
-                  <div key={index} className="grid grid-cols-12 gap-2">
+                  <div key={index} className="grid grid-cols-12 gap-2 [&>*]:min-w-0">
                     <div
                       className="col-span-4 relative"
                       ref={el => { dropdownRefs.current[index] = el; }}
@@ -821,7 +881,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                     <select
                       value={item.unit}
                       onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                      className="col-span-1 px-1 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
+                      className="col-span-1 w-full px-1 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-xs"
                     >
                       <option value="Piece">Piece</option>
                       <option value="Box">Box</option>
@@ -834,7 +894,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                      className="col-span-2 w-full px-1 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                       placeholder="Qty"
                       min="0"
                     />
@@ -842,7 +902,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       type="number"
                       value={item.unit_price}
                       onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                      className="col-span-2 w-full px-1 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                       placeholder="Price"
                       min="0"
                       step="0.01"
@@ -913,10 +973,10 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
             return (
               <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="flex flex-wrap items-center justify-between gap-2 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => toggleOrderExpand(order.id)}
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 min-w-0">
                     <div className="flex items-center space-x-2">
                       {isExpanded ? (
                         <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -925,9 +985,9 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       )}
                       <ShoppingCart className="w-5 h-5 text-teal-500" />
                     </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <p className="font-medium text-gray-900">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        <p className="font-medium text-gray-900 break-words">
                           {order.order_number} - {order.customer_name}
                         </p>
                         {isDouble && (
@@ -938,7 +998,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        {new Date(order.order_date).toLocaleDateString()} - {order.busy_sales_order_items?.length || 0} items
+                        {showDate(order.order_date)} - {order.busy_sales_order_items?.length || 0} items
                         {linkedInvoice && (
                           <span className="ml-2 text-teal-600">
                             · Linked: {linkedInvoice.invoice_number}
@@ -947,10 +1007,10 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 ml-auto">
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">
-                        LKR {order.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        LKR {Number(order.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <div className="flex items-center justify-end space-x-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(order.status)}`}>
@@ -976,7 +1036,12 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                     )}
                     {(order.status === 'pending' || order.status === 'confirmed') && onCreateInvoice && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); onCreateInvoice(order.id); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const made = invoices.find(inv => inv.sales_order_id === order.id);
+                          if (made && !confirm(`Invoice ${made.invoice_number} was already made from this sales order.\n\nMake another invoice from it?`)) return;
+                          onCreateInvoice(order.id);
+                        }}
                         className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
                         title="Create Invoice"
                       >
@@ -1011,6 +1076,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}
                         className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Order"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -1069,7 +1135,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-semibold text-teal-900">LKR {linkedInvoice.total_amount.toLocaleString()}</p>
+                          <p className="text-sm font-semibold text-teal-900">LKR {Number(linkedInvoice.total_amount || 0).toLocaleString()}</p>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getInvoiceStatusBadge(linkedInvoice.status)}`}>
                             {linkedInvoice.status}
                           </span>
@@ -1093,7 +1159,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                                 {link.purchase_orders.suppliers?.name || 'Unknown'}
                               </span>
                               <span className="ml-1 text-green-600">
-                                ({new Date(link.purchase_orders.order_date).toLocaleDateString()})
+                                ({showDate(link.purchase_orders.order_date)})
                               </span>
                               <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${
                                 link.purchase_orders.status === 'completed' ? 'bg-green-200 text-green-800' :
@@ -1109,7 +1175,8 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                     )}
 
                     {order.busy_sales_order_items && order.busy_sales_order_items.length > 0 && (
-                      <table className="w-full">
+                      <div className="overflow-x-auto">
+                      <table className="w-full min-w-[480px]">
                         <thead>
                           <tr className="text-xs text-gray-500 uppercase">
                             <th className="text-left pb-2">Item</th>
@@ -1127,10 +1194,10 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                               <td className="py-2 text-gray-600">{item.unit}</td>
                               <td className="py-2 text-right text-gray-600">{item.quantity}</td>
                               <td className="py-2 text-right text-gray-600">
-                                {item.unit_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               <td className="py-2 text-right font-medium text-gray-900">
-                                {item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {Number(item.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                               {onCopyToPO && (
                                 <td className="py-2 text-center">
@@ -1151,6 +1218,7 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     )}
                     {order.notes && (
                       <p className="mt-3 text-sm text-gray-500 italic">Notes: {order.notes}</p>

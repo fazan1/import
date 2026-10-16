@@ -142,7 +142,7 @@ export default function MainDashboard({ onNavigate }: MainDashboardProps) {
         }
       });
 
-      paymentsResult.data.forEach((p) => { totalCollected += p.amount || 0; });
+      paymentsResult.data.forEach((p) => { if (p.cheque_status !== 'returned') totalCollected += Number(p.amount) || 0; });
       const onAccount = onAccountByCustomer(paymentsResult.data);
       const openingByCustomer = new Map<string, number | null>();
       customersResult.data.forEach((c) => { if (!openingByCustomer.has(custKey(c.name))) openingByCustomer.set(custKey(c.name), c.opening_balance); });

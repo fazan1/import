@@ -1,6 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Plus, Pencil, Trash2, X, Check, Users, Search, ChevronLeft, FileText, CreditCard, ChevronDown, ChevronRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase, fromAllBooksForBackup } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
+import { isBookLocked } from '../lib/book';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { onAccountByCustomer, netOpening } from '../lib/receivables';
 
@@ -60,7 +62,8 @@ interface SalesPayment {
   notes: string | null;
   sales_invoice_id: string;
   cheque_status?: string | null;
-  busy_sales_invoices: { invoice_number: string }[] | null;
+  // many-to-one join: Supabase returns ONE object here (an array only in older typings)
+  busy_sales_invoices: { invoice_number: string } | { invoice_number: string }[] | null;
 }
 
 const initialFormData: CustomerFormData = {
@@ -94,7 +97,8 @@ function fmt(n: number) {
 
 function fmtDate(d: string | null) {
   if (!d) return '-';
-  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  // 'YYYY-MM-DD' read as a LOCAL date (new Date('YYYY-MM-DD') is UTC midnight)
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // ── Customer Detail View ──────────────────────────────────────────────────────
@@ -115,8 +119,9 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
 
     // Quote the name so commas, brackets or dots in it don't break the filter
     const quotedName = '"' + (customer.name || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
     const [invRes, payRes] = await Promise.all([
-      supabase
+      fetchAllPages<Invoice>(() => supabase
         .from('busy_sales_invoices')
         .select(`
           id, invoice_number, invoice_date, due_date, status,
@@ -124,8 +129,8 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
           busy_sales_invoice_items (id, item_name, quantity, unit, unit_price, total)
         `)
         .or(`customer_id.eq.${customer.id},customer_name.eq.${quotedName}`)
-        .order('invoice_date', { ascending: false }),
-      supabase
+        .order('id')),
+      fetchAllPages<SalesPayment>(() => supabase
         .from('busy_sales_payments')
         .select(`
           id, payment_number, payment_date, payment_mode, amount,
@@ -133,14 +138,14 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
           busy_sales_invoices (invoice_number)
         `)
         .or(`customer_id.eq.${customer.id},customer_name.eq.${quotedName}`)
-        .order('payment_date', { ascending: false }),
+        .order('id')),
     ]);
 
     if (invRes.error || payRes.error) {
-      alert('Could not load this customer\'s invoices/payments: ' + (invRes.error || payRes.error)?.message);
+      alert('Could not load this customer\'s invoices/payments: ' + (invRes.error || payRes.error));
     }
-    setInvoices((invRes.data || []) as Invoice[]);
-    setPayments((payRes.data || []) as SalesPayment[]);
+    setInvoices([...invRes.data].sort((a, b) => (b.invoice_date || '').localeCompare(a.invoice_date || '')));
+    setPayments([...payRes.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '')));
     setLoading(false);
   }
 
@@ -192,7 +197,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <p className="text-xs text-gray-500 mb-1">Total Billed</p>
           <p className="text-lg font-bold text-gray-900">{fmt(totalBilled)}</p>
@@ -256,7 +261,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
                       <button
                         type="button"
                         onClick={() => toggleInvoice(inv.id)}
-                        className="w-full px-5 py-3.5 flex items-center justify-between hover:bg-gray-50 transition-colors text-left"
+                        className="w-full px-5 py-3.5 flex flex-wrap gap-2 items-center justify-between hover:bg-gray-50 transition-colors text-left"
                       >
                         <div className="flex items-center gap-3">
                           {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
@@ -267,7 +272,7 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-6">
+                        <div className="flex flex-wrap items-center gap-3 sm:gap-6">
                           <div className="text-right">
                             <p className="text-xs text-gray-400">Total</p>
                             <p className="text-sm font-semibold text-gray-900">{fmt(inv.total_amount)}</p>
@@ -368,22 +373,22 @@ function CustomerDetailView({ customer, onBack }: { customer: Customer; onBack: 
                         <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-5 py-3 text-gray-700">{fmtDate(p.payment_date)}</td>
                           <td className="px-5 py-3 text-gray-600">{p.payment_number || '-'}</td>
-                          <td className="px-5 py-3 text-gray-600">{p.busy_sales_invoices?.[0]?.invoice_number || '-'}</td>
+                          <td className="px-5 py-3 text-gray-600">{(Array.isArray(p.busy_sales_invoices) ? p.busy_sales_invoices[0]?.invoice_number : p.busy_sales_invoices?.invoice_number) || '-'}</td>
                           <td className="px-5 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${PAYMENT_MODE_COLORS[p.payment_mode] || 'bg-gray-100 text-gray-600'}`}>
-                              {p.payment_mode.replace('_', ' ')}
+                              {(p.payment_mode || '').replace('_', ' ')}
                             </span>
                           </td>
                           <td className="px-5 py-3 text-gray-500">{p.reference_number || '-'}</td>
                           <td className="px-5 py-3 text-gray-500 max-w-xs truncate">{p.notes || '-'}</td>
-                          <td className="px-5 py-3 text-right font-semibold text-green-600">{fmt(p.amount)}</td>
+                          <td className={`px-5 py-3 text-right font-semibold ${p.cheque_status === 'returned' ? 'text-red-500 line-through' : 'text-green-600'}`}>{fmt(p.amount)}</td>
                         </tr>
                       ))}
                     </tbody>
                     <tfoot className="border-t-2 border-gray-200 bg-gray-50 font-semibold">
                       <tr>
                         <td colSpan={6} className="px-5 py-3 text-gray-700">Total Received</td>
-                        <td className="px-5 py-3 text-right text-green-700">{fmt(payments.reduce((s, p) => s + p.amount, 0))}</td>
+                        <td className="px-5 py-3 text-right text-green-700">{fmt(payments.filter((p) => p.cheque_status !== 'returned').reduce((s, p) => s + (Number(p.amount) || 0), 0))}</td>
                       </tr>
                     </tfoot>
                   </table>
@@ -408,6 +413,8 @@ export default function Customers() {
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const savingRef = useRef(false); // double-click guard
+  const locked = isBookLocked(); // shop login: can add customers, not change or delete them (shared master)
 
   useEffect(() => {
     loadCustomers();
@@ -415,15 +422,16 @@ export default function Customers() {
 
   async function loadCustomers() {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await fetchAllPages<Customer>(() => supabase
       .from('customers')
       .select('*')
-      .order('name');
+      .order('id'));
 
     if (error) {
       console.error('Error loading customers:', error);
+      alert('Could not load customers: ' + error);
     } else {
-      setCustomers(data || []);
+      setCustomers([...data].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
     }
     setLoading(false);
   }
@@ -449,9 +457,24 @@ export default function Customers() {
   }
 
   async function handleSave() {
-    if (!formData.name.trim()) return;
+    if (!formData.name.trim() || savingRef.current) return;
 
+    // same customer whatever the capitals / spaces (balances are matched by name)
+    const norm = (n: string | null | undefined) => (n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const dup = customers.find((c) => c.id !== editingId && norm(c.name) === norm(formData.name));
+    if (dup) {
+      alert(`A customer called "${dup.name}" already exists. Use that one (or give this one a different name).`);
+      return;
+    }
+    const oldName = editingId ? customers.find((c) => c.id === editingId)?.name || '' : '';
+    const newName = formData.name.trim();
+    const renamed = !!editingId && oldName !== newName;
+    if (renamed && !confirm(`Rename "${oldName}" to "${newName}"?\n\nThe name will also be changed on this customer's sales invoices and payments (all books), so the balance stays linked.`)) return;
+
+    savingRef.current = true;
     setSaving(true);
+    let failed = '';
+    let savedMaster = false; // the customer itself was saved (only the name carry-over failed)
 
     if (editingId) {
       const { error } = await supabase
@@ -467,7 +490,18 @@ export default function Customers() {
         })
         .eq('id', editingId);
 
-      if (error) console.error('Error updating customer:', error);
+      if (error) {
+        console.error('Error updating customer:', error);
+        failed = error.message;
+      } else if (renamed) {
+        // invoices / payments are matched by name too (custKey in receivables.ts): carry the new name over
+        const quotedOld = '"' + oldName.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+        for (const table of ['busy_sales_invoices', 'busy_sales_payments']) {
+          const { error: e2 } = await supabase.from(table).update({ customer_name: newName })
+            .or(`customer_id.eq.${editingId},customer_name.eq.${quotedOld}`);
+          if (e2) { failed = `The customer was renamed, but ${table === 'busy_sales_invoices' ? 'its invoices' : 'its payments'} still carry the old name "${oldName}": ${e2.message}`; savedMaster = true; }
+        }
+      }
     } else {
       const { error } = await supabase
         .from('customers')
@@ -481,10 +515,18 @@ export default function Customers() {
           opening_balance: formData.opening_balance ? parseFloat(formData.opening_balance) : 0,
         });
 
-      if (error) console.error('Error creating customer:', error);
+      if (error) {
+        console.error('Error creating customer:', error);
+        failed = error.message;
+      }
     }
 
+    savingRef.current = false;
     setSaving(false);
+    if (failed) {
+      alert('Could not save the customer: ' + failed);
+      if (!savedMaster) return; // keep the form open so nothing typed is lost
+    }
     handleCancel();
     loadCustomers();
   }
@@ -494,6 +536,22 @@ export default function Customers() {
 
     const customerToDelete = customers.find(c => c.id === id);
     if (!customerToDelete) return;
+
+    // customers are shared by every book: refuse while any book still has invoices / payments for this customer
+    const quotedName = '"' + (customerToDelete.name || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+    for (const table of ['busy_sales_invoices', 'busy_sales_payments']) {
+      const { count, error: useErr } = await fromAllBooksForBackup(table)
+        .select('id', { count: 'exact', head: true })
+        .or(`customer_id.eq.${id},customer_name.eq.${quotedName}`);
+      if (useErr) {
+        alert('Could not check this customer\'s records: ' + useErr.message);
+        return;
+      }
+      if (count) {
+        alert(`${customerToDelete.name} still has ${count} sales ${table === 'busy_sales_invoices' ? 'invoice(s)' : 'payment(s)'} (in one of the books). Delete those first, or keep the customer.`);
+        return;
+      }
+    }
 
     const result = await moveToRecycleBin({
       source_table: 'customers',
@@ -511,6 +569,7 @@ export default function Customers() {
     const { error } = await supabase.from('customers').delete().eq('id', id);
     if (error) {
       console.error('Error deleting customer:', error);
+      alert('Could not delete the customer: ' + error.message + '\n\n(A copy was put in the Recycle Bin; you can remove it there.)');
     } else {
       loadCustomers();
     }
@@ -540,9 +599,9 @@ export default function Customers() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-2xl font-bold text-gray-900">Customers</h2>
-        <div className="flex items-center space-x-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
@@ -550,7 +609,7 @@ export default function Customers() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search customers..."
-              className="pl-10 pr-4 py-2 w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+              className="pl-10 pr-4 py-2 w-full sm:w-64 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
             />
           </div>
           <button
@@ -669,7 +728,7 @@ export default function Customers() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -707,7 +766,7 @@ export default function Customers() {
                     )}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end space-x-2">
+                    {!locked && <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => handleEdit(customer)}
                         className="p-2 text-gray-500 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
@@ -720,7 +779,7 @@ export default function Customers() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
-                    </div>
+                    </div>}
                   </td>
                 </tr>
               ))}

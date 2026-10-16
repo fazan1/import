@@ -27,6 +27,7 @@ interface ItemRecord {
 
 interface SalesInvoiceItem {
   id: string;
+  item_id?: string | null;
   item_name: string;
   quantity: number;
   unit: string;
@@ -96,6 +97,12 @@ interface BusySalesInvoicesProps {
   onClearPreselection?: () => void;
 }
 
+// Local calendar date YYYY-MM-DD (toISOString gives the UTC date = yesterday before 5:30 am in Sri Lanka)
+const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+// 'YYYY-MM-DD' shown as a local date (new Date('YYYY-MM-DD') is UTC midnight and can show the day before)
+const showDate = (v: string | null | undefined) => { if (!v) return ''; const [y, m, d] = v.slice(0, 10).split('-').map(Number); return y && m && d ? new Date(y, m - 1, d).toLocaleDateString() : v; };
+const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
 export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId, onClearPreselection }: BusySalesInvoicesProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [invoices, setInvoices] = useState<SalesInvoice[]>([]);
@@ -107,12 +114,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [selectedOrder, setSelectedOrder] = useState('');
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceDate, setInvoiceDate] = useState(todayLocal());
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
   const [taxAmount, setTaxAmount] = useState('0');
   const [items, setItems] = useState<NewItem[]>([{ item_name: '', item_id: null, quantity: '', unit_price: '', cost_price: '', unit: 'Pcs' }]);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [allItems, setAllItems] = useState<ItemRecord[]>([]);
   const [whStock, setWhStock] = useState<Record<string, number>>({});
@@ -178,10 +186,11 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
     const [customersRes, invoicesRes, itemsRes, ordersRes, partnersRes] = await Promise.all([
       supabase.from('customers').select('id, name, phone, credit_days, credit_amount, opening_balance').order('name'),
-      supabase
+      fetchAllPages<SalesInvoice>(() => supabase
         .from('busy_sales_invoices')
         .select(`*, busy_sales_invoice_items (*)`)
-        .order('invoice_date', { ascending: false }),
+        .order('invoice_date', { ascending: false })
+        .order('id')),
       supabase.from('items').select('id, item_name, sku, unit, sales_price, purchase_price').order('item_name'),
       supabase
         .from('busy_sales_orders')
@@ -192,7 +201,8 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     ]);
 
     if (customersRes.data) setCustomers(customersRes.data);
-    if (invoicesRes.data) setInvoices(invoicesRes.data);
+    if (invoicesRes.error) alert('Could not load all invoices: ' + invoicesRes.error);
+    setInvoices(invoicesRes.data);
     // money received on account (this book) for the credit check
     fetchAllPages<{ customer_name: string | null; sales_invoice_id: string | null; amount: number; cheque_status: string | null }>(() =>
       supabase.from('busy_sales_payments').select('id, customer_name, sales_invoice_id, amount, cheque_status').order('id'))
@@ -239,6 +249,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     if (order) {
       setCustomerName(order.customer_name);
       setCustomerSearch(order.customer_name);
+      setSelectedCustomer(customers.find(c => custKey(c.name) === custKey(order.customer_name))?.id || '');
       setInvoiceType(order.deal_type === 'double' ? 'double' : 'single');
       if (order.deal_type === 'double') setPartnerName(order.customer_name);
       if (order.busy_sales_order_items) {
@@ -379,7 +390,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     setCustomerName('');
     setCustomerSearch('');
     setSelectedOrder('');
-    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setInvoiceDate(todayLocal());
     setDueDate('');
     setNotes('');
     setTaxAmount('0');
@@ -408,7 +419,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     if (invoice.busy_sales_invoice_items && invoice.busy_sales_invoice_items.length > 0) {
       const invoiceItems = invoice.busy_sales_invoice_items.map(item => ({
         item_name: item.item_name,
-        item_id: null,
+        item_id: item.item_id || null,
         quantity: String(item.quantity),
         unit_price: String(item.unit_price),
         cost_price: String(item.cost_price || ''),
@@ -433,14 +444,23 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
     const finalCustomerName = customerName.trim() || customerSearch.trim();
     if (!finalCustomerName || validItems.length === 0) return;
+    if (savingRef.current) return; // double-click guard
+    savingRef.current = true;
+    try {
+      await doSave(validItems, finalCustomerName);
+    } finally {
+      savingRef.current = false;
+    }
+  }
 
+  async function doSave(validItems: NewItem[], finalCustomerName: string) {
     setSaving(true);
 
-    const subtotal = validItems.reduce((sum, item) => {
-      return sum + (parseFloat(item.quantity) * parseFloat(item.unit_price));
-    }, 0);
-    const tax = parseFloat(taxAmount) || 0;
-    const totalAmount = subtotal + tax;
+    const subtotal = r2(validItems.reduce((sum, item) => {
+      return sum + r2(parseFloat(item.quantity) * parseFloat(item.unit_price));
+    }, 0));
+    const tax = r2(parseFloat(taxAmount) || 0);
+    const totalAmount = r2(subtotal + tax);
 
     let totalCost = 0;
     let grossProfit = 0;
@@ -451,10 +471,11 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       totalCost = validItems.reduce((sum, item) => {
         return sum + (parseFloat(item.quantity) * (parseFloat(item.cost_price) || 0));
       }, 0);
-      grossProfit = subtotal - totalCost;
+      totalCost = r2(totalCost);
+      grossProfit = r2(subtotal - totalCost);
       const myPct = parseFloat(splitPercent) || 0;
-      yourProfit = (grossProfit * myPct) / 100;
-      partnerProfit = grossProfit - yourProfit;
+      yourProfit = r2((grossProfit * myPct) / 100);
+      partnerProfit = r2(grossProfit - yourProfit);
     }
 
     const doubleFields = {
@@ -468,8 +489,16 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     };
 
     if (editingInvoice) {
-      const amountDue = totalAmount - editingInvoice.amount_paid;
-      const newStatus = amountDue <= 0 ? 'paid' : (editingInvoice.amount_paid > 0 ? 'partial' : editingInvoice.status);
+      // re-read the paid amount: a payment may have been recorded since this list was loaded
+      const { data: fresh, error: freshErr } = await supabase.from('busy_sales_invoices').select('amount_paid, status').eq('id', editingInvoice.id).maybeSingle();
+      if (freshErr || !fresh) {
+        alert('Could not read the invoice before saving: ' + (freshErr?.message || 'it was not found (deleted?)'));
+        setSaving(false);
+        return;
+      }
+      const paidNow = Number(fresh.amount_paid) || 0;
+      const amountDue = r2(totalAmount - paidNow);
+      const newStatus = amountDue <= 0 ? 'paid' : (paidNow > 0 ? 'partial' : (fresh.status === 'paid' || fresh.status === 'partial' ? 'sent' : fresh.status));
 
       const { error: updateError } = await supabase
         .from('busy_sales_invoices')
@@ -504,7 +533,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         unit: item.unit,
         unit_price: parseFloat(item.unit_price),
         cost_price: parseFloat(item.cost_price) || 0,
-        total: parseFloat(item.quantity) * parseFloat(item.unit_price)
+        total: r2(parseFloat(item.quantity) * parseFloat(item.unit_price))
       }));
 
       const linesErr = await replaceLines('busy_sales_invoice_items', 'sales_invoice_id', editingInvoice.id, itemsToInsert);
@@ -514,9 +543,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         return;
       }
     } else {
-      const invoiceNumber = await generateInvoiceNumber();
-
-      const { data: invoice, error: invoiceError } = await supabase
+      let invoiceNumber = '';
+      let invoice: { id: string } | null = null;
+      let invoiceError: { code?: string; message: string } | null = null;
+      // try again with the next number if someone else took this number at the same moment
+      for (let attempt = 0; attempt < 3; attempt++) {
+      invoiceNumber = await generateInvoiceNumber();
+      ({ data: invoice, error: invoiceError } = await supabase
         .from('busy_sales_invoices')
         .insert({
           invoice_number: invoiceNumber,
@@ -535,23 +568,27 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
           ...doubleFields
         })
         .select()
-        .single();
+        .single());
+      if (!invoiceError || invoiceError.code !== '23505') break;
+      }
 
       if (invoiceError || !invoice) {
         console.error('Error creating invoice:', invoiceError);
+        alert('Could not create the invoice: ' + (invoiceError?.message || 'no data returned'));
         setSaving(false);
         return;
       }
+      const newInvoiceId = invoice.id;
 
       const itemsToInsert = validItems.map(item => ({
-        sales_invoice_id: invoice.id,
+        sales_invoice_id: newInvoiceId,
         item_id: item.item_id,
         item_name: item.item_name.trim(),
         quantity: parseFloat(item.quantity),
         unit: item.unit,
         unit_price: parseFloat(item.unit_price),
         cost_price: parseFloat(item.cost_price) || 0,
-        total: parseFloat(item.quantity) * parseFloat(item.unit_price)
+        total: r2(parseFloat(item.quantity) * parseFloat(item.unit_price))
       }));
 
       const { error: itemsErr } = await supabase.from('busy_sales_invoice_items').insert(itemsToInsert);
@@ -560,6 +597,16 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         setSaving(false);
         loadData();
         return;
+      }
+
+      // the sales order is now invoiced: it leaves the "Create from Sales Order" list, so it can't be invoiced twice
+      if (selectedOrder) {
+        const { error: soErr } = await supabase
+          .from('busy_sales_orders')
+          .update({ status: 'invoiced', updated_at: new Date().toISOString() })
+          .eq('id', selectedOrder)
+          .in('status', ['pending', 'confirmed']);
+        if (soErr) alert(`Invoice ${invoiceNumber} was created, but the sales order could not be marked as invoiced: ${soErr.message}`);
       }
     }
 
@@ -582,7 +629,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         quantity: parseFloat(item.quantity),
         unit: item.unit,
         unit_price: parseFloat(item.unit_price),
-        total: parseFloat(item.quantity) * parseFloat(item.unit_price)
+        total: r2(parseFloat(item.quantity) * parseFloat(item.unit_price))
       }));
 
       const soLinesErr = await replaceLines('busy_sales_order_items', 'sales_order_id', orderId, soItemsToInsert);
@@ -593,10 +640,11 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         return;
       }
 
-      await supabase
+      const { error: soTotErr } = await supabase
         .from('busy_sales_orders')
         .update({ total_amount: totalAmount, customer_name: finalCustomerName, updated_at: new Date().toISOString() })
         .eq('id', orderId);
+      if (soTotErr) alert('The invoice was saved, but the linked sales order total could not be updated: ' + soTotErr.message);
     }
 
     setSaving(false);
@@ -1000,7 +1048,8 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="overflow-x-auto">
+            <div className="space-y-2 min-w-[640px]">
               {/* Table header */}
               {invoiceType === 'single' ? (
                 <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
@@ -1108,6 +1157,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                 );
               })}
             </div>
+            </div>
 
             <div className="flex justify-end mt-3 pt-3 border-t border-gray-200">
               <div className="text-right space-y-1">
@@ -1213,10 +1263,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
             return (
               <div key={invoice.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div
-                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="flex flex-wrap items-center justify-between gap-2 p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                   onClick={() => toggleInvoiceExpand(invoice.id)}
                 >
-                  <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-4 min-w-0">
                     <div className="flex items-center space-x-2">
                       {isExpanded ? (
                         <ChevronUp className="w-5 h-5 text-gray-400" />
@@ -1237,15 +1287,15 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                         )}
                       </div>
                       <p className="text-sm text-gray-500">
-                        {new Date(invoice.invoice_date).toLocaleDateString()}
-                        {invoice.due_date && ` | Due: ${new Date(invoice.due_date).toLocaleDateString()}`}
+                        {showDate(invoice.invoice_date)}
+                        {invoice.due_date && ` | Due: ${showDate(invoice.due_date)}`}
                         {isDouble && invoice.partner_name && (
                           <span className="ml-2 text-teal-600">Partner: {invoice.partner_name}</span>
                         )}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-4">
+                  <div className="flex flex-wrap items-center gap-1 sm:gap-4 ml-auto">
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">
                         LKR {invoice.total_amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1303,6 +1353,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                 {isExpanded && (
                   <div className="border-t border-gray-100 bg-gray-50 p-4">
                     {invoice.busy_sales_invoice_items && invoice.busy_sales_invoice_items.length > 0 && (
+                      <div className="overflow-x-auto">
                       <table className="w-full mb-4">
                         <thead>
                           <tr className="text-xs text-gray-500 uppercase">
@@ -1335,9 +1386,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                           ))}
                         </tbody>
                       </table>
+                      </div>
                     )}
 
-                    <div className="flex justify-between items-start">
+                    <div className="flex flex-wrap justify-between items-start gap-4">
                       <div>
                         {invoice.notes && (
                           <p className="text-sm text-gray-500 italic">Notes: {invoice.notes}</p>

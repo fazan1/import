@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, X, Check, CreditCard, Search, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { openingBal } from '../lib/book';
 import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
 import { fetchAllPages } from '../lib/fetchAll';
 import { esc } from '../lib/html';
+import { moveToRecycleBin } from '../lib/recycleBin';
+import { companyFor } from '../lib/company';
 
 interface SalesInvoice {
   id: string;
@@ -41,6 +43,7 @@ interface SalesPayment {
   cheque_date: string | null;
   cheque_status: ChequeStatus;
   created_at: string;
+  book?: string | null;
   busy_sales_invoices?: { invoice_number: string; total_amount: number; amount_due: number } | null;
 }
 
@@ -49,11 +52,11 @@ interface BusySalesPaymentsProps {
   onClearPreselection?: () => void;
 }
 
-const COMPANY_NAME = 'HDR & CO';
-const COMPANY_ADDRESS = 'NO 149/5 New Chetty Street Col 11';
-
-const lkr = (n: number) => `LKR ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtDate = (d: string | null) => (d ? new Date(d).toLocaleDateString('en-GB') : '');
+const lkr = (n: number) => `LKR ${(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// 'YYYY-MM-DD' is read as a LOCAL date (new Date('YYYY-MM-DD') is UTC midnight and can show the day before)
+const fmtDate = (d: string | null) => (d ? new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d).toLocaleDateString('en-GB') : '');
+// today's LOCAL date (toISOString() is UTC: before 5:30 am in Sri Lanka it gives yesterday)
+const localToday = () => { const t = new Date(); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; };
 
 function formatPaymentMode(mode: string): string {
   switch (mode) {
@@ -79,13 +82,14 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
   const [kind, setKind] = useState<'invoice' | 'account'>('invoice');
   const [selectedInvoice, setSelectedInvoice] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState('');
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentDate, setPaymentDate] = useState(localToday());
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState('cash');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [chequeNumber, setChequeNumber] = useState('');
   const [bankName, setBankName] = useState('');
   const [notes, setNotes] = useState('');
+  const savingRef = useRef(false); // double-click guard: state updates too late to stop a second click
 
   useEffect(() => { loadData(); }, []);
 
@@ -117,6 +121,8 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
         .order('id')),
       fetchAllPages<Customer>(() => supabase.from('customers').select('id, name, opening_balance').order('id')),
     ]);
+    const loadErr = paymentsRes.error || invoicesRes.error || customersRes.error;
+    if (loadErr) alert(`Could not load sales payments: ${loadErr}`);
     setPayments([...paymentsRes.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '') || (b.created_at || '').localeCompare(a.created_at || '')));
     setUnpaidInvoices([...invoicesRes.data].sort((a, b) => (b.invoice_date || '').localeCompare(a.invoice_date || '')));
     setCustomers([...customersRes.data].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
@@ -156,7 +162,7 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
     setKind('invoice');
     setSelectedInvoice('');
     setSelectedCustomer('');
-    setPaymentDate(new Date().toISOString().split('T')[0]);
+    setPaymentDate(localToday());
     setAmount('');
     setPaymentMode('cash');
     setReferenceNumber('');
@@ -173,13 +179,25 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
     !saving;
 
   async function handleSave() {
-    if (!canSave) return;
+    if (!canSave || savingRef.current) return;
     const paymentAmount = parseFloat(amount);
     if (kind === 'invoice' && selectedInvoiceData && paymentAmount > selectedInvoiceData.amount_due + 0.005) {
       alert('Payment amount cannot exceed amount due');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
+    if (kind === 'invoice') {
+      // re-read the balance: another screen/device may have taken a payment since this list loaded
+      const { data: fresh, error: freshErr } = await supabase.from('busy_sales_invoices').select('amount_due').eq('id', selectedInvoice).maybeSingle();
+      if (freshErr || !fresh || paymentAmount > Number(fresh.amount_due) + 0.005) {
+        alert(freshErr ? `Could not check the invoice balance: ${freshErr.message}` : !fresh ? 'This invoice was not found (deleted?).' : `Payment amount cannot exceed amount due (now LKR ${Number(fresh.amount_due).toLocaleString()}).`);
+        savingRef.current = false;
+        setSaving(false);
+        loadData();
+        return;
+      }
+    }
     const paymentNumber = await generatePaymentNumber();
     const { error } = await supabase.from('busy_sales_payments').insert({
       payment_number: paymentNumber,
@@ -198,16 +216,31 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
     if (error) {
       console.error('Error creating payment:', error);
       alert(`Could not save payment: ${error.message}`);
+      savingRef.current = false;
       setSaving(false);
       return;
     }
+    savingRef.current = false;
     setSaving(false);
     resetForm();
     loadData();
   }
 
   async function handleDeletePayment(id: string) {
-    if (!confirm('Delete this payment? Any invoice balance will be restored.')) return;
+    if (!confirm('Delete this payment? Any invoice balance will be restored. It will be moved to the Recycle Bin.')) return;
+    const p = payments.find(x => x.id === id);
+    if (!p) return;
+    const bin = await moveToRecycleBin({
+      source_table: 'busy_sales_payments',
+      source_id: id,
+      record_data: p,
+      display_name: `Payment ${p.payment_number || ''} - ${p.customer_name} - ${lkr(Number(p.amount) || 0)}`,
+      portal: 'sl',
+    });
+    if (!bin.success) {
+      alert('Failed to move to recycle bin: ' + bin.error);
+      return;
+    }
     const { error } = await supabase.from('busy_sales_payments').delete().eq('id', id);
     if (error) {
       console.error('Error deleting payment:', error);
@@ -219,6 +252,7 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
   function printReceipt(p: SalesPayment) {
     const w = window.open('', '_blank', 'width=720,height=900');
     if (!w) { alert('Could not open the receipt window. Please allow pop-ups for this site and try again.'); return; }
+    const co = companyFor(p.book); // shop-book receipts print BLINE Traders, not HDR & CO
     const applied = p.sales_invoice_id ? `Invoice ${p.busy_sales_invoices?.invoice_number || ''}` : 'On account (opening balance)';
     const modeLine = p.payment_mode === 'cheque'
       ? `Cheque No. ${p.cheque_number || p.reference_number || ''}${p.bank_name ? ` · ${p.bank_name}` : ''}`
@@ -236,10 +270,10 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
  .sig{border-top:1px solid #999;padding-top:6px;width:200px;text-align:center;}
  @media print{body{padding:0}.box{border:0}}
 </style></head><body><div class="box">
- <h1>${COMPANY_NAME}</h1><div class="addr">${COMPANY_ADDRESS}</div>
+ <h1>${esc(co.name)}</h1><div class="addr">${esc(co.address)}</div>
  <div class="title">PAYMENT RECEIPT</div><div class="no">${esc(p.payment_number || '')} · ${fmtDate(p.payment_date)}</div>
  <table>
-  <tr><td>Received from</td><td><strong>${esc(p.customer_name)}</strong></td></tr>
+  <tr><td>Received from</td><td><strong>${esc(p.customer_name || '')}</strong></td></tr>
   <tr><td>Applied to</td><td>${esc(applied)}</td></tr>
   <tr><td>Payment mode</td><td>${esc(modeLine)}</td></tr>
   ${p.notes ? `<tr><td>Notes</td><td>${esc(p.notes)}</td></tr>` : ''}
@@ -266,15 +300,15 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
       const q = searchTerm.trim().toLowerCase();
       if (!q) return true;
       return (
-        p.customer_name.toLowerCase().includes(q) ||
+        (p.customer_name || '').toLowerCase().includes(q) ||
         p.payment_number?.toLowerCase().includes(q) ||
-        p.busy_sales_invoices?.invoice_number.toLowerCase().includes(q) ||
+        p.busy_sales_invoices?.invoice_number?.toLowerCase().includes(q) ||
         (p.cheque_number || '').toLowerCase().includes(q) ||
         (p.reference_number || '').toLowerCase().includes(q)
       );
     });
 
-  const totalReceived = payments.filter(p => p.cheque_status !== 'returned').reduce((sum, p) => sum + p.amount, 0);
+  const totalReceived = payments.filter(p => p.cheque_status !== 'returned').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   if (loading) {
     return (
@@ -322,7 +356,7 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
                     <option value="">Select invoice...</option>
                     {unpaidInvoices.map(invoice => (
                       <option key={invoice.id} value={invoice.id}>
-                        {invoice.invoice_number} - {invoice.customer_name} | Due: LKR {invoice.amount_due.toLocaleString()}
+                        {invoice.invoice_number} - {invoice.customer_name} | Due: LKR {Number(invoice.amount_due || 0).toLocaleString()}
                       </option>
                     ))}
                   </select>
@@ -331,9 +365,9 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
                 {selectedInvoiceData && (
                   <div className="md:col-span-2 p-4 bg-teal-50 border border-blue-200 rounded-lg">
                     <div className="grid grid-cols-3 gap-4 text-sm">
-                      <div><span className="text-teal-700 font-medium">Invoice Total:</span><p className="text-blue-900 font-semibold">LKR {selectedInvoiceData.total_amount.toLocaleString()}</p></div>
-                      <div><span className="text-green-700 font-medium">Amount Paid:</span><p className="text-green-900 font-semibold">LKR {selectedInvoiceData.amount_paid.toLocaleString()}</p></div>
-                      <div><span className="text-red-700 font-medium">Amount Due:</span><p className="text-red-900 font-semibold">LKR {selectedInvoiceData.amount_due.toLocaleString()}</p></div>
+                      <div><span className="text-teal-700 font-medium">Invoice Total:</span><p className="text-blue-900 font-semibold">LKR {Number(selectedInvoiceData.total_amount || 0).toLocaleString()}</p></div>
+                      <div><span className="text-green-700 font-medium">Amount Paid:</span><p className="text-green-900 font-semibold">LKR {Number(selectedInvoiceData.amount_paid || 0).toLocaleString()}</p></div>
+                      <div><span className="text-red-700 font-medium">Amount Due:</span><p className="text-red-900 font-semibold">LKR {Number(selectedInvoiceData.amount_due || 0).toLocaleString()}</p></div>
                     </div>
                   </div>
                 )}
@@ -426,7 +460,7 @@ export default function BusySalesPayments({ preselectedInvoiceId, onClearPresele
             {unpaidInvoices.slice(0, 5).map(invoice => (
               <button key={invoice.id} onClick={() => { setKind('invoice'); handleSelectInvoice(invoice.id); setShowForm(true); }} className="px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-sm hover:bg-amber-100 transition-colors">
                 <span className="font-medium text-amber-900">{invoice.invoice_number}</span>
-                <span className="text-amber-700 ml-2">LKR {invoice.amount_due.toLocaleString()}</span>
+                <span className="text-amber-700 ml-2">LKR {Number(invoice.amount_due || 0).toLocaleString()}</span>
               </button>
             ))}
             {unpaidInvoices.length > 5 && <span className="px-3 py-1.5 text-sm text-amber-600">+{unpaidInvoices.length - 5} more</span>}

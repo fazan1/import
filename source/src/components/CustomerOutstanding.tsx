@@ -44,6 +44,15 @@ interface Summary {
   total_opening_balance: number;
 }
 
+// whole days from a 'YYYY-MM-DD' date to today, both as LOCAL dates (new Date('YYYY-MM-DD') is UTC midnight,
+// which is a day out in Sri Lanka before 05:30). NaN when there is no date.
+function ageDays(s: string | null | undefined): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+  if (!m) return NaN;
+  const t = new Date();
+  return Math.round((new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime() - new Date(+m[1], +m[2] - 1, +m[3]).getTime()) / 86400000);
+}
+
 export default function CustomerOutstanding() {
   const [customers, setCustomers] = useState<CustomerOutstandingData[]>([]);
   const [summary, setSummary] = useState<Summary>({
@@ -65,9 +74,10 @@ export default function CustomerOutstanding() {
 
   async function loadOutstanding() {
     setLoading(true);
+    try {
 
     // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
-    const [{ data: customerData }, { data: invoiceRows }, { data: payments }] = await Promise.all([
+    const [{ data: customerData, error: e1 }, { data: invoiceRows, error: e2 }, { data: payments, error: e3 }] = await Promise.all([
       fetchAllPages<{ id: string; name: string; phone: string | null; opening_balance: number | null }>(() =>
         supabase.from('customers').select('id, name, phone, opening_balance').order('id')),
       fetchAllPages<{ id: string; invoice_number: string; invoice_date: string; customer_name: string; customer_id: string | null; total_amount: number; amount_paid: number; amount_due: number; status: string }>(() =>
@@ -83,6 +93,8 @@ export default function CustomerOutstanding() {
           .select('id, customer_id, customer_name, sales_invoice_id, amount, payment_mode, cheque_status')
           .order('id')),
     ]);
+    // a failed load must not look like "All customer payments are up to date"
+    if (e1 || e2 || e3) { alert('Could not load outstanding balances — please press Refresh.\n' + (e1 || e2 || e3)); return; }
     const invoices = [...invoiceRows].sort((a, b) => (a.invoice_date || '').localeCompare(b.invoice_date || ''));
 
     // money received "on account" (not against an invoice) reduces the opening balance; returned cheques don't count
@@ -95,6 +107,8 @@ export default function CustomerOutstanding() {
 
     const customerMap = new Map<string, { id: string; name: string; phone: string | null; opening_balance: number | null }>();
     customerData.forEach((c) => {
+      // same customer twice in the master (spelling/case): first record wins, as on the main dashboard
+      if (customerMap.has(custKey(c.name))) return;
       customerMap.set(custKey(c.name), {
         id: c.id,
         name: c.name,
@@ -105,8 +119,6 @@ export default function CustomerOutstanding() {
 
     // keyed by custKey(): "ABC Traders" and "abc traders " are one customer (opening balance counted once)
     const outstandingMap = new Map<string, CustomerOutstandingData>();
-    const today = new Date();
-
     invoices.forEach((invoice) => {
       const key = custKey(invoice.customer_name);
       const customerInfo = customerMap.get(key);
@@ -151,8 +163,7 @@ export default function CustomerOutstanding() {
       }
     });
 
-    customerData.forEach((c) => {
-      const key = custKey(c.name);
+    customerMap.forEach((c, key) => {
       if (netOpening(key, c.opening_balance, onAccount) > 0 && !outstandingMap.has(key)) {
         outstandingMap.set(key, {
           customer_id: c.id,
@@ -177,12 +188,11 @@ export default function CustomerOutstanding() {
       .filter((c) => (c.total_due + c.opening_balance) > 0)
       .map((c) => {
         if (c.oldest_unpaid_date) {
-          const oldestDate = new Date(c.oldest_unpaid_date);
-          c.days_outstanding = Math.floor((today.getTime() - oldestDate.getTime()) / (1000 * 60 * 60 * 24));
+          c.days_outstanding = ageDays(c.oldest_unpaid_date) || 0;
         }
         // ageing: unpaid invoices by age; opening balance is older than any invoice so it sits in 90+
         c.invoices.forEach((inv) => {
-          const age = Math.floor((today.getTime() - new Date(inv.date).getTime()) / (1000 * 60 * 60 * 24));
+          const age = ageDays(inv.date);   // no date -> 90+
           if (age <= 30) c.aging.current += inv.sell_due;
           else if (age <= 60) c.aging.d31 += inv.sell_due;
           else if (age <= 90) c.aging.d61 += inv.sell_due;
@@ -201,8 +211,9 @@ export default function CustomerOutstanding() {
       totalOutstanding += c.total_due + c.opening_balance;
       totalOpeningBalance += Math.max(0, c.opening_balance);
       c.invoices.forEach((inv) => {
-        const invDate = new Date(inv.date);
-        totalDaysOutstanding += Math.floor((today.getTime() - invDate.getTime()) / (1000 * 60 * 60 * 24));
+        const age = ageDays(inv.date);
+        if (isNaN(age)) return;
+        totalDaysOutstanding += age;
         invoiceCount++;
       });
     });
@@ -215,7 +226,11 @@ export default function CustomerOutstanding() {
     });
 
     setCustomers(outstandingList);
-    setLoading(false);
+    } catch (e) {
+      alert('Could not load outstanding balances: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoading(false);
+    }
   }
 
   function printStatement(c: CustomerOutstandingData) {
@@ -317,7 +332,7 @@ export default function CustomerOutstanding() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl">
             <DollarSign className="w-6 h-6 text-white" />
@@ -446,8 +461,8 @@ export default function CustomerOutstanding() {
                     onClick={() => toggleCustomer(customer.customer_name)}
                     className="w-full px-5 py-4 hover:bg-gray-50 transition-colors text-left"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex items-center gap-4 min-w-0">
                         <div className="p-2 rounded-lg bg-rose-50">
                           <Users className="w-5 h-5 text-rose-600" />
                         </div>
@@ -474,7 +489,7 @@ export default function CustomerOutstanding() {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-6">
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                         <div className="text-right">
                           <p className="text-xs text-gray-500">Total Sales</p>
                           <p className="whitespace-nowrap text-sm font-medium text-gray-700">{formatCurrency(customer.total_sales)}</p>
@@ -557,7 +572,7 @@ export default function CustomerOutstanding() {
 
                   {isExpanded && customer.invoices.length > 0 && (
                     <div className="bg-gray-50 border-t border-gray-100">
-                      <div className="px-5 py-3">
+                      <div className="px-5 py-3 overflow-x-auto">
                         <table className="w-full">
                           <thead>
                             <tr className="text-xs text-gray-500 uppercase">
@@ -573,9 +588,7 @@ export default function CustomerOutstanding() {
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {customer.invoices.map((invoice) => {
-                              const invoiceDate = new Date(invoice.date);
-                              const today = new Date();
-                              const ageDays = Math.floor((today.getTime() - invoiceDate.getTime()) / (1000 * 60 * 60 * 24));
+                              const invAge = ageDays(invoice.date);
 
                               return (
                                 <tr key={invoice.id} className="text-sm">
@@ -594,8 +607,8 @@ export default function CustomerOutstanding() {
                                   <td className="py-2 text-right text-gray-700">{formatCurrency(invoice.total_amount)}</td>
                                   <td className="py-2 text-right text-green-600">{formatCurrency(invoice.total_paid)}</td>
                                   <td className="py-2 text-right font-medium text-rose-600">{formatCurrency(invoice.sell_due)}</td>
-                                  <td className={`py-2 text-right font-medium ${getAgingColor(ageDays)}`}>
-                                    {isNaN(ageDays) ? '-' : `${ageDays} days`}
+                                  <td className={`py-2 text-right font-medium ${getAgingColor(invAge)}`}>
+                                    {isNaN(invAge) ? '-' : `${invAge} days`}
                                   </td>
                                   <td className="py-2 text-center">
                                     <button
@@ -634,7 +647,7 @@ export default function CustomerOutstanding() {
 
       <div className="bg-white rounded-xl border border-gray-200 p-5">
         <h3 className="font-semibold text-gray-900 mb-4">Aging Summary</h3>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { label: 'Current (0-30 days)', color: 'bg-green-500' },
             { label: '31-60 days', color: 'bg-amber-500' },

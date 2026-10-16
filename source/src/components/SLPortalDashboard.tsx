@@ -14,9 +14,12 @@ interface Props { onNavigate?: (view: string, filter?: { status?: string; custom
 const n0 = (v: number) => Math.round(v).toLocaleString();
 const rs = (v: number) => `Rs.${n0(v)}`;
 const ym = (d: string | null | undefined) => (d || '').slice(0, 7);   // a record with no date must not crash the dashboard
-const monthLabel = (k: string) => new Date(k + '-01').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+const monthLabel = (k: string) => new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, 1).toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
 const lastMonths = (n: number) => { const out: string[] = []; const d = new Date(); for (let i = n - 1; i >= 0; i--) { const x = new Date(d.getFullYear(), d.getMonth() - i, 1); out.push(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}`); } return out; };
 const compact = (v: number) => (Math.abs(v) >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : Math.abs(v) >= 1e3 ? `${(v / 1e3).toFixed(0)}k` : `${v}`);
+// local date (toISOString gives the UTC day, which is still yesterday in Sri Lanka before 05:30)
+const localISO = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const counted = (p: { cheque_status: string | null }) => p.cheque_status !== 'returned';   // returned cheques are not money collected (same as Sales Payments total)
 const days = (a: string, b: string) => Math.floor((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
 
 export default function SLPortalDashboard({ onNavigate, embedded = false }: Props & { embedded?: boolean }) {
@@ -31,6 +34,7 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
 
   async function load() {
     setLoading(true);
+    try {
     // fetchAllPages: no 1000-row cut-off (current book only, applied automatically)
     const [i, p, c, o] = await Promise.all([
       fetchAllPages<Invoice>(() => supabase.from('busy_sales_invoices').select('id, invoice_number, invoice_date, due_date, customer_id, customer_name, total_amount, amount_paid, amount_due, status').order('id')),
@@ -45,10 +49,16 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
     setPayments([...p.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '')));
     setCustomers((c.data || []) as Customer[]);
     setOrderCount(o.count || 0);
-    setLoading(false);
+    const err = i.error || p.error || c.error || li.error;
+    if (err) alert('Could not load all of the SL Portal figures — the numbers shown may be incomplete. Press Refresh.\n' + err);
+    } catch (e) {
+      alert('Could not load the SL Portal dashboard: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoading(false);
+    }
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localISO();
   const thisMonth = today.slice(0, 7);
   const lastMonth = lastMonths(2)[0];
   const live = useMemo(() => invoices.filter((i) => i.status !== 'draft'), [invoices]);
@@ -58,7 +68,10 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
     const onAccount = onAccountByCustomer(payments);
     const m: Record<string, { name: string; id: string | null; invoices: number; due: number; opening: number; b0: number; b30: number; b60: number; b90: number; oldest: number; credit_days: number | null; credit_amount: number | null; lastInvoice: string }> = {};
     const get = (name: string, id: string | null) => (m[custKey(name)] ||= { name, id, invoices: 0, due: 0, opening: 0, b0: 0, b30: 0, b60: 0, b90: 0, oldest: 0, credit_days: null, credit_amount: null, lastInvoice: '' });
+    const seen = new Set<string>();
     for (const c of customers) {
+      // same customer twice in the master (spelling/case): count its opening balance once, first record wins (as on the main dashboard)
+      if (seen.has(custKey(c.name))) continue; seen.add(custKey(c.name));
       const net = netOpening(c.name, c.opening_balance, onAccount);
       const x = get(c.name, c.id); x.credit_days = c.credit_days; x.credit_amount = c.credit_amount;
       if (net > 0) { x.opening = net; x.b90 += net; x.oldest = Math.max(x.oldest, 91); } else if (net < 0) { x.opening = net; x.b0 += net; }
@@ -67,7 +80,7 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
       if (inv.status === 'paid' || inv.amount_due <= 0) { const x = get(inv.customer_name, inv.customer_id); if (inv.invoice_date > x.lastInvoice) x.lastInvoice = inv.invoice_date; continue; }
       const x = get(inv.customer_name, inv.customer_id);
       const age = days(today, inv.invoice_date);
-      x.invoices += 1; x.due += inv.amount_due; x.oldest = Math.max(x.oldest, age);
+      x.invoices += 1; x.due += inv.amount_due; if (!isNaN(age)) x.oldest = Math.max(x.oldest, age);
       if (inv.invoice_date > x.lastInvoice) x.lastInvoice = inv.invoice_date;
       if (age <= 30) x.b0 += inv.amount_due; else if (age <= 60) x.b30 += inv.amount_due; else if (age <= 90) x.b60 += inv.amount_due; else x.b90 += inv.amount_due;
     }
@@ -81,7 +94,7 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
 
   // ---- month figures ----
   const salesIn = (m: string) => live.filter((i) => ym(i.invoice_date) === m).reduce((s, i) => s + i.total_amount, 0);
-  const collectedIn = (m: string) => payments.filter((p) => ym(p.payment_date) === m).reduce((s, p) => s + p.amount, 0);
+  const collectedIn = (m: string) => payments.filter((p) => counted(p) && ym(p.payment_date) === m).reduce((s, p) => s + p.amount, 0);
   const salesThis = salesIn(thisMonth), salesLast = salesIn(lastMonth);
   const thisMonthIds = new Set(live.filter((i) => (i.invoice_date || '').startsWith(thisMonth)).map((i) => i.id));
   const profitThis = lines.filter((l) => thisMonthIds.has(l.invoice_id) && Number(l.unit_price) > 0).reduce((t, l) => t + Number(l.quantity) * (Number(l.unit_price) - Number(l.cost_price || 0)), 0);
@@ -95,21 +108,21 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
   const monthly = months.map((m) => ({ month: monthLabel(m), Sales: Math.round(salesIn(m)), Collected: Math.round(collectedIn(m)) }));
   const ageingChart = Object.entries(ageing).map(([k, v]) => ({ bucket: k, amount: Math.round(v) }));
   const ageColors = ['#10b981', '#f59e0b', '#f97316', '#ef4444'];
-  const topCustomers = perCustomer.slice(0, 8).map((c) => ({ name: c.name.length > 18 ? c.name.slice(0, 17) + '…' : c.name, Current: Math.round(c.b0), Overdue: Math.round(c.b30 + c.b60 + c.b90) }));
+  const topCustomers = perCustomer.slice(0, 8).map((c) => ({ name: (c.name || '—').length > 18 ? (c.name || '').slice(0, 17) + '…' : (c.name || '—'), Current: Math.round(c.b0), Overdue: Math.round(c.b30 + c.b60 + c.b90) }));
   const dailyThisMonth = useMemo(() => {
     const dim = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const todayD = new Date().getDate();
     const out: { day: string; Received: number; Cumulative: number }[] = []; let cum = 0;
     for (let d = 1; d <= dim; d++) {
       const key = `${thisMonth}-${String(d).padStart(2, '0')}`;
-      const v = Math.round(payments.filter((p) => p.payment_date === key).reduce((s, p) => s + p.amount, 0));
+      const v = Math.round(payments.filter((p) => counted(p) && p.payment_date === key).reduce((s, p) => s + p.amount, 0));
       cum += v; out.push({ day: String(d), Received: v, Cumulative: d <= todayD ? cum : NaN });
     }
     return out;
   }, [payments, thisMonth]);
   const modeSplit = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const p of payments) if (ym(p.payment_date) === thisMonth) m[p.payment_mode || 'other'] = (m[p.payment_mode || 'other'] || 0) + p.amount;
+    for (const p of payments) if (counted(p) && ym(p.payment_date) === thisMonth) m[p.payment_mode || 'other'] = (m[p.payment_mode || 'other'] || 0) + p.amount;
     return Object.entries(m).map(([k, v]) => ({ mode: k === 'bank_transfer' ? 'Bank' : k.charAt(0).toUpperCase() + k.slice(1), amount: Math.round(v) }));
   }, [payments, thisMonth]);
   const recentReceipts = payments.slice(0, 6);
@@ -121,7 +134,7 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" /></div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
           {!embedded && <h2 className="text-2xl font-bold text-gray-900">SL Portal Dashboard</h2>}
@@ -232,11 +245,11 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
             <button onClick={() => go('customer-outstanding')} className="text-sm text-teal-700 hover:underline">All →</button>
           </div>
           {perCustomer.length === 0 ? <p className="text-sm text-gray-500">Nothing outstanding.</p> : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="text-xs text-gray-500 uppercase"><tr><th className="text-left py-1">Customer</th><th className="text-right py-1">Inv</th><th className="text-right py-1">Oldest</th><th className="text-right py-1">Total</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {perCustomer.slice(0, 8).map((c) => (
-                  <tr key={c.name}>
+                  <tr key={custKey(c.name)}>
                     <td className="py-1.5 font-medium truncate max-w-[12rem]">{c.name}</td>
                     <td className="py-1.5 text-right">{c.invoices}</td>
                     <td className={`py-1.5 text-right ${c.oldest > 60 ? 'text-red-600' : c.oldest > 30 ? 'text-amber-600' : 'text-gray-600'}`}>{c.due > 0 ? `${c.oldest}d` : 'opening'}</td>
@@ -244,7 +257,7 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
         <div className={card}>
@@ -253,19 +266,19 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
             <button onClick={() => go('busy-sales-payments')} className="text-sm text-teal-700 hover:underline">All →</button>
           </div>
           {recentReceipts.length === 0 ? <p className="text-sm text-gray-500">No receipts yet.</p> : (
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto"><table className="w-full text-sm">
               <thead className="text-xs text-gray-500 uppercase"><tr><th className="text-left py-1">Date</th><th className="text-left py-1">Customer</th><th className="text-left py-1">Mode</th><th className="text-right py-1">Amount</th></tr></thead>
               <tbody className="divide-y divide-gray-100">
                 {recentReceipts.map((p) => (
                   <tr key={p.id}>
-                    <td className="py-1.5 text-gray-600">{new Date(p.payment_date).toLocaleDateString('en-GB')}</td>
+                    <td className="py-1.5 text-gray-600">{p.payment_date ? new Date(Number(p.payment_date.slice(0, 4)), Number(p.payment_date.slice(5, 7)) - 1, Number(p.payment_date.slice(8, 10))).toLocaleDateString('en-GB') : '-'}</td>
                     <td className="py-1.5 font-medium truncate max-w-[10rem]">{p.customer_name}{!p.sales_invoice_id && <span className="ml-1 text-[10px] text-purple-600">on account</span>}</td>
                     <td className="py-1.5 capitalize">{(p.payment_mode || '').replace('_', ' ')}</td>
                     <td className="py-1.5 text-right font-semibold">{rs(p.amount)}</td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>

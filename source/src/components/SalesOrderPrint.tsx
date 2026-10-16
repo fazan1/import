@@ -3,6 +3,14 @@ import { X, Printer, FileDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { saveAsPdf } from '../lib/pdfUtils';
 
+// Show a YYYY-MM-DD date as a local date (new Date('YYYY-MM-DD') is read as UTC midnight)
+function showDate(s: string | null | undefined): string {
+  if (!s) return '-';
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return s;
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
 interface SOItem {
   id: string;
   item_name: string;
@@ -61,7 +69,7 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
   }, [orderId]);
 
   async function loadOrder() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('busy_sales_orders')
       .select(`
         *,
@@ -80,6 +88,12 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
       .eq('id', orderId)
       .maybeSingle();
 
+    if (error || !data) {
+      alert(error ? 'Could not load the sales order for printing: ' + error.message : 'This sales order was not found (it may have been deleted).');
+      setLoading(false);
+      onClose();
+      return;
+    }
     if (data) {
       setOrder(data);
       if (data.linked_invoice_id) {
@@ -113,8 +127,8 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
   if (!order) return null;
 
   const items = order.busy_sales_order_items || [];
-  const totalQty = items.reduce((s, i) => s + Number(i.quantity), 0);
-  const totalValue = items.reduce((s, i) => s + Number(i.total), 0);
+  const totalQty = items.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+  const totalValue = items.reduce((s, i) => s + (Number(i.total) || 0), 0);
   const isDouble = order.deal_type === 'double';
   const linkedPOs = order.so_po_links?.filter(l => l.purchase_orders) || [];
 
@@ -126,7 +140,7 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
   };
 
   return (
-    <div className="print-root fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 p-4 overflow-y-auto">
+    <div className="print-root fixed inset-0 bg-black bg-opacity-60 flex flex-col items-center z-50 p-4 overflow-y-auto">
       {/* Screen-only controls */}
       <div className="no-print sticky top-4 z-10 flex justify-end gap-2 w-full max-w-3xl mb-3">
         <button
@@ -187,10 +201,10 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
               <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Order Details</p>
               <p className="text-sm text-gray-700">
                 <span className="font-medium">Date:</span>{' '}
-                {new Date(order.order_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                {showDate(order.order_date)}
               </p>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
-                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                {(order.status || '').charAt(0).toUpperCase() + (order.status || '').slice(1)}
               </span>
             </div>
           </div>
@@ -221,7 +235,7 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
               <div className="flex flex-wrap gap-2">
                 {linkedPOs.map((link, i) => (
                   <span key={i} className="px-2.5 py-1 bg-blue-50 border border-blue-200 text-blue-800 text-xs rounded-lg font-medium">
-                    {link.purchase_orders!.suppliers?.name} — {new Date(link.purchase_orders!.order_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {link.purchase_orders!.suppliers?.name || 'Unknown'} — {showDate(link.purchase_orders!.order_date)}
                   </span>
                 ))}
               </div>
@@ -231,6 +245,7 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
 
         {/* Items table */}
         <div className="p-8 pt-5 print:p-6">
+          <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-900 text-white">
@@ -269,6 +284,7 @@ export default function SalesOrderPrint({ orderId, onClose }: SalesOrderPrintPro
               </tr>
             </tfoot>
           </table>
+          </div>
 
           {/* Summary boxes */}
           <div className="mt-6 grid grid-cols-3 gap-4">

@@ -106,7 +106,7 @@ export default function PurchaseOrderPrint({ orderId, onClose }: PurchaseOrderPr
   const linkedSOs = order.so_po_links?.filter(l => l.busy_sales_orders) || [];
 
   return (
-    <div className="print-root fixed inset-0 bg-black bg-opacity-60 flex items-start justify-center z-50 p-4 overflow-y-auto">
+    <div className="print-root fixed inset-0 bg-black bg-opacity-60 flex flex-col items-center z-50 p-4 overflow-y-auto">
       {/* Screen-only controls */}
       <div className="no-print sticky top-4 z-10 flex justify-end gap-2 w-full max-w-3xl mb-3">
         <button
