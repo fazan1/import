@@ -32,6 +32,7 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'busy-sales-orders', label: 'SO' },
     { id: 'busy-sales-invoices', label: 'Sales Invoice' },
     { id: 'busy-sales-payments', label: 'Sales Payment' },
+    { id: 'partner-payouts', label: 'Partner Payouts' },
   ]},
   { group: 'Other', items: [
     { id: 'reports', label: 'Reports' },
@@ -55,7 +56,7 @@ export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'ou
 // Presets to make setup fast
 export const PRESETS: { label: string; modules: string[] }[] = [
   { label: 'Everything', modules: ALL_MODULE_IDS },
-  { label: 'Sales (SL Portal)', modules: ['sl-dashboard', 'customer-outstanding', 'busy-sales-orders', 'busy-sales-invoices', 'busy-sales-payments', 'customers', 'items'] },
+  { label: 'Sales (SL Portal)', modules: ['sl-dashboard', 'customer-outstanding', 'busy-sales-orders', 'busy-sales-invoices', 'busy-sales-payments', 'partner-payouts', 'customers', 'items'] },
   { label: 'Import (CN Portal)', modules: ['cn-dashboard', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'shipping', 'shipment-history', 'pl-input', 'packing-list', 'costing-duty', 'product-reference', 'suppliers', 'items'] },
   { label: 'BLINE Shop (CN, own books)', modules: SHOP_MODULES },
   { label: 'Warehouse only', modules: ['warehouse'] },

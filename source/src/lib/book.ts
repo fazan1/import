@@ -22,6 +22,7 @@ export const BOOKED_TABLES = new Set([
   'busy_sales_orders',
   'busy_sales_invoices',
   'busy_sales_payments',
+  'sl_partner_payouts',
   'customer_payments',
   'investor_ledger',
   'shipment_charges',

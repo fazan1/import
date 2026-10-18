@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Users, FileText, Settings as SettingsIcon, LogOut, Building2, ClipboardList, Shield, Network, Calculator, Receipt, Boxes, FileStack, ClipboardCheck, ListChecks, FileSpreadsheet, ShoppingCart, CreditCard, DollarSign, Ship, Trash2, ShoppingBag, Wrench, FolderOpen, Container, BarChart3, Crosshair, Warehouse as WarehouseIcon, Landmark, Wallet, TrendingUp, BookOpen as BookIcon, Lock } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Settings as SettingsIcon, LogOut, Building2, ClipboardList, Shield, Network, Calculator, Receipt, Boxes, FileStack, ClipboardCheck, ListChecks, FileSpreadsheet, ShoppingCart, CreditCard, DollarSign, Ship, Trash2, ShoppingBag, Wrench, FolderOpen, Container, BarChart3, Crosshair, Warehouse as WarehouseIcon, Landmark, Wallet, TrendingUp, BookOpen as BookIcon, Lock, Handshake } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
 import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, getBook, setBook, lockBook, unlockBook, setBookModes, bookMode } from './lib/book';
 import type { BookMode } from './lib/book';
@@ -33,6 +33,7 @@ import OutstandingPayments from './components/OutstandingPayments';
 import ShipmentHistory from './components/ShipmentHistory';
 import SLPortalDashboard from './components/SLPortalDashboard';
 import CustomerOutstanding from './components/CustomerOutstanding';
+import PartnerPayouts from './components/PartnerPayouts';
 import RecycleBin from './components/RecycleBin';
 import UnifiedDashboard from './components/UnifiedDashboard';
 import ProductReference from './components/ProductReference';
@@ -54,7 +55,7 @@ import { SHOP_MODULES } from './lib/modules';
 const SETTINGS_PIN_HASH = 'd665119136130460b3e98647a4a280654685bf8eb0b300062a201879e7cb2074'; // SHA-256 of the Settings password
 const HUNT_URL = 'https://claude.ai/artifact/WrDS1pCKmJ8Sv8YST4SvPc';
 
-type View = 'main-dashboard' | 'customers' | 'calls' | 'sales' | 'summary' | 'credit' | 'ceo' | 'import-calc' | 'suppliers' | 'purchase-orders' | 'purchase-bills' | 'items' | 'batch-invoice' | 'pl-input' | 'packing-list' | 'costing-duty' | 'cn-dashboard' | 'outstanding-payments' | 'shipment-history' | 'product-reference' | 'busy-sales-orders' | 'busy-sales-invoices' | 'busy-sales-payments' | 'sl-dashboard' | 'customer-outstanding' | 'recycle-bin' | 'settings' | 'factory-problems' | 'factory-my-data' | 'hunt' | 'investor' | 'expenses' | 'growth' | 'warehouse' | 'shipping' | 'reports' | 'cn-reports' | 'cn-home' | 'clearing-agents';
+type View = 'main-dashboard' | 'customers' | 'calls' | 'sales' | 'summary' | 'credit' | 'ceo' | 'import-calc' | 'suppliers' | 'purchase-orders' | 'purchase-bills' | 'items' | 'batch-invoice' | 'pl-input' | 'packing-list' | 'costing-duty' | 'cn-dashboard' | 'outstanding-payments' | 'shipment-history' | 'product-reference' | 'busy-sales-orders' | 'busy-sales-invoices' | 'busy-sales-payments' | 'partner-payouts' | 'sl-dashboard' | 'customer-outstanding' | 'recycle-bin' | 'settings' | 'factory-problems' | 'factory-my-data' | 'hunt' | 'investor' | 'expenses' | 'growth' | 'warehouse' | 'shipping' | 'reports' | 'cn-reports' | 'cn-home' | 'clearing-agents';
 
 interface Call {
   id: string;
@@ -74,7 +75,7 @@ interface Call {
 function App() {
   const { user, loading, signOut } = useAuth();
   const [showSignUp, setShowSignUp] = useState(false);
-  const VIEW_IDS: View[] = ['main-dashboard', 'customers', 'calls', 'sales', 'summary', 'credit', 'ceo', 'import-calc', 'suppliers', 'purchase-orders', 'purchase-bills', 'items', 'batch-invoice', 'pl-input', 'packing-list', 'costing-duty', 'cn-dashboard', 'outstanding-payments', 'shipment-history', 'product-reference', 'busy-sales-orders', 'busy-sales-invoices', 'busy-sales-payments', 'sl-dashboard', 'customer-outstanding', 'recycle-bin', 'settings', 'factory-problems', 'factory-my-data', 'investor', 'warehouse', 'shipping', 'reports', 'expenses', 'growth', 'cn-reports', 'cn-home', 'clearing-agents'];
+  const VIEW_IDS: View[] = ['main-dashboard', 'customers', 'calls', 'sales', 'summary', 'credit', 'ceo', 'import-calc', 'suppliers', 'purchase-orders', 'purchase-bills', 'items', 'batch-invoice', 'pl-input', 'packing-list', 'costing-duty', 'cn-dashboard', 'outstanding-payments', 'shipment-history', 'product-reference', 'busy-sales-orders', 'busy-sales-invoices', 'busy-sales-payments', 'partner-payouts', 'sl-dashboard', 'customer-outstanding', 'recycle-bin', 'settings', 'factory-problems', 'factory-my-data', 'investor', 'warehouse', 'shipping', 'reports', 'expenses', 'growth', 'cn-reports', 'cn-home', 'clearing-agents'];
   const viewFromHash = (): View | null => { const h = window.location.hash.replace(/^#\/?/, ''); return (VIEW_IDS as string[]).includes(h) ? (h as View) : null; };
   // the screen lives in the address bar: #/bills, #/warehouse … so tabs, refresh, back and bookmarks all work
   const [currentView, setCurrentViewState] = useState<View>(() => viewFromHash() ?? ('main-dashboard'));
@@ -199,6 +200,7 @@ function App() {
     { id: 'busy-sales-orders' as View, label: 'SO', icon: ShoppingCart },
     { id: 'busy-sales-invoices' as View, label: 'Sales Invoice', icon: FileText },
     { id: 'busy-sales-payments' as View, label: 'Sales Payment', icon: CreditCard },
+    { id: 'partner-payouts' as View, label: 'Partner Payouts', icon: Handshake },
   ];
 
   const bottomMenuItems = [
@@ -373,6 +375,8 @@ function App() {
             onClearPreselection={() => setPreselectedInvoiceId(null)}
           />
         );
+      case 'partner-payouts':
+        return <PartnerPayouts />;
       case 'factory-problems':
         return <FactoryProblems openProblemId={factoryProblemId} onOpenChange={setFactoryProblemId} />;
       case 'factory-my-data':
@@ -435,7 +439,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V127</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V128</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -464,7 +468,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v127</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v128</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
