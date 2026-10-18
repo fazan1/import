@@ -140,13 +140,15 @@ export default function Reports() {
       const cbm = rs.reduce((s, r) => s + (r.cbm || 0), 0);
       const kg = rs.reduce((s, r) => s + (r.weight_kg || 0), 0);
       const investment = productCost + charges;
-      const profit = sales + factory - investment;
-      const margin = sales > 0 ? (profit / sales) * 100 : 0;
+      // not costed yet = no selling prices (and no factory goods) or no product cost in Costing: the charges alone are not a loss
+      const costed = productCost > 0 && (sales > 0 || factory > 0);
+      const profit = costed ? sales + factory - investment : 0;
+      const margin = costed && sales > 0 ? (profit / sales) * 100 : 0;
       const mode = sh ? sh.mode : batch.toUpperCase().startsWith('LCL') ? 'LCL' : batch.toUpperCase().startsWith('FCL') ? 'FCL' : 'other';
       return {
         batch, mode, forwarder: sh?.forwarder || '', status: sh?.status || '', date,
         items: rs.length, cbm, kg, productCost, charges, chargesActual: !!(sh && sh.actual_charges > 0),
-        landed, sales, factory, profit, margin, costPerCbm: cbm > 0 ? charges / cbm : 0,
+        landed, sales, factory, profit, margin, costed, costPerCbm: cbm > 0 ? charges / cbm : 0,
       };
     });
     return rows
@@ -159,12 +161,15 @@ export default function Reports() {
     const sum = (key: keyof (typeof shipmentReport)[number], rows = shipmentReport) =>
       rows.reduce((s, r) => s + (r[key] as number), 0);
     const byMode = (m: string) => shipmentReport.filter((r) => r.mode === m);
-    const mk = (rows: typeof shipmentReport) => ({
-      n: rows.length, cbm: sum('cbm', rows), charges: sum('charges', rows), landed: sum('landed', rows),
-      sales: sum('sales', rows), factory: sum('factory', rows), profit: sum('profit', rows),
-      costPerCbm: sum('cbm', rows) > 0 ? sum('charges', rows) / sum('cbm', rows) : 0,
-      margin: sum('sales', rows) > 0 ? (sum('profit', rows) / sum('sales', rows)) * 100 : 0,
-    });
+    const mk = (rows: typeof shipmentReport) => {
+      const costedRows = rows.filter((r) => r.costed);   // profit / margin only over shipments that are costed
+      return {
+        n: rows.length, nCosted: costedRows.length, cbm: sum('cbm', rows), charges: sum('charges', rows), landed: sum('landed', rows),
+        sales: sum('sales', rows), factory: sum('factory', rows), profit: sum('profit', costedRows),
+        costPerCbm: sum('cbm', rows) > 0 ? sum('charges', rows) / sum('cbm', rows) : 0,
+        margin: sum('sales', costedRows) > 0 ? (sum('profit', costedRows) / sum('sales', costedRows)) * 100 : 0,
+      };
+    };
     return { all: mk(shipmentReport), lcl: mk(byMode('LCL')), fcl: mk(byMode('FCL')) };
   }, [shipmentReport]);
 
@@ -274,7 +279,7 @@ export default function Reports() {
         CBM: +r.cbm.toFixed(3), Kg: +r.kg.toFixed(1), 'Product cost LKR': +r.productCost.toFixed(2),
         'Shipment charges LKR': +r.charges.toFixed(2), 'Charges source': r.chargesActual ? 'Actual' : 'Estimate',
         'Landed total LKR': +r.landed.toFixed(2), 'Resale sales LKR': +r.sales.toFixed(2), 'To factory LKR': +r.factory.toFixed(2),
-        'Profit LKR': +r.profit.toFixed(2), 'Margin %': +r.margin.toFixed(1), 'Charges per CBM': +r.costPerCbm.toFixed(0),
+        'Profit LKR': r.costed ? +r.profit.toFixed(2) : 'not costed', 'Margin %': r.costed ? +r.margin.toFixed(1) : '', 'Charges per CBM': +r.costPerCbm.toFixed(0),
       }));
     } else if (tab === 'items') {
       name = 'Landed cost by item';
@@ -330,9 +335,12 @@ export default function Reports() {
         <span className="text-gray-600">CBM</span><span className="text-right">{n3(t.cbm)}</span>
         <span className="text-gray-600">Charges / CBM</span><span className="text-right">{n0(t.costPerCbm)}</span>
         <span className="text-gray-600">Landed</span><span className="text-right">{n0(t.landed)}</span>
+        <span className="text-gray-600">Charges</span><span className="text-right">{n0(t.charges)}</span>
         <span className="text-gray-600">Resale sales</span><span className="text-right">{n0(t.sales)}</span>
         <span className="text-gray-600 font-medium">Profit</span>
-        <span className={`text-right font-semibold ${t.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(t.profit)} ({pct(t.margin)})</span>
+        {t.nCosted === 0
+          ? <span className="text-right text-gray-500">not costed yet</span>
+          : <span className={`text-right font-semibold ${t.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(t.profit)} ({pct(t.margin)}){t.nCosted < t.n ? <span className="block text-xs font-normal text-gray-500">{t.nCosted} of {t.n} costed</span> : null}</span>}
       </div>
     </div>
   );
@@ -432,15 +440,17 @@ export default function Reports() {
                     <td className="px-3 py-2 text-right">{n0(r.landed)}</td>
                     <td className="px-3 py-2 text-right">{n0(r.sales)}</td>
                     <td className="px-3 py-2 text-right text-purple-700">{r.factory ? n0(r.factory) : '—'}</td>
-                    <td className={`px-3 py-2 text-right font-semibold ${r.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(r.profit)}</td>
-                    <td className="px-3 py-2 text-right">{r.sales > 0 ? pct(r.margin) : '—'}</td>
+                    {r.costed
+                      ? <td className={`px-3 py-2 text-right font-semibold ${r.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(r.profit)}</td>
+                      : <td className="px-3 py-2 text-right text-gray-500" title={r.productCost > 0 ? 'No selling prices in Costing yet' : 'No product cost in Costing yet (CNY price / rate missing)'}>not costed</td>}
+                    <td className="px-3 py-2 text-right">{r.costed && r.sales > 0 ? pct(r.margin) : '—'}</td>
                     <td className="px-3 py-2 text-gray-600">{r.status || '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-gray-500">Charges: "act" = actual charges entered in Shipping; "est" = sum of the duty column in Costing. Profit = resale sales + factory goods at landed cost − (product cost + charges).</p>
+          <p className="text-xs text-gray-500">Charges: "act" = actual charges entered in Shipping; "est" = sum of the duty column in Costing. Profit = resale sales + factory goods at landed cost − (product cost + charges). "Not costed" = Costing has no selling prices or no product cost for that shipment yet, so its charges are not counted as a loss.</p>
         </>
       )}
 
