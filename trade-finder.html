@@ -570,7 +570,7 @@ function leadCard(d){
         const digits=tel.replace(/[^0-9]/g,'');
         // SL mobile: 07x... (10 digits starting 07), or 947x...
         const isMobile = /^07\d{8}$/.test(digits) || /^947\d{8}$/.test(digits);
-        const wa = isMobile ? ` <a class="wa" href="javascript:void(0)" onclick="waSend(${jsArg(p)},'',${jsArg(nm)},'')">WhatsApp</a>` : '';
+        const wa = isMobile ? ` <a class="wa" href="javascript:void(0)" onclick="waSend(${jsArg(p)},${jsArg(d.pitch||'')},${jsArg(nm)},'')">WhatsApp${d.pitch?' ✉':''}</a>` : '';
         return `<a class="ph" href="tel:${esc(tel)}" onclick="logContact(${jsArg(nm)},'call','')">📞 ${esc(p)}</a>${wa}`;
       }).join("<br>")
     : `<a class="find" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent((d.name||'')+' Sri Lanka contact')}">Find contact ↗</a>`;
@@ -592,11 +592,28 @@ function leadCard(d){
   const addrHtml = addr
     ? `<a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr+' Sri Lanka')}">📍 ${esc(addr)}</a>${d.type?' · '+esc(d.type):''}`
     : esc(d.type||'');
-  return `<div class="biz"><div class="nm">${badge}${matchBadge}${contactedBadge}${esc(d.name)}</div>
+  // how well they fit (from the AI): High / Medium / Low
+  const fit=String(d.fit||'').toLowerCase();
+  const fitBadge = fit.startsWith('h') ? `<span class="badge" style="background:#dcfce7;color:#15803d">High fit</span>`
+    : fit.startsWith('m') ? `<span class="badge" style="background:#fef3c7;color:#b45309">Medium fit</span>`
+    : fit.startsWith('l') ? `<span class="badge" style="background:#f3f4f6;color:#6b7280">Low fit</span>` : '';
+  const facts=[];
+  if(d.need) facts.push(`<b>Likely need:</b> ${esc(d.need)}`);
+  if(d.contact) facts.push(`<b>Ask for:</b> ${esc(d.contact)}`);
+  if(d.channel) facts.push(`<b>Best:</b> ${esc(d.channel)}`);
+  const factsHtml = facts.length ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:6px;line-height:1.5">${facts.join(' &nbsp;·&nbsp; ')}</div>` : '';
+  const pitchHtml = d.pitch ? `<div style="margin-top:7px;background:var(--surface-2);border:1px dashed var(--border-2);border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.45">
+      <span style="color:var(--gray-mid);font-size:11px;font-weight:700;letter-spacing:.4px">OPENING LINE</span> <a href="javascript:void(0)" onclick="copyText(${jsArg(d.pitch)}, this)" style="float:right;font-size:11px;color:var(--gold-dark);font-weight:600">Copy</a><br>${esc(d.pitch)}</div>` : '';
+  const srcUrl = safeUrl(d.source);
+  const srcHtml = srcUrl ? ` &nbsp;<a class="find" target="_blank" rel="noopener" href="${esc(srcUrl)}">source ↗</a>` : '';
+  return `<div class="biz"><div class="nm">${badge}${fitBadge}${matchBadge}${contactedBadge}${esc(d.name)}</div>
     <div class="meta">${addrHtml}</div>
-    ${d.reason?`<div class="reason">💡 ${esc(d.reason)}</div>`:''}
-    ${phHtml}${web}</div>`;
+    ${d.reason?`<div class="reason">💡 ${esc(d.reason)}</div>`:''}${factsHtml}
+    ${phHtml}${web}${srcHtml}${pitchHtml}</div>`;
 }
+function copyText(t, el){ try{ navigator.clipboard.writeText(t).then(()=>{ if(el){ el.textContent='Copied ✓'; setTimeout(()=>{ el.textContent='Copy'; },1500); } }); }catch(e){ prompt('Copy this:', t); } }
+const FIT_RANK={high:0,medium:1,low:2};
+const fitRank=(d)=>{ const f=String(d.fit||'').toLowerCase(); return f.startsWith('h')?0:f.startsWith('m')?1:f.startsWith('l')?2:1; };
 
 // Decide if a catalog company is a BUYER or RESELLER of the product, with a short reason.
 function assess(d, product){
@@ -1186,9 +1203,15 @@ async function smartFind(forceFresh){
     const it=INTEL[intelKey(p)];
     const intelLine=it?`\nWHO USES "${p}": ${intelGroups(it).map(g=>g.name+' ('+(g.why||'')+')').join('; ')}. Also called: ${(it.synonyms||[]).join(', ')}.\n`:'';
     const prompt=`A supplier in Sri Lanka sells "${p}". Below is part of their real business directory (hardware shops, traders, factories, safety dealers, steel/welding firms, etc.).${intelLine}
-Most of these are general hardware/trading businesses whose NAME may not mention "${p}" — but many would still BUY or RESELL it (e.g. a hardware shop resells gloves; a factory or fabricator buys gloves). Be INCLUSIVE: keep any business that could plausibly buy or resell "${p}", not just ones with the product in their name. Only drop ones that are clearly unrelated.
-For each kept business give role (Buyer or Reseller) and a short reason.
-Return ONLY a JSON array using the EXACT name and phone from the list: [{"name","phone","role","reason"}]. Keep as many as reasonably fit.
+Most of these are general hardware/trading businesses whose NAME may not mention "${p}" — a hardware shop may resell it, a factory or fabricator may buy it. Think like an experienced Sri Lankan salesman, not a search engine:
+- Judge each business by what it ACTUALLY does (its type and name). Keep the ones a salesman would really visit or call for "${p}". Drop the clearly unrelated.
+- Grade the fit honestly: High = their core trade uses or sells "${p}" regularly; Medium = plausible side line; Low = only a maybe. Do NOT call everything High.
+- "need": what variant of "${p}" they would buy and a rough quantity per month (e.g. "knitted cotton gloves, 200-500 pairs/month"). Be realistic for the size of business.
+- "contact": who to ask for (owner / purchasing officer / site manager / stores). "channel": WhatsApp, call or visit.
+- "reason": ONE specific sentence tied to this business — never a generic phrase repeated for all.
+- "pitch": a WhatsApp opening line (max 25 words, simple English, no emojis) from Bline Traders, mentioning "${p}" and something specific to that business.
+Return ONLY a JSON array using the EXACT name and phone from the list:
+[{"name","phone","role":"Buyer|Reseller","fit":"High|Medium|Low","need","contact","channel","reason","pitch"}]
 
 DIRECTORY:
 ${list}`;
@@ -1210,8 +1233,9 @@ ${list}`;
       } else if(arr.length){
         arr.forEach(r=>{
           const full=m.find(x=>(x.name||'').toLowerCase().trim()===(r.name||'').toLowerCase().trim());
-          const d=full?{name:full.name,type:full.type||full.cat,addr:(full.addr||'')+(full.district?' · '+full.district:''),phone:full.phone||r.phone,website:'',role:r.role,reason:r.reason}
-                       :{name:r.name,phone:r.phone,role:r.role,reason:r.reason};
+          const extra={fit:r.fit,need:r.need,contact:r.contact,channel:r.channel,pitch:r.pitch};
+          const d=full?{name:full.name,type:full.type||full.cat,addr:(full.addr||'')+(full.district?' · '+full.district:''),phone:full.phone||r.phone,website:'',role:r.role,reason:r.reason,...extra}
+                       :{name:r.name,phone:r.phone,role:r.role,reason:r.reason,...extra};
           collected.push(d);
           out.insertAdjacentHTML('beforeend', leadCard(d));
           shown++;
@@ -1230,7 +1254,12 @@ ${list}`;
     }
     document.getElementById('smartProg').textContent=`Researched ${Math.min((b+1)*BATCH,m.length)} of ${m.length} shops — ${shown} matches so far…`;
   }
-  document.getElementById('smartProg').textContent = shown? `✅ Done — the AI kept ${shown} of the ${m.length} companies checked for "${p}". Not here? Use Deep search to find new ones on the web.` : 'The AI kept none of them. Try the web deep search.';
+  if(collected.length){
+    collected.sort((a,b)=>fitRank(a)-fitRank(b));
+    out.innerHTML=collected.map(d=>leadCard(d)).join('');
+  }
+  const nHigh=collected.filter(d=>fitRank(d)===0).length, nMed=collected.filter(d=>fitRank(d)===1).length, nLow=collected.filter(d=>fitRank(d)===2).length;
+  document.getElementById('smartProg').textContent = shown? `✅ Done — the AI kept ${shown} of the ${m.length} companies checked for "${p}": ${nHigh} high fit · ${nMed} medium · ${nLow} low. Best ones first. Not here? Use Deep search to find new ones on the web.` : 'The AI kept none of them. Try the web deep search.';
   if(collected.length) saveSearch(p,'smart',dist,collected);
 }
 
@@ -1333,7 +1362,7 @@ function retryIndustry(name){ if(window.__deepRetry) window.__deepRetry(name); }
 // web results grouped by industry
 function renderGrouped(arr){
   const by={}; arr.forEach(d=>{ const g=d.industry||'Other'; (by[g]=by[g]||[]).push(d); });
-  return Object.keys(by).map(g=>`<div class="sec" style="font-size:14px;margin-top:14px">${esc(g)} <span style="color:var(--gray-mid);font-weight:400">· ${by[g].length}</span></div>`+by[g].map(d=>leadCard(d)).join('')).join('');
+  return Object.keys(by).map(g=>`<div class="sec" style="font-size:14px;margin-top:14px">${esc(g)} <span style="color:var(--gray-mid);font-weight:400">· ${by[g].length}</span></div>`+by[g].sort((a,b)=>fitRank(a)-fitRank(b)).map(d=>leadCard(d)).join('')).join('');
 }
 
 async function deepSearchRun(){
@@ -1362,16 +1391,19 @@ TARGET: businesses of this kind — ${g.name} (${g.why||''}). They would ${g.kin
 Search the web (Google, Rainbow Pages, Yellow Pages Sri Lanka, Facebook business pages, company websites, trade directories, port/harbour/industry listings) for REAL such businesses in or near ${where}, Sri Lanka.
 Useful searches: ${terms}
 
-QUALITY RULES:
-- Only REAL businesses you can verify from search results — never invent names or phone numbers.
-- Include a PHONE NUMBER whenever it appears in the source (Sri Lankan format 0XX XXX XXXX or 07X XXX XXXX). Mobile numbers are best (WhatsApp).
+QUALITY RULES (a salesman will phone these people — be accurate):
+- Only REAL businesses you can verify from search results — never invent names, phone numbers or addresses. If you cannot find a phone, leave "phone" empty rather than guessing.
+- Prefer businesses with a mobile number (07X…) — WhatsApp is how the supplier works.
+- "source": the web page (URL) where you found the business, so the supplier can check it.
 - Include the town/city in "addr".
-- Skip businesses you cannot verify.
-Return ONLY a JSON array, no prose. Each item: {"name","type","addr","phone","website","role","reason"}
+- Grade the fit honestly: High = their core trade uses or sells "${p}" regularly; Medium = plausible; Low = only a maybe. Do NOT call everything High.
+- "need": the variant of "${p}" they would buy and a rough monthly quantity, realistic for their size. "contact": who to ask for. "channel": WhatsApp, call or visit.
+- "reason": ONE specific sentence tied to this business — not a phrase repeated for all.
+- "pitch": a WhatsApp opening line (max 25 words, simple English, no emojis) from Bline Traders, mentioning "${p}" and something specific to that business.
+Return ONLY a JSON array, no prose. Each item:
+{"name","type","addr","phone","website","source","role":"${g.kind}","fit":"High|Medium|Low","need","contact","channel","reason","pitch"}
 - "type": what the business actually does, specific (e.g. "Fishing boat yard", "Tower crane hire")
-- "role": "${g.kind}"
-- "reason": one short sentence on why they need "${p}"
-Return 8-15 of the strongest, most specific leads.`;
+Return 8-15 of the strongest, most specific leads. Fewer real ones beat many doubtful ones.`;
     try{
       const data=await aiCall(prompt);
       trackUsage('deep',1);
@@ -1379,6 +1411,7 @@ Return 8-15 of the strongest, most specific leads.`;
       if(arr===null) throw new Error('The AI answered without a list (no JSON).');
       const fresh=[];
       arr.forEach(d=>{ if(!d||!d.name) return; const k=String(d.name).toLowerCase().trim(); if(seen.has(k)) return; seen.add(k); d.industry=g.name; d.role=d.role||g.kind; fresh.push(d); });
+      fresh.sort((a,b)=>fitRank(a)-fitRank(b));
       all.push(...fresh);
       status[g.name]=fresh.length?`✅ ${fresh.length} found`:'— none new'; drawProg();
       if(fresh.length) list.insertAdjacentHTML('beforeend', `<div class="sec" style="font-size:14px;margin-top:14px">${esc(g.name)} <span style="color:var(--gray-mid);font-weight:400">· ${fresh.length}</span></div>`+fresh.map(d=>leadCard(d)).join(''));
@@ -1437,7 +1470,8 @@ You have a directory of ${CATALOG.length} real businesses below (format: Name | 
 HOW TO ANSWER:
 1. FIRST use the directory below. When the user asks who would buy/sell a product, pick the most relevant businesses FROM THIS DIRECTORY, explain briefly why each is a lead (buyer or reseller), and include their phone number.
 2. If the directory does not have enough relevant businesses, USE WEB SEARCH to find more real Sri Lankan businesses, and clearly label those as "(from web)".
-3. When asked to write a WhatsApp or email message, write a short, friendly, professional message in simple language suitable for Sri Lankan business owners. Keep WhatsApp messages under 60 words.
+3. When asked to write a WhatsApp or email message, write a short, friendly, professional message in simple language suitable for Sri Lankan business owners, from Bline Traders (Mohamed Fazan). Keep WhatsApp messages under 60 words, no emojis.
+4. Be realistic like an experienced Sri Lankan salesman: say who to ask for, a rough quantity they might buy, and the best way to reach them. Never invent phone numbers — if the directory has none, say so.
 Be concise and practical. Prefer the directory; use the web to fill gaps.
 
 DIRECTORY:
