@@ -426,7 +426,7 @@ function App() {
   const inToolsGroup = (id: View) => groups.find((g) => g.key === 'tools')?.items.some((i) => i.id === id) ?? false;
   const goItem = (id: View) => { setMoreOpen(false); if (id === 'hunt') window.open(HUNT_URL, '_blank', 'noopener'); else if (id === 'settings') openSettings(); else if (inToolsGroup(id) && !toolsUnlocked) askToolsPin(id); else setCurrentView(id); };
   const goGroup = (g: Group) => { if (g.items.some((i) => i.id === currentView)) return; goItem(g.items[0].id); };
-  const portalBtn = (on: boolean) => `px-3 lg:px-4 h-11 text-[12px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-white border-[#e8552a]' : 'text-neutral-200 border-transparent hover:text-white'}`;
+  const portalBtn = (on: boolean) => `px-3 lg:px-2 2xl:px-4 h-11 text-[11px] 2xl:text-[12px] font-semibold uppercase tracking-[0.04em] 2xl:tracking-[0.08em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-white border-[#e8552a]' : 'text-neutral-200 border-transparent hover:text-white'}`;
   const bookLocked = typeof perm === 'object' && perm !== null && perm.role !== 'admin' && !!perm.book;
   function changeBook(b: string) {
     const was = book;
@@ -442,7 +442,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden sm:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V129</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V130</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -465,13 +465,13 @@ function App() {
             )}
           </div>
           <nav className="hidden lg:flex flex-1 min-w-0 items-stretch h-11 overflow-x-auto no-scrollbar">
-            {groups.map((g) => <button key={g.key} onClick={() => goGroup(g)} className={portalBtn(g.key === activeGroup?.key)}>{g.label}{g.key === 'tools' && !toolsUnlocked && <Lock className="w-3 h-3 inline ml-1.5 -mt-0.5 opacity-60" />}</button>)}
+            {groups.map((g) => <button key={g.key} onClick={() => goGroup(g)} className={portalBtn(g.key === activeGroup?.key)} title={g.label}><span className="2xl:hidden">{g.label.replace(' Portal', '')}</span><span className="hidden 2xl:inline">{g.label}</span>{g.key === 'tools' && !toolsUnlocked && <Lock className="w-3 h-3 inline ml-1.5 -mt-0.5 opacity-60" />}</button>)}
           </nav>
           <div className="ml-auto pl-3 flex items-center gap-1 shrink-0">
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v129</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v130</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}

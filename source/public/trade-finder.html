@@ -129,6 +129,17 @@ button{font-family:inherit;cursor:pointer;border:none}
 .crm-back:hover{border-color:var(--gold);color:var(--gold)}
 .gate{max-width:420px;margin:80px auto;padding:24px;background:#fff;border:1px solid var(--border);border-radius:10px;text-align:center;line-height:1.6}
 .gate a{color:var(--gold-dark);font-weight:600}
+/* inside the CRM (?embed=1): the CRM header + menu are already there */
+html.embed .sidebar,html.embed .overlay,html.embed .menu-btn,html.embed .crm-back,html.embed .topbar .pill{display:none!important}
+html.embed .main{margin-left:0!important}
+html.embed .topbar{position:static;background:transparent;color:var(--ink);border-bottom:0;padding:14px 16px 0}
+html.embed .topbar .tt{display:none}
+html.embed .tabs{display:flex;gap:6px;overflow-x:auto;padding:0 16px 10px;max-width:900px;width:100%;margin:0 auto;scrollbar-width:none}
+html.embed .tabs::-webkit-scrollbar{display:none}
+html.embed .tab{flex:0 0 auto;background:#fff;border:1px solid var(--border-2);color:var(--ink-soft);font-size:13px;font-weight:600;padding:8px 13px;border-radius:999px;white-space:nowrap}
+html.embed .tab.active{background:var(--gold);color:#fff;border-color:var(--gold)}
+html.embed .tabs-count{align-self:center;margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--gray-mid);white-space:nowrap;padding-left:8px}
+.tabs{display:none}
 </style>
 </head>
 <body>
@@ -159,6 +170,7 @@ button{font-family:inherit;cursor:pointer;border:none}
       <span class="pill" id="topPill">—</span>
       <a class="crm-back" href="/" onclick="return backToCrm()">← CRM</a>
     </div>
+    <div class="tabs" id="tabs"></div>
     <div class="content">
 
       <!-- DASHBOARD -->
@@ -299,6 +311,12 @@ button{font-family:inherit;cursor:pointer;border:none}
 let sb=null, CATALOG=[];
 const T_BIZ='trade_businesses', T_LOG='trade_contacts', T_SAVED='trade_saved_searches';
 const AI_URL='https://tycoon-vercel.vercel.app/api/trade-search';
+const EMBED=/[?&]embed=1/.test(location.search) || window.self!==window.top;
+if(EMBED) document.documentElement.classList.add('embed');
+function buildTabs(){
+  const box=document.getElementById('tabs'); if(!box) return;
+  box.innerHTML=[...document.querySelectorAll('.navitem')].map(b=>`<button class="tab${b.classList.contains('active')?' active':''}" data-view="${esc(b.dataset.view)}" onclick="nav(${jsArg(b.dataset.view)})">${esc(b.textContent.trim())}</button>`).join('')+'<span class="tabs-count" id="tabsCount"></span>';
+}
 function backToCrm(){
   try{ if(document.referrer && new URL(document.referrer).origin===location.origin){ history.back(); return false; } }catch(e){}
   location.href='/'; return false;
@@ -335,7 +353,7 @@ async function boot(){
   const {data:{session}}=await sb.auth.getSession();
   if(!session){ gate('Please sign in to the CRM first.<br><a href="/">Go to the CRM</a>'); return false; }
   let unlocked=false; try{ unlocked=sessionStorage.getItem('tools-unlocked')==='1'; }catch(e){}
-  if(!unlocked){ location.replace('/#/trade-finder'); return false; }   // Tools password is asked in the CRM
+  if(!unlocked){ if(EMBED){ gate('Trade Finder is behind the Tools password. Open it from <b>Tools → Trade Finder</b>.'); return false; } location.replace('/#/trade-finder'); return false; }   // Tools password is asked in the CRM
   const {data:me}=await sb.from('app_users').select('role,modules,is_active').eq('user_id', session.user.id).maybeSingle();
   if(me && (me.is_active===false || (me.role!=='admin' && !(me.modules||[]).includes('trade-finder')))){
     gate('Your login does not have Trade Finder. Ask the admin to tick it in <b>Settings → Users</b>.<br><a href="/">Back to the CRM</a>'); return false;
@@ -346,6 +364,7 @@ async function boot(){
   }
   document.getElementById('gate').style.display='none';
   document.getElementById('appShell').style.display='flex';
+  if(EMBED) buildTabs();
   return true;
 }
 
@@ -355,6 +374,7 @@ function nav(v){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
   document.getElementById('view-'+v).classList.add('active');
   document.querySelectorAll('.navitem').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
   document.getElementById('viewTitle').textContent=VIEW_TITLES[v]||'';
   if(v==='history'){ showHistory(); }
   if(v==='dashboard'){ renderDashboard(); }
@@ -477,6 +497,7 @@ async function loadCatalog(){
     const stc=document.getElementById('stCat'); if(stc) stc.textContent=n;
     const fc=document.getElementById('footCount'); if(fc) fc.textContent=`${n} companies`;
     const tp=document.getElementById('topPill'); if(tp) tp.textContent=`${n} companies`;
+    const tc=document.getElementById('tabsCount'); if(tc) tc.textContent=`${n} companies`;
     renderDashboard();
   }catch(e){ console.warn(e); }
 }
