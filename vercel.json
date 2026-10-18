@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/trade-search", "destination": "https://tycoon-vercel.vercel.app/api/trade-search" }
+  ]
+}

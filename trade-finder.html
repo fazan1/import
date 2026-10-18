@@ -310,7 +310,20 @@ html.embed .tabs-count{align-self:center;margin-left:auto;font-family:var(--font
 // Runs inside the Import CRM: same database, same login (the CRM writes its connection to localStorage).
 let sb=null, CATALOG=[];
 const T_BIZ='trade_businesses', T_LOG='trade_contacts', T_SAVED='trade_saved_searches';
-const AI_URL='https://tycoon-vercel.vercel.app/api/trade-search';
+const AI_DIRECT='https://tycoon-vercel.vercel.app/api/trade-search';
+// The AI service lives on another site. Browsers block calls between sites, so this site forwards
+// /api/trade-search to it (vercel.json rewrite) and the call looks same-site. If the forward is
+// missing (e.g. a local test), fall back to the direct address.
+async function aiCall(prompt){
+  const body={ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prompt:prompt}) };
+  let res=null, viaErr='';
+  if(location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
+    try{ res=await fetch('/api/trade-search', body); if(res.status===404 || res.status===405) res=null; }catch(e){ viaErr=String(e&&e.message||e); res=null; }
+  }
+  if(!res){ try{ res=await fetch(AI_DIRECT, body); }catch(e){ throw new Error('Could not reach the AI service ('+(viaErr||(e&&e.message)||'blocked by the browser')+').'); } }
+  if(!res.ok){ const t=await res.text().catch(()=>''); throw new Error('AI service answered '+res.status+(t?': '+t.slice(0,160):'')); }
+  return res.json();
+}
 const EMBED=/[?&]embed=1/.test(location.search) || window.self!==window.top;
 if(EMBED) document.documentElement.classList.add('embed');
 function buildTabs(){
@@ -1063,13 +1076,8 @@ Return ONLY a JSON array using the EXACT name and phone from the list: [{"name",
 DIRECTORY:
 ${list}`;
     try{
-      const res=await fetch(AI_URL,{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt:prompt})
-      });
+      const data=await aiCall(prompt);
       trackUsage('smart',1);
-      if(!res.ok) throw new Error('AI service answered '+res.status);
-      const data=await res.json();
       let text=data.text||""; let arr=[];
       const mm=text.match(/\[[\s\S]*\]/);
       if(mm){ try{ arr=JSON.parse(mm[0]); }catch(e){ (text.match(/\{[^{}]*\}/g)||[]).forEach(o=>{try{arr.push(JSON.parse(o))}catch(_){}}); } }
@@ -1094,6 +1102,7 @@ ${list}`;
       }
     }catch(e){
       // Network/backend failure for this batch — still show these shops with category assessment
+      if(b===0){ out.insertAdjacentHTML('beforeend', `<div class="empty" style="color:#a63b3b">AI could not be reached (${esc(e&&e.message||e)}). Showing your directory matches with the basic assessment instead.</div>`); }
       batches[b].forEach(full=>{
         const a=assess(full,p);
         const card={name:full.name,type:full.type||full.cat,addr:(full.addr||'')+(full.district?' · '+full.district:''),phone:full.phone,website:'',role:a.role,reason:a.reason};
@@ -1224,12 +1233,7 @@ Return 12-20 of the strongest, most specific leads.`;
 
 
   try{
-    const res=await fetch(AI_URL,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prompt:prompt})
-    });
-    if(!res.ok) throw new Error('AI service answered '+res.status);
-    const data=await res.json();
+    const data=await aiCall(prompt);
     trackUsage('deep',1);
     let text=data.text||"";
     let arr=[];
@@ -1308,12 +1312,7 @@ ${catalogContext()}`;
     "\n\nAnswer as the Assistant:";
 
   try{
-    const res=await fetch(AI_URL,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({prompt:prompt})
-    });
-    if(!res.ok) throw new Error('AI service answered '+res.status);
-    const data=await res.json();
+    const data=await aiCall(prompt);
     trackUsage('chat',1);
     const text=(data.text||"").trim() || "Sorry, I couldn't get an answer just now. Please try again.";
     t.remove();
