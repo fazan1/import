@@ -332,82 +332,35 @@ export default function CustomerOutstanding() {
 
   return (
     <div className="space-y-6">
+      {/* same header + tiles as the other SL pages */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl">
-            <DollarSign className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900">Outstanding Balances</h2>
-            <p className="text-sm text-gray-500">Customer payments due from sales invoices</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Outstanding</h1>
+          <p className="text-sm text-gray-500">What customers still owe, from sales invoices and opening balances</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors print:hidden"
-          >
-            <Printer className="w-4 h-4" />
-            Print
+        <div className="flex items-center gap-2 print:hidden">
+          <button onClick={() => window.print()} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <Printer className="w-4 h-4" /> Print
           </button>
-          <button
-            onClick={loadOutstanding}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors print:hidden"
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+          <button onClick={loadOutstanding} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            <RefreshCw className="w-4 h-4" /> Refresh
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-rose-50 rounded-lg">
-              <DollarSign className="w-5 h-5 text-rose-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Total Outstanding</p>
-              <p className="text-xl font-bold text-rose-600">{formatCurrency(summary.total_outstanding)}</p>
-            </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: 'Total outstanding', value: formatCurrency(summary.total_outstanding), tone: 'text-red-700', icon: DollarSign },
+          { label: 'Opening balances', value: formatCurrency(summary.total_opening_balance), tone: 'text-gray-900', icon: Calendar },
+          { label: 'Customers with due', value: String(summary.total_customers), tone: 'text-gray-900', icon: Users },
+          { label: 'Avg days outstanding', value: `${summary.avg_days_outstanding} days`, tone: 'text-gray-900', icon: Calendar },
+        ].map((t) => (
+          <div key={t.label} className="bg-white border border-gray-200 rounded-xl p-4 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-[#f4f3f1] flex items-center justify-center mb-3"><t.icon className="w-5 h-5 text-[#e8552a]" /></div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-gray-500 truncate">{t.label}</div>
+            <div className={`text-lg sm:text-xl font-bold tabular-nums truncate ${t.tone}`}>{t.value}</div>
           </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-50 rounded-lg">
-              <Calendar className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Opening Balances</p>
-              <p className="text-xl font-bold text-orange-600">{formatCurrency(summary.total_opening_balance)}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-50 rounded-lg">
-              <Users className="w-5 h-5 text-teal-700" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Customers with Due</p>
-              <p className="text-xl font-bold text-gray-900">{summary.total_customers}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-50 rounded-lg">
-              <Calendar className="w-5 h-5 text-teal-600" />
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Avg Days Outstanding</p>
-              <p className="text-xl font-bold text-gray-900">{summary.avg_days_outstanding} days</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">

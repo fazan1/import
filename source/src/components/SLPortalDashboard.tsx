@@ -43,8 +43,9 @@ export default function SLPortalDashboard({ onNavigate, embedded = false }: Prop
       supabase.from('busy_sales_orders').select('id', { count: 'exact', head: true }),
     ]);
     // only the lines of this book's invoices (reading every line of every book also stops at 1000 rows)
-    const li = await selectByIds<{ invoice_id: string; quantity: number; unit_price: number; cost_price: number }>('busy_sales_invoice_items', 'invoice_id, quantity, unit_price, cost_price', 'invoice_id', ((i.data || []) as { id: string }[]).map((x) => x.id));
-    setLines((li.data || []) as { invoice_id: string; quantity: number; unit_price: number; cost_price: number }[]);
+    const li = await selectByIds<{ sales_invoice_id: string; quantity: number; unit_price: number; cost_price: number | null }>('busy_sales_invoice_items', 'sales_invoice_id, quantity, unit_price, cost_price', 'sales_invoice_id', ((i.data || []) as { id: string }[]).map((x) => x.id));
+    setLines((li.data || []).map((l) => ({ invoice_id: l.sales_invoice_id, quantity: Number(l.quantity) || 0, unit_price: Number(l.unit_price) || 0, cost_price: Number(l.cost_price) || 0 })));
+    if (li.error) alert('Could not load the invoice lines (profit this month may be off): ' + li.error);
     setInvoices((i.data || []) as Invoice[]);
     setPayments([...p.data].sort((a, b) => (b.payment_date || '').localeCompare(a.payment_date || '')));
     setCustomers((c.data || []) as Customer[]);

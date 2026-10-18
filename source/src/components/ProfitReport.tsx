@@ -38,10 +38,10 @@ export default function ProfitReport({ startDate = '' }: { startDate?: string })
       fetchAllPages<Item>(() => supabase.from('items').select('id, item_name, purchase_price').order('id')),
     ]);
     // only the lines of this book's invoices (all lines of all books would also stop at 1000 rows)
-    const l = await selectByIds<Line>('busy_sales_invoice_items', 'id, invoice_id, item_id, item_name, quantity, unit_price, cost_price', 'invoice_id', ((i.data ?? []) as Inv[]).map((x) => x.id));
+    const l = await selectByIds<Omit<Line, 'invoice_id'> & { sales_invoice_id: string }>('busy_sales_invoice_items', 'id, sales_invoice_id, item_id, item_name, quantity, unit_price, cost_price', 'sales_invoice_id', ((i.data ?? []) as Inv[]).map((x) => x.id));
     if (i.error || l.error) alert('Could not load all sales for the report: ' + (i.error || l.error));
     setInvoices(((i.data ?? []) as Inv[]).filter((x) => x.status !== 'cancelled' && x.status !== 'draft'));
-    setLines(((l.data ?? []) as Line[]).map((x) => ({ ...x, quantity: Number(x.quantity) || 0, unit_price: Number(x.unit_price) || 0, cost_price: Number(x.cost_price) || 0 })));
+    setLines((l.data ?? []).map((x) => ({ id: x.id, invoice_id: x.sales_invoice_id, item_id: x.item_id, item_name: x.item_name, quantity: Number(x.quantity) || 0, unit_price: Number(x.unit_price) || 0, cost_price: Number(x.cost_price) || 0 })));
     setItems((it.data ?? []) as Item[]);
     setLoading(false);
   }
