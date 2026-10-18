@@ -454,14 +454,28 @@ function timeAgo(iso){
 }
 async function logContact(shop, channel, prod){
   const key=(shop||'').toLowerCase().trim();
+  if(!key) return;
+  if(!prod){ const pb=document.getElementById('product'); prod=(pb&&pb.value||'').trim(); }   // remember which product this was about
+  const now=new Date().toISOString();
   // optimistic local state so the badge shows immediately
-  CONTACTED[key]={channel, at:new Date().toISOString()};
+  CONTACTED[key]={channel, at:now};
   if(!sb){ console.warn('No Supabase client'); return; }
   try{
-    const {data,error}=await sb.from(T_LOG).insert({shop_name:shop, channel:channel, product:prod||''}).select();
-    if(error){ console.warn('log insert error', error); alert('Could not save to history: '+(error.message||error.code||'unknown')); return; }
-    // add to local log so history shows it without a full reload
-    if(data && data[0]) CONTACT_LOG.unshift(data[0]);
+    // ONE record per shop: a new call / WhatsApp updates it (status and notes are kept) instead of adding a duplicate
+    const existing=CONTACT_LOG.find(r=>(r.shop_name||'').toLowerCase().trim()===key);
+    if(existing){
+      const patch={channel:channel, contacted_at:now};
+      if(prod && !existing.product) patch.product=prod;
+      const {data,error}=await sb.from(T_LOG).update(patch).eq('id',existing.id).select();
+      if(error){ console.warn('log update error', error); alert('Could not save to history: '+(error.message||error.code||'unknown')); return; }
+      Object.assign(existing, (data&&data[0])||patch);
+      CONTACT_LOG=[existing, ...CONTACT_LOG.filter(r=>r!==existing)];   // newest first
+    } else {
+      const {data,error}=await sb.from(T_LOG).insert({shop_name:shop, channel:channel, product:prod||'', status:'Contacted'}).select();
+      if(error){ console.warn('log insert error', error); alert('Could not save to history: '+(error.message||error.code||'unknown')); return; }
+      if(data && data[0]) CONTACT_LOG.unshift(data[0]);
+    }
+    renderDashboard();
   }catch(e){ console.warn(e); alert('Could not save to history (network).'); }
 }
 let noteTimers={};
@@ -474,7 +488,7 @@ function noteTyping(id, val, el){
 }
 async function updateNote(id, note, el){
   if(noteTimers[id]){ clearTimeout(noteTimers[id]); delete noteTimers[id]; }
-  const row=CONTACT_LOG.find(r=>r.id===id); if(row){ if(row.note===note && el && el.dataset.saved==='1') return; row.note=note; }
+  const row=CONTACT_LOG.find(r=>r.id===id); if(row){ if(row.note===note && el && el.dataset.saved==='1') return; row.note=note; row.updated_at=new Date().toISOString(); }
   if(!sb){ alert('Not connected to database.'); return; }
   try{
     const {data,error}=await sb.from(T_LOG).update({note:note}).eq('id',id).select();
@@ -487,7 +501,7 @@ async function updateNote(id, note, el){
   }catch(e){ console.warn(e); alert('Save failed (network): '+e); }
 }
 async function updateStatus(id, status){
-  const row=CONTACT_LOG.find(r=>r.id===id); if(row) row.status=status;
+  const row=CONTACT_LOG.find(r=>r.id===id); if(row){ row.status=status; row.updated_at=new Date().toISOString(); }
   if(!sb) return;
   try{
     const {data,error}=await sb.from(T_LOG).update({status:status}).eq('id',id).select();
@@ -1449,7 +1463,7 @@ function bubble(text, who){
   return div;
 }
 function askAdvice(shop, status){
-  const row=CONTACT_LOG.find(r=>(r.shop_name||'')===shop);
+  const row=CONTACT_LOG.find(r=>(r.shop_name||'').toLowerCase().trim()===(shop||'').toLowerCase().trim());
   const note=row?(row.note||''):'';
   nav('assistant');
   const q=`I have a lead: "${shop}". Current status: ${status}.${note?(' My notes: "'+note+'".'):''} I sell PPE, safety equipment, gloves, welding and hardware products. What should I do next to move this lead toward a sale? Give me 2-3 specific steps and a short WhatsApp message I can send them.`;
@@ -1528,8 +1542,9 @@ async function updateHandler(id, handler){
 }
 function exportContacts(){
   if(!CONTACT_LOG.length){ alert('No contacts to export yet.'); return; }
-  const rows=[['Shop','Channel','Product','Status','Note','Date']];
-  CONTACT_LOG.forEach(r=>rows.push([r.shop_name||'',r.channel||'',r.product||'',r.status||'Contacted',(r.note||'').replace(/\n/g,' '),(r.contacted_at||'').slice(0,10)]));
+  const rows=[['Shop','Phone','Channel','Product','Status','Staff','Note','Contacted','Last update']];
+  CONTACT_LOG.forEach(r=>{ const c=CATALOG.find(x=>(x.name||'').toLowerCase().trim()===(r.shop_name||'').toLowerCase().trim());
+    rows.push([r.shop_name||'',c?(c.phone||''):'',r.channel||'',r.product||'',r.status||'Contacted',r.handler||'',(r.note||'').replace(/\n/g,' '),r.contacted_at?localYMD(r.contacted_at):'',r.updated_at?localYMD(r.updated_at):'']); });
   const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -1646,7 +1661,7 @@ function renderHistList(){
         <div class="nm">${esc(r.shop_name)}</div>
         <button onclick="deleteContact(${jsArg(r.id)}, this)" style="background:none;color:#a63b3b;font-size:18px;line-height:1;padding:2px 6px;flex:0 0 auto" title="Delete">🗑</button>
       </div>
-      <div class="meta">${ch}${r.product?(' · '+esc(r.product)):''} · ${timeAgo(r.contacted_at)}${r.handler?(' · 👤 '+esc(r.handler)):''}</div>
+      <div class="meta">${ch}${r.product?(' · about '+esc(r.product)):''} · ${timeAgo(r.contacted_at)}${r.updated_at && r.updated_at!==r.contacted_at?(' · updated '+timeAgo(r.updated_at)):''}${r.handler?(' · 👤 '+esc(r.handler)):''}</div>
       ${contactLinks}
       <div style="background:${actionColor(act.tone)};border-radius:10px;padding:9px 11px;margin-top:9px;font-size:12.5px;line-height:1.45;color:var(--ink)">${act.text}</div>
       <div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
@@ -1726,7 +1741,7 @@ function drawFunnel(){
   if(typeof Chart==='undefined'){ setTimeout(drawFunnel,500); return; }
   // count unique shops at each stage
   const byShop={};
-  CONTACT_LOG.forEach(r=>{ const k=(r.shop_name||'').toLowerCase().trim(); byShop[k]=r.status||'Contacted'; });
+  CONTACT_LOG.forEach(r=>{ const k=(r.shop_name||'').toLowerCase().trim(); if(!(k in byShop)) byShop[k]=r.status||'Contacted'; });   // newest first, so first wins
   const vals=Object.values(byShop);
   const stages=['Contacted','Interested','Follow up','Won'];
   const counts=stages.map(s=>vals.filter(v=>v===s).length);
@@ -1767,8 +1782,9 @@ function renderDashboard(){
   // stats from CONTACT_LOG
   const total=CONTACT_LOG.length;
   const uniq=new Set(CONTACT_LOG.map(r=>(r.shop_name||'').toLowerCase().trim())).size;
-  const interested=CONTACT_LOG.filter(r=>(r.status||'')==='Interested').length;
-  const won=CONTACT_LOG.filter(r=>(r.status||'')==='Won').length;
+  const latest={}; CONTACT_LOG.forEach(r=>{ const k=(r.shop_name||'').toLowerCase().trim(); if(!(k in latest)) latest[k]=r.status||'Contacted'; });
+  const interested=Object.values(latest).filter(s=>s==='Interested').length;
+  const won=Object.values(latest).filter(s=>s==='Won').length;
   const setT=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
   setT('stCon', uniq);
   setT('stInt', interested);
