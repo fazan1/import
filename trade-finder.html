@@ -1127,8 +1127,7 @@ async function smartFind(forceFresh){
   const root=document.getElementById('results');
   if(!CATALOG.length){ root.innerHTML='<div class="empty">⏳ Loading your companies… please wait a moment.</div>'; setTimeout(smartFind,1200); return; }
   addRecent(p);
-  const m=offlineMatches(p,dist,area);
-  if(!m.length){ root.innerHTML='<div class="sec">🔎 Smart Find</div><div class="empty">No companies in your directory match that area. Try All districts or the web deep search.</div>'; return; }
+  if(!p){ alert('Type a product first.'); return; }
 
   // Check saved cache first (free) unless forcing fresh
   if(!forceFresh){
@@ -1141,13 +1140,36 @@ async function smartFind(forceFresh){
     }
   }
 
+  root.innerHTML=`<div class="sec">🔎 Smart Find</div><div class="loading"><span class="spin"></span>Working out who buys ${esc(p)}…</div>`;
   try{ await productIntel(p,false); }catch(e){ /* ranking still works without it */ }
+  if(product()!==p) return;
+  let m=offlineMatches(p,dist,area);
+  let note='';
+  // Few or no name matches (e.g. "road cone"): still let the AI check the LIKELY shop types in this area,
+  // instead of giving up — a hardware or safety shop can resell it without the product in its name.
+  if(m.length<10){
+    const inArea=(d)=>{ if(area) return ((d.addr||'')+' '+(d.district||'')).toLowerCase().includes(area.toLowerCase()); if(dist) return d.district===dist; return true; };
+    const prof=productProfile(p);
+    let cats=[...new Set([...(prof?prof.primary:[]), ...(prof?prof.secondary:[]), ...(catsForProduct(p)||[])])];
+    if(!cats.length) cats=['hardware','safety','construction','industrial','tools'];
+    const have=new Set(m.map(d=>d.name));
+    const extra=CATALOG.filter(d=>inArea(d) && cats.includes(d.cat) && !have.has(d.name));
+    // fresh (uncontacted) ones first, newest first; cap so it stays affordable (3 AI calls at most)
+    extra.sort((a,b)=>(isContacted(a.name)?1:0)-(isContacted(b.name)?1:0) || (Number(b.id)||0)-(Number(a.id)||0));
+    const take=extra.slice(0, Math.max(0,120-m.length));
+    if(take.length){
+      m=m.concat(take);
+      note=`<div style="font-size:12.5px;color:var(--ink-soft);margin:0 2px 10px;line-height:1.5">No company in your directory names "<b>${esc(p)}</b>", so the AI is checking <b>${take.length}</b> likely ${cats.map(c=>esc(CATLABEL[c]||c)).join(' / ')} businesses${dist||area?' in '+esc(area||dist):''}.</div>`;
+    }
+  }
+  if(!m.length){ root.innerHTML='<div class="sec">🔎 Smart Find</div><div class="empty">No companies in your directory for that area. Try All districts, or use Deep search to find new ones on the web.</div>'; return; }
+
   // batch the matched companies
   const BATCH=40;
   const batches=[];
   for(let i=0;i<m.length;i+=BATCH) batches.push(m.slice(i,i+BATCH));
   const where = area?('"'+area+'"'):(dist||'all areas');
-  root.innerHTML=`<div class="sec">🔎 Smart Find — researching ${m.length} of your shops for "${esc(p)}" (${esc(where)})</div>
+  root.innerHTML=`<div class="sec">🔎 Smart Find — researching ${m.length} of your shops for "${esc(p)}" (${esc(where)})</div>${note}
     <div class="empty" id="smartProg">Working through ${batches.length} batch${batches.length===1?'':'es'}… this can take up to a minute. Results appear below as they come.</div>
     <div id="smartOut"></div>`;
   const out=document.getElementById('smartOut');
