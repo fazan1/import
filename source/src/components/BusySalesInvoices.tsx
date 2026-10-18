@@ -185,13 +185,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     setLoading(true);
 
     const [customersRes, invoicesRes, itemsRes, ordersRes, partnersRes] = await Promise.all([
-      supabase.from('customers').select('id, name, phone, credit_days, credit_amount, opening_balance').order('name'),
+      fetchAllPages<Customer>(() => supabase.from('customers').select('id, name, phone, credit_days, credit_amount, opening_balance').order('name').order('id')),
       fetchAllPages<SalesInvoice>(() => supabase
         .from('busy_sales_invoices')
         .select(`*, busy_sales_invoice_items (*)`)
         .order('invoice_date', { ascending: false })
         .order('id')),
-      supabase.from('items').select('id, item_name, sku, unit, sales_price, purchase_price').order('item_name'),
+      fetchAllPages<ItemRecord>(() => supabase.from('items').select('id, item_name, sku, unit, sales_price, purchase_price').order('item_name').order('id')),
       supabase
         .from('busy_sales_orders')
         .select(`id, order_number, customer_name, total_amount, deal_type, busy_sales_order_items (item_name, quantity, unit, unit_price)`)
@@ -200,15 +200,16 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       supabase.from('sl_partners').select('*').order('name')
     ]);
 
-    if (customersRes.data) setCustomers(customersRes.data);
+    setCustomers(customersRes.data);
+    if (customersRes.error || itemsRes.error) alert('Could not load all customers / items: ' + (customersRes.error || itemsRes.error));
     if (invoicesRes.error) alert('Could not load all invoices: ' + invoicesRes.error);
     setInvoices(invoicesRes.data);
     // money received on account (this book) for the credit check
     fetchAllPages<{ customer_name: string | null; sales_invoice_id: string | null; amount: number; cheque_status: string | null }>(() =>
       supabase.from('busy_sales_payments').select('id, customer_name, sales_invoice_id, amount, cheque_status').order('id'))
       .then(({ data }) => setOnAccount(onAccountByCustomer(data)));
-    if (itemsRes.data) setAllItems(itemsRes.data);
-    supabase.from('wh_products').select('id, name, master_item_id, is_active, avg_cost').then(async ({ data: wp }) => {
+    setAllItems(itemsRes.data);
+    fetchAllPages<{ id: string; name: string; master_item_id: string | null; is_active: boolean; avg_cost: number | null }>(() => supabase.from('wh_products').select('id, name, master_item_id, is_active, avg_cost').order('id')).then(async ({ data: wp }) => {
       const { data: st } = await supabase.from('wh_stock').select('product_id, qty');
       const byProd: Record<string, number> = {};
       (st ?? []).forEach((r) => { byProd[r.product_id] = (byProd[r.product_id] ?? 0) + Number(r.qty); });
@@ -1048,11 +1049,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-            <div className="space-y-2 min-w-[640px]">
+            <div className="space-y-3 md:space-y-2">
               {/* Table header */}
               {invoiceType === 'single' ? (
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
+                <div className="hidden md:grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
                   <div className="col-span-4">Item Name</div>
                   <div className="col-span-1">Unit</div>
                   <div className="col-span-2">Quantity</div>
@@ -1061,7 +1061,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                   <div className="col-span-1"></div>
                 </div>
               ) : (
-                <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
+                <div className="hidden md:grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 uppercase px-1">
                   <div className="col-span-3">Item Name</div>
                   <div className="col-span-1">Unit</div>
                   <div className="col-span-1">Qty</div>
@@ -1078,9 +1078,9 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                 const lineTotal = qty * price;
                 const filteredItems = getFilteredItems(searchTerms[index] || '');
                 return (
-                  <div key={index} className={`grid grid-cols-12 gap-2`}>
+                  <div key={index} className="grid grid-cols-12 gap-2 pb-3 md:pb-0 border-b md:border-0 border-gray-100">
                     <div
-                      className={invoiceType === 'double' ? 'col-span-3 relative' : 'col-span-4 relative'}
+                      className={invoiceType === 'double' ? 'col-span-12 md:col-span-3 relative' : 'col-span-12 md:col-span-4 relative'}
                       ref={el => { dropdownRefs.current[index] = el; }}
                     >
                       <input
@@ -1092,7 +1092,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                         placeholder="Search item..."
                       />
                       {activeDropdown === index && filteredItems.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        <div className="absolute z-30 w-full min-w-[280px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {filteredItems.map((itemRecord) => (
                             <button
                               key={itemRecord.id}
@@ -1111,7 +1111,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                         </div>
                       )}
                     </div>
-                    <div className="col-span-1 flex flex-col items-center justify-center px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600" title="Unit · warehouse stock">
+                    <div className="col-span-2 md:col-span-1 flex flex-col items-center justify-center px-2 py-1 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600" title="Unit · warehouse stock">
                       {item.unit}
                       {(() => { const q = stockFor({ id: item.item_id, item_name: item.item_name }); return q === null ? null : <span className={`font-mono text-[10px] ${q < Number(item.quantity || 0) ? 'text-red-600' : 'text-green-700'}`}>{q.toLocaleString()}</span>; })()}
                     </div>
@@ -1119,7 +1119,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                       type="number"
                       value={item.quantity}
                       onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                      className={`${invoiceType === 'double' ? 'col-span-1' : 'col-span-2'} px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm`}
+                      className={`${invoiceType === 'double' ? 'col-span-2 md:col-span-1' : 'col-span-3 md:col-span-2'} min-w-0 px-2 md:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm`}
                       placeholder="Qty"
                       min="0"
                     />
@@ -1127,7 +1127,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                       type="number"
                       value={item.unit_price}
                       onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                      className="col-span-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
+                      className={`${invoiceType === 'double' ? 'col-span-4' : 'col-span-3'} md:col-span-2 min-w-0 px-2 md:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm`}
                       placeholder="Sale price"
                       min="0"
                       step="0.01"
@@ -1137,18 +1137,18 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                         type="number"
                         value={item.cost_price}
                         onChange={(e) => updateItem(index, 'cost_price', e.target.value)}
-                        className="col-span-2 px-3 py-2 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm bg-teal-50"
+                        className="col-span-4 md:col-span-2 min-w-0 px-2 md:px-3 py-2 border border-teal-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm bg-teal-50"
                         placeholder="Cost price"
                         min="0"
                         step="0.01"
                       />
                     )}
-                    <div className="col-span-2 flex items-center justify-end px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700">
+                    <div className={`${invoiceType === 'double' ? 'col-span-10' : 'col-span-3'} md:col-span-2 min-w-0 flex items-center justify-end px-2 md:px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 whitespace-nowrap overflow-hidden`}>
                       {lineTotal > 0 ? `LKR ${lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                     </div>
                     <button
                       onClick={() => removeItem(index)}
-                      className="col-span-1 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors"
+                      className={`${invoiceType === 'double' ? 'col-span-2' : 'col-span-1'} md:col-span-1 flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors`}
                       disabled={items.length === 1}
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1156,7 +1156,6 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                   </div>
                 );
               })}
-            </div>
             </div>
 
             <div className="flex justify-end mt-3 pt-3 border-t border-gray-200">

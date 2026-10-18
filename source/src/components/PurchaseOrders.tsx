@@ -226,7 +226,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
         `)
         .order('order_date', { ascending: false })
         .order('id')),
-      supabase.from('items').select('id, item_name, sku, unit, purchase_price, purchase_currency').order('item_name'),
+      fetchAllPages<ItemRecord>(() => supabase.from('items').select('id, item_name, sku, unit, purchase_price, purchase_currency').order('item_name').order('id')),
       supabase
         .from('busy_sales_orders')
         .select('id, order_number, customer_name, total_amount, status')
