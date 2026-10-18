@@ -843,11 +843,23 @@ Give 6-10 industries (the most valuable first) and 2-4 reseller types. Be specif
   return obj;
 }
 // words the directory search should also understand for this product (synonyms + industry keywords)
+// words so common in the directory that they say nothing (construction, hardware, supplier …) are nearly ignored
+const BROAD_WORDS=new Set(['construction','hardware','supplier','suppliers','supply','supplies','trading','traders','trader','company','companies','enterprises','industrial','industries','industry','engineering','services','service','pvt','ltd','holdings','store','stores','shop','shops','dealer','dealers','agency','agencies','general','lanka','ceylon','building','builders','contractor','contractors','equipment','products','international','import','importers','export','exporters','distributors','distributor','center','centre','mart','sales','steel','metal']);
+let _wordFreq=null, _wordFreqN=0;
+function wordShare(w){   // what share of the directory mentions this word
+  if(!_wordFreq || _wordFreqN!==CATALOG.length){
+    _wordFreq={}; _wordFreqN=CATALOG.length;
+    CATALOG.forEach(d=>{ new Set(((d.name||'')+' '+(d.type||'')+' '+(d.cat||'')).toLowerCase().split(/[^a-z0-9]+/).filter(x=>x.length>2)).forEach(x=>{ _wordFreq[x]=(_wordFreq[x]||0)+1; }); });
+  }
+  return CATALOG.length ? (_wordFreq[w]||0)/CATALOG.length : 0;
+}
 function intelWords(p){
-  const it=INTEL[intelKey(p)]; if(!it) return {syn:[], ind:[]};
-  const syn=[...new Set(it.synonyms.flatMap(x=>normalizeProduct(x).split(/[^a-z0-9]+/)).filter(w=>w.length>2))];
-  const ind=[...new Set(intelGroups(it).flatMap(g=>(g.keywords||[]).map(w=>String(w).toLowerCase().trim())).filter(w=>w.length>2))];
-  return {syn, ind};
+  const it=INTEL[intelKey(p)]; if(!it) return {syn:[], ind:[], broad:[]};
+  const syn=[...new Set(it.synonyms.flatMap(x=>normalizeProduct(x).split(/[^a-z0-9]+/)).filter(w=>w.length>2 && !BROAD_WORDS.has(w)))];
+  const all=[...new Set(intelGroups(it).flatMap(g=>(g.keywords||[]).flatMap(w=>String(w).toLowerCase().trim().split(/[^a-z0-9]+/))).filter(w=>w.length>2))];
+  const ind=all.filter(w=>!BROAD_WORDS.has(w) && wordShare(w)<0.08);   // specific: fewer than 8% of companies have it
+  const broad=all.filter(w=>!ind.includes(w));
+  return {syn, ind, broad};
 }
 function renderIntelPanel(p, intel, opts){
   opts=opts||{};
@@ -884,7 +896,7 @@ function offlineMatches(product,district,area){
   const norm=normalizeProduct(product);
   const iw=intelWords(product);
   const toks=[...new Set([...norm.split(/[^a-z0-9]+/), ...iw.syn].filter(w=>w.length>2))];
-  const indWords=iw.ind;
+  const indWords=iw.ind, broadWords=iw.broad;
   const inArea=(d)=>{
     if(area)return ((d.addr||'')+' '+(d.district||'')).toLowerCase().includes(area.toLowerCase());
     if(district)return d.district===district;
@@ -895,10 +907,11 @@ function offlineMatches(product,district,area){
     if(!inArea(d)) continue;
     const r=scoreCompany(d, product, profile, toks);
     // the AI's industry words (marine, crane, elevator…) count too — a boat yard buys wire rope without "rope" in its name
-    if(indWords.length){
+    if(indWords.length || broadWords.length){
       const txt=((d.name||'')+' '+(d.type||'')+' '+(d.cat||'')).toLowerCase();
       const hit=indWords.find(w=>txt.includes(w));
       if(hit){ r.score+=7; r.why.push('"'+hit+'" industry uses this product'); }
+      else if(broadWords.some(w=>txt.includes(w))) r.score+=1;   // too common to mean much
     }
     if(r.score>0) scored.push({d, s:r.score, why:r.why});
   }
@@ -998,7 +1011,7 @@ function doNameSearch(v){
 }
 
 // ---- Batch working state ----
-const BATCH_SIZE=4;
+const PAGE_SIZE=20;
 let BATCH_LIST=[];     // full match list for current search
 let BATCH_PRODUCT='';  // product being worked
 let BATCH_SHOWN=0;     // how many already served this session
@@ -1030,69 +1043,35 @@ function runSearch(){
 
 function renderBatch(total, freshCount, where){
   const root=document.getElementById('results');
+  let html='';
   if(!BATCH_LIST.length){
-    root.innerHTML=`<div class="sec">📒 ${esc(BATCH_PRODUCT)} — no matches (${esc(where)})</div><div class="empty">No companies in your directory deal in "<b>${esc(BATCH_PRODUCT)}</b>". This may be a product you don't have buyers for yet — or try the web Deep Search to find new ones.</div>`;
-    return;
-  }
-  if(SHOW_ALL){
-    let html=`<div class="sec">📒 ${esc(BATCH_PRODUCT)} — all ${BATCH_LIST.length} companies</div>`;
-    html+=`<div style="margin:0 2px 12px"><button class="btn2" style="width:auto;padding:9px 14px" onclick="backToBatch()">◀ Work 4 at a time</button></div>`;
-    html+=BATCH_LIST.map(d=>offlineLeadCard(d,BATCH_PRODUCT)).join('');
-    root.innerHTML=html;
-    return;
-  }
-  const end=Math.min(Math.max(BATCH_SHOWN,BATCH_SIZE), BATCH_LIST.length);
-  const start=(end>=BATCH_LIST.length && BATCH_LIST.length%BATCH_SIZE!==0)
-      ? BATCH_LIST.length - (BATCH_LIST.length%BATCH_SIZE)
-      : Math.max(0,end-BATCH_SIZE);
-  const slice=BATCH_LIST.slice(start,end);
-  const doneContacted=BATCH_LIST.filter(d=>isContacted(d.name)).length;
-  const pct=Math.round(doneContacted/BATCH_LIST.length*100);
-  const remaining=BATCH_LIST.length-end;
-  const batchNo=Math.ceil(end/BATCH_SIZE);
-  const totalBatches=Math.ceil(BATCH_LIST.length/BATCH_SIZE);
-
-  // ---- Professional session header ----
-  let html=`
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px">
-      <div style="font-family:var(--font-display);font-weight:600;font-size:17px">Working: ${esc(BATCH_PRODUCT)}</div>
-      <div style="font-size:12px;color:var(--gray-mid)">Batch ${batchNo} of ${totalBatches}</div>
-    </div>
-    <div style="height:10px;background:var(--surface-3);border-radius:6px;margin:12px 0 8px;overflow:hidden">
-      <div style="height:100%;width:${pct}%;background:var(--gold-grad);border-radius:6px;transition:width .4s"></div>
-    </div>
-    <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-mid)">
-      <span><b style="color:var(--gold-dark)">${doneContacted}</b> of ${BATCH_LIST.length} contacted</span>
-      <span>${freshCount} fresh leads</span>
-    </div>
-  </div>`;
-
-  // ---- Numbered company cards ----
-  html+=slice.map((d,i)=>{
-    const num=start+i+1;
-    const numBadge=`<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--nav);color:#fff;font-size:12px;font-weight:700;margin-right:8px;flex:0 0 auto">${num}</span>`;
-    const card=offlineLeadCard(d,BATCH_PRODUCT);
-    // inject number before the name content
-    return card.replace('<div class="nm">', `<div class="nm" style="display:flex;align-items:center;flex-wrap:wrap">${numBadge}`);
-  }).join('');
-
-  // ---- Footer controls ----
-  if(remaining>0){
-    html+=`
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:14px;margin-top:14px;text-align:center">
-      <div style="font-size:13px;color:var(--gray-mid);margin-bottom:10px">${remaining} more compan${remaining===1?'y':'ies'} waiting in this list</div>
-      <button class="btn" style="width:auto;padding:13px 26px" onclick="nextBatch()">✓ Done with these — Next ${Math.min(BATCH_SIZE,remaining)} →</button>
-      <div style="margin-top:10px"><a href="javascript:void(0)" onclick="showAllBatch()" style="font-size:12.5px;color:var(--gold-dark)">See all ${BATCH_LIST.length}</a></div>
-    </div>`;
+    html=`<div class="sec">📒 ${esc(BATCH_PRODUCT)} — no matches (${esc(where)})</div><div class="empty">No companies in your directory deal in "<b>${esc(BATCH_PRODUCT)}</b>". This may be a product you don't have buyers for yet — or try the web Deep Search to find new ones.</div>`;
   } else {
+    const shown=SHOW_ALL?BATCH_LIST.length:Math.min(Math.max(BATCH_SHOWN,PAGE_SIZE), BATCH_LIST.length);
+    const doneContacted=BATCH_LIST.filter(d=>isContacted(d.name)).length;
+    const pct=Math.round(doneContacted/BATCH_LIST.length*100);
+    const remaining=BATCH_LIST.length-shown;
     html+=`
-    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:16px;padding:20px;margin-top:14px;text-align:center">
-      <div style="font-size:26px">🎉</div>
-      <div style="font-family:var(--font-display);font-weight:600;font-size:17px;margin:6px 0">List complete!</div>
-      <div style="font-size:13px;color:var(--ink-soft);line-height:1.5">You've worked all ${BATCH_LIST.length} ${esc(BATCH_PRODUCT)} leads.<br>Pick a new product to search, or review your follow-ups.</div>
-      <button class="btn2" style="width:auto;padding:11px 18px;margin-top:12px" onclick="nav('history')">Go to Contacts & Follow-up</button>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px">
+        <div style="font-family:var(--font-display);font-weight:600;font-size:16px">${esc(BATCH_PRODUCT)} — ${BATCH_LIST.length} compan${BATCH_LIST.length===1?'y':'ies'} in your directory</div>
+        <div style="font-size:12px;color:var(--gray-mid)">best matches first · fresh before contacted</div>
+      </div>
+      <div style="height:8px;background:var(--surface-3);border-radius:6px;margin:10px 0 6px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--gold);border-radius:6px"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray-mid)"><span><b style="color:var(--gold-dark)">${doneContacted}</b> contacted</span><span>${BATCH_LIST.length-doneContacted} not yet contacted</span></div>
     </div>`;
+    html+=BATCH_LIST.slice(0,shown).map((d,i)=>{
+      const numBadge=`<span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:var(--nav);color:#fff;font-size:11px;font-weight:700;margin-right:8px;flex:0 0 auto">${i+1}</span>`;
+      return offlineLeadCard(d,BATCH_PRODUCT).replace('<div class="nm">', `<div class="nm" style="display:flex;align-items:center;flex-wrap:wrap">${numBadge}`);
+    }).join('');
+    if(remaining>0){
+      html+=`<div style="text-align:center;margin:14px 0">
+        <button class="btn2" style="width:auto;padding:11px 20px;margin:0" onclick="showMore()">Show ${Math.min(PAGE_SIZE,remaining)} more <span style="color:var(--gray-mid)">· ${remaining} left</span></button>
+        <div style="margin-top:8px"><a href="javascript:void(0)" onclick="showAllBatch()" style="font-size:12.5px;color:var(--gold-dark)">Show all ${BATCH_LIST.length}</a></div>
+      </div>`;
+    } else if(BATCH_LIST.length>PAGE_SIZE){
+      html+=`<div class="empty" style="padding:14px">That is all ${BATCH_LIST.length}. <a href="javascript:void(0)" onclick="backToBatch()" style="color:var(--gold-dark)">Show fewer</a></div>`;
+    }
   }
   const it=INTEL[intelKey(BATCH_PRODUCT)];
   if(it){
@@ -1102,14 +1081,11 @@ function renderBatch(total, freshCount, where){
     html=`<div style="font-size:12.5px;color:var(--ink-soft);margin:0 2px 10px;line-height:1.5">💡 Not sure who buys ${esc(BATCH_PRODUCT)}? <a href="javascript:void(0)" onclick="deepSearch()" style="color:var(--gold-dark);font-weight:600">Let the AI work out the industries and search the web →</a></div>`+html;
   }
   root.innerHTML=html;
-  window.scrollTo({top:root.offsetTop-70,behavior:'smooth'});
+  if(!BATCH_SHOWN) window.scrollTo({top:root.offsetTop-70,behavior:'smooth'});
 }
-function nextBatch(){
-  BATCH_SHOWN=(BATCH_SHOWN||BATCH_SIZE)+BATCH_SIZE;
-  renderBatch(BATCH_LIST.length, BATCH_LIST.filter(d=>!isContacted(d.name)).length, '');
-}
+function showMore(){ BATCH_SHOWN=Math.max(BATCH_SHOWN,PAGE_SIZE)+PAGE_SIZE; renderBatch(BATCH_LIST.length,0,''); }
 function showAllBatch(){ SHOW_ALL=true; renderBatch(BATCH_LIST.length,0,''); }
-function backToBatch(){ SHOW_ALL=false; renderBatch(BATCH_LIST.length, BATCH_LIST.filter(d=>!isContacted(d.name)).length, ''); }
+function backToBatch(){ SHOW_ALL=false; BATCH_SHOWN=0; renderBatch(BATCH_LIST.length, 0, ''); }
 
 // ---- Usage meter (per device, estimated) ----
 const COST={smart:0.70, deep:0.15, chat:0.08}; // rough USD estimates per action
