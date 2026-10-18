@@ -78,8 +78,10 @@ export default function CNPortalDashboard({ onNavigate, embedded = false }: Prop
       const productCny = bs.reduce((s, b) => s + billTotal(b), 0);
       const productCost = rows.reduce((s, r) => s + r.unit_price_lkr * r.qty, 0);
       const estCharges = rows.reduce((s, r) => s + r.duty_per_unit * r.qty, 0);
-      const rateEst = sh.default_basis === 'KG' ? kg * sh.rate_kg : sh.default_basis === 'PCS' ? rows.reduce((s, r) => s + r.qty, 0) * sh.rate_pcs : cbm * sh.rate_cbm;
-      const charges = sh.actual_charges > 0 ? sh.actual_charges : estCharges > 0 ? estCharges : rateEst;
+      // old per-shipment rates may be empty (charges are typed in Costing since v109): never show NaN
+      const rateEst = sh.default_basis === 'KG' ? kg * (Number(sh.rate_kg) || 0) : sh.default_basis === 'PCS' ? rows.reduce((s, r) => s + r.qty, 0) * (Number(sh.rate_pcs) || 0) : cbm * (Number(sh.rate_cbm) || 0);
+      const actual = Number(sh.actual_charges) || 0;
+      const charges = actual > 0 ? actual : estCharges > 0 ? estCharges : rateEst || 0;
       const landed = rows.reduce((s, r) => s + r.total_landed_cost, 0);
       const sales = rows.filter((r) => r.type === 'RESALE').reduce((s, r) => s + r.total_sales, 0);
       const factory = rows.filter((r) => r.type === 'FACTORY').reduce((s, r) => s + r.total_landed_cost, 0);
@@ -88,7 +90,7 @@ export default function CNPortalDashboard({ onNavigate, embedded = false }: Prop
       const missing = rows.filter((r) => !r.unit_price_cny || !r.cbm || (r.type === 'RESALE' && !r.selling_price)).length;
       const daysSinceEtd = sh.eta ? Math.floor((Date.now() - new Date(sh.eta).getTime()) / 86400000) : null;
       const unpaidCny = bs.reduce((s, b) => s + Math.max(0, billTotal(b) - (b.amount_paid || 0)), 0);
-      return { sh, bills: bs.length, cbm, kg, productCny, productCost, charges, chargesActual: sh.actual_charges > 0, landed, sales, factory, profit, margin, rows: rows.length, missing, daysSinceEtd, unpaidCny, costPerCbm: cbm > 0 ? charges / cbm : 0 };
+      return { sh, bills: bs.length, cbm, kg, productCny, productCost, charges, chargesActual: actual > 0, landed, sales, factory, profit, margin, rows: rows.length, missing, daysSinceEtd, unpaidCny, costPerCbm: cbm > 0 ? charges / cbm : 0 };
     });
   }, [shipments, bills, plItems, cost]); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -13,7 +13,7 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'clearing-agents', label: 'Clearing Agents' },
   ]},
   { group: 'CN Portal', items: [
-    { id: 'cn-home', label: 'Home (dashboard)' },
+    { id: 'cn-home', label: 'Shop Home (BLINE SHOP book only)' },
     { id: 'purchase-orders', label: 'PO' },
     { id: 'purchase-bills', label: 'Bills' },
     { id: 'outstanding-payments', label: 'Outstanding Pay' },
