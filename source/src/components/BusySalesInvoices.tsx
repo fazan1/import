@@ -124,9 +124,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
   const [expandedInvoices, setExpandedInvoices] = useState<Set<string>>(new Set());
   const [allItems, setAllItems] = useState<ItemRecord[]>([]);
   const [whStock, setWhStock] = useState<Record<string, number>>({});
-  const stockFor = (it: { id?: string | null; item_name?: string }) => { const v = (it.id && whStock['id:' + it.id]) ?? whStock['nm:' + (it.item_name || '').trim().toLowerCase()]; return typeof v === 'number' ? v : null; };
+  const [whOnly, setWhOnly] = useState<ItemRecord[]>([]); // warehouse products that are not in the Items master
+  const stockFor = (it: { id?: string | null; item_name?: string }) => { const v = (it.id ? whStock['id:' + it.id] : undefined) ?? whStock['nm:' + (it.item_name || '').trim().toLowerCase()]; return typeof v === 'number' ? v : null; };
   const [whCost, setWhCost] = useState<Record<string, number>>({});
-  const costFor = (it: { id?: string | null; item_name?: string }) => { const v = (it.id && whCost['id:' + it.id]) ?? whCost['nm:' + (it.item_name || '').trim().toLowerCase()]; return typeof v === 'number' && v > 0 ? v : null; };
+  const costFor = (it: { id?: string | null; item_name?: string }) => { const v = (it.id ? whCost['id:' + it.id] : undefined) ?? whCost['nm:' + (it.item_name || '').trim().toLowerCase()]; return typeof v === 'number' && v > 0 ? v : null; };
   const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
   const [searchTerms, setSearchTerms] = useState<string[]>(['']);
   const [customerSearch, setCustomerSearch] = useState('');
@@ -209,7 +210,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       supabase.from('busy_sales_payments').select('id, customer_name, sales_invoice_id, amount, cheque_status').order('id'))
       .then(({ data }) => setOnAccount(onAccountByCustomer(data)));
     setAllItems(itemsRes.data);
-    fetchAllPages<{ id: string; name: string; master_item_id: string | null; is_active: boolean; avg_cost: number | null }>(() => supabase.from('wh_products').select('id, name, master_item_id, is_active, avg_cost').order('id')).then(async ({ data: wp }) => {
+    fetchAllPages<{ id: string; name: string; master_item_id: string | null; is_active: boolean; avg_cost: number | null; unit: string | null; sell_price: number | null }>(() => supabase.from('wh_products').select('*').order('id')).then(async ({ data: wp }) => {
+      const masterNames = new Set(itemsRes.data.map((i) => (i.item_name || '').trim().toLowerCase()));
+      setWhOnly((wp ?? []).filter((w) => w.is_active !== false && !w.master_item_id && w.name && !masterNames.has(w.name.trim().toLowerCase()))
+        .map((w) => ({ id: '', item_name: w.name.trim(), sku: null, unit: w.unit || 'PCS', sales_price: Number(w.sell_price) || 0, purchase_price: Number(w.avg_cost) || 0 })));
       const { data: st } = await supabase.from('wh_stock').select('product_id, qty');
       const byProd: Record<string, number> = {};
       (st ?? []).forEach((r) => { byProd[r.product_id] = (byProd[r.product_id] ?? 0) + Number(r.qty); });
@@ -285,7 +289,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     updated[index] = {
       ...updated[index],
       item_name: item.item_name,
-      item_id: item.id,
+      item_id: item.id || null,
       unit_price: String(item.sales_price || ''),
       cost_price: (() => { const wc = costFor({ id: item.id, item_name: item.item_name }); return wc ? String(wc) : item.purchase_price && item.purchase_price > 0 ? String(item.purchase_price) : updated[index].cost_price; })(),
       unit: item.unit
@@ -334,12 +338,14 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
   }
 
   function getFilteredItems(searchTerm: string): ItemRecord[] {
-    if (!searchTerm.trim()) return allItems.slice(0, 10);
-    const term = searchTerm.toLowerCase();
-    return allItems.filter(item =>
-      item.item_name.toLowerCase().includes(term) ||
-      (item.sku?.toLowerCase() || '').includes(term)
-    ).slice(0, 10);
+    const all = whOnly.length ? [...allItems, ...whOnly] : allItems;
+    // every typed word must appear somewhere in the name / code, in any order ("sliding deeper" finds "Deeper Sliding ...")
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return all.slice(0, 30);
+    return all.filter((item) => {
+      const hay = ((item.item_name || '') + ' ' + (item.sku || '')).toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }).slice(0, 30);
   }
 
   function getFilteredCustomers(): Customer[] {
@@ -1091,11 +1097,16 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                         placeholder="Search item..."
                       />
+                      {activeDropdown === index && filteredItems.length === 0 && (searchTerms[index] || '').trim() !== '' && (
+                        <div className="absolute z-30 w-full min-w-[280px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-500">
+                          No item found in Items or Warehouse. It will be saved as typed — add it in Masters → Items to pick it next time.
+                        </div>
+                      )}
                       {activeDropdown === index && filteredItems.length > 0 && (
                         <div className="absolute z-30 w-full min-w-[280px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                           {filteredItems.map((itemRecord) => (
                             <button
-                              key={itemRecord.id}
+                              key={itemRecord.id || 'wh:' + itemRecord.item_name}
                               type="button"
                               onClick={() => selectItem(index, itemRecord)}
                               className="w-full px-3 py-2 text-left hover:bg-teal-50 flex items-center justify-between text-sm border-b border-gray-100 last:border-b-0"
