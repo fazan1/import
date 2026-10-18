@@ -782,10 +782,82 @@ function scoreCompany(d, product, profile, toks){
   return {score, why};
 }
 
+// ---- PRODUCT INTELLIGENCE: who in Sri Lanka buys / resells this product (AI, cached per product) ----
+// {product, synonyms:[..], industries:[{name, why, role, search_terms:[..], keywords:[..]}], resellers:[{name, why, search_terms:[..], keywords:[..]}]}
+let INTEL={};  // product(lower) -> intel
+const intelKey=(p)=>(p||'').toLowerCase().trim();
+function intelGroups(intel){ return [...(intel?.industries||[]).map(g=>({...g, kind:'Buyer'})), ...(intel?.resellers||[]).map(g=>({...g, kind:'Reseller'}))]; }
+function parseJsonObj(text){
+  const m=(text||'').match(/\{[\s\S]*\}/); if(!m) return null;
+  try{ return JSON.parse(m[0]); }catch(e){ return null; }
+}
+async function productIntel(p, forceFresh){
+  const k=intelKey(p); if(!k) return null;
+  if(!forceFresh && INTEL[k]) return INTEL[k];
+  if(!forceFresh){
+    const saved=await getSaved(k,'profile','');
+    if(saved && saved.results && saved.results.industries){ INTEL[k]=saved.results; return INTEL[k]; }
+  }
+  const prompt=`You are a B2B market analyst for Sri Lanka. A supplier sells "${p}" and wants to find EVERY kind of business that would buy or resell it.
+Think about where "${p}" is actually USED (e.g. for wire rope: marine & fishing boats, port/harbour services, cranes & construction, elevators, mining/quarries, logging, rigging & lifting, tea/rubber factories) and who RESELLS it (hardware, rigging, chandlery, industrial suppliers).
+Return ONLY a JSON object, no prose:
+{"product":"${p}",
+ "synonyms":["other names and close variants of the product, 3-8 items"],
+ "industries":[{"name":"short industry name","why":"what they use it for, one line","role":"Buyer","search_terms":["3-4 Google search phrases to find such businesses in Sri Lanka, each with a town/district placeholder {where}"],"keywords":["3-6 single words that appear in such a company's name or type, e.g. marine, boat, fishing, crane, elevator"]}],
+ "resellers":[{"name":"type of reseller","why":"why they would stock it","role":"Reseller","search_terms":["2-3 search phrases with {where}"],"keywords":["words"]}]}
+Give 6-10 industries (the most valuable first) and 2-4 reseller types. Be specific to Sri Lanka.`;
+  const data=await aiCall(prompt);
+  trackUsage('chat',1);
+  const obj=parseJsonObj(data.text||'');
+  if(!obj || !Array.isArray(obj.industries)) throw new Error('The AI did not return a usable product profile. Try again.');
+  obj.product=p; obj.synonyms=Array.isArray(obj.synonyms)?obj.synonyms:[]; obj.resellers=Array.isArray(obj.resellers)?obj.resellers:[];
+  INTEL[k]=obj;
+  saveSearch(k,'profile','',obj);
+  return obj;
+}
+// words the directory search should also understand for this product (synonyms + industry keywords)
+function intelWords(p){
+  const it=INTEL[intelKey(p)]; if(!it) return {syn:[], ind:[]};
+  const syn=[...new Set(it.synonyms.flatMap(x=>normalizeProduct(x).split(/[^a-z0-9]+/)).filter(w=>w.length>2))];
+  const ind=[...new Set(intelGroups(it).flatMap(g=>(g.keywords||[]).map(w=>String(w).toLowerCase().trim())).filter(w=>w.length>2))];
+  return {syn, ind};
+}
+function renderIntelPanel(p, intel, opts){
+  opts=opts||{};
+  const groups=intelGroups(intel);
+  if(!groups.length) return '';
+  const chips=groups.map((g,i)=>`<label class="chip" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;${g.kind==='Reseller'?'border-style:dashed':''}" title="${esc(g.why||'')}"><input type="checkbox" class="intelPick" data-i="${i}" checked style="width:auto;margin:0;padding:0"> ${esc(g.name)} <span style="font-size:10px;color:var(--gray-mid)">${g.kind==='Reseller'?'resells':'uses it'}</span></label>`).join('');
+  const syn=(intel.synonyms||[]).slice(0,8).map(x=>esc(x)).join(' · ');
+  return `<div class="card" id="intelPanel" style="border-color:var(--gold)">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px">
+      <div style="font-family:var(--font-display);font-weight:600;font-size:16px">Who buys ${esc(p)}?</div>
+      <a href="javascript:void(0)" onclick="refreshIntel()" style="font-size:12px;color:var(--gold-dark)">↻ Re-think (uses AI)</a>
+    </div>
+    ${syn?`<div style="font-size:12px;color:var(--gray-mid);margin:4px 0 8px">Also known as: ${syn}</div>`:''}
+    <div class="chips" style="margin:6px 0 10px">${chips}</div>
+    ${opts.showSearchButton?`<button class="btn" style="width:auto;padding:12px 18px" onclick="deepSearchRun()">🌐 Search the web for the ticked industries</button>
+    <span style="font-size:12px;color:var(--gray-mid);margin-left:10px">one AI search per industry · results saved to your directory</span>`:''}
+  </div>`;
+}
+async function refreshIntel(){
+  const p=product(); if(!p) return;
+  const panel=document.getElementById('intelPanel'); if(panel) panel.innerHTML='<div class="loading"><span class="spin"></span>Thinking about who buys '+esc(p)+'…</div>';
+  try{ await productIntel(p,true); }catch(e){ alert(e&&e.message||e); }
+  deepSearch(true);
+}
+function pickedGroups(){
+  const p=product(); const it=INTEL[intelKey(p)]; if(!it) return [];
+  const groups=intelGroups(it);
+  const picks=[...document.querySelectorAll('.intelPick')].filter(c=>c.checked).map(c=>Number(c.dataset.i));
+  return picks.length?picks.map(i=>groups[i]).filter(Boolean):groups;
+}
+
 function offlineMatches(product,district,area){
   const profile=productProfile(product);
   const norm=normalizeProduct(product);
-  const toks=[...new Set(norm.split(/[^a-z0-9]+/).filter(w=>w.length>2))];
+  const iw=intelWords(product);
+  const toks=[...new Set([...norm.split(/[^a-z0-9]+/), ...iw.syn].filter(w=>w.length>2))];
+  const indWords=iw.ind;
   const inArea=(d)=>{
     if(area)return ((d.addr||'')+' '+(d.district||'')).toLowerCase().includes(area.toLowerCase());
     if(district)return d.district===district;
@@ -795,6 +867,12 @@ function offlineMatches(product,district,area){
   for(const d of CATALOG){
     if(!inArea(d)) continue;
     const r=scoreCompany(d, product, profile, toks);
+    // the AI's industry words (marine, crane, elevator…) count too — a boat yard buys wire rope without "rope" in its name
+    if(indWords.length){
+      const txt=((d.name||'')+' '+(d.type||'')+' '+(d.cat||'')).toLowerCase();
+      const hit=indWords.find(w=>txt.includes(w));
+      if(hit){ r.score+=7; r.why.push('"'+hit+'" industry uses this product'); }
+    }
     if(r.score>0) scored.push({d, s:r.score, why:r.why});
   }
   scored.sort((a,b)=>b.s-a.s);
@@ -909,6 +987,8 @@ function runSearch(){
   const root=document.getElementById('results');
   if(!CATALOG.length){ root.innerHTML='<div class="empty">⏳ Loading your companies… please wait a moment, then it will search automatically.</div>'; setTimeout(runSearch,1200); return; }
   addRecent(p);
+  // use the cached product intelligence (free) so industry companies are found too
+  if(!INTEL[intelKey(p)]){ getSaved(intelKey(p),'profile','').then(sv=>{ if(sv && sv.results && sv.results.industries){ INTEL[intelKey(p)]=sv.results; if(product()===p) runSearch(); } }); }
   const m=offlineMatches(p,dist,area);
   LAST_OFFLINE=m.map(x=>(x.name||'').toLowerCase().trim());
   // set up batch state — uncontacted first, then contacted (so fresh leads come first)
@@ -987,6 +1067,13 @@ function renderBatch(total, freshCount, where){
       <button class="btn2" style="width:auto;padding:11px 18px;margin-top:12px" onclick="nav('history')">Go to Contacts & Follow-up</button>
     </div>`;
   }
+  const it=INTEL[intelKey(BATCH_PRODUCT)];
+  if(it){
+    const names=intelGroups(it).slice(0,8).map(g=>esc(g.name)).join(' · ');
+    html=`<div style="font-size:12.5px;color:var(--ink-soft);margin:0 2px 10px;line-height:1.5">💡 <b>Who buys ${esc(BATCH_PRODUCT)}:</b> ${names}. <a href="javascript:void(0)" onclick="deepSearch()" style="color:var(--gold-dark);font-weight:600">Search the web for them →</a></div>`+html;
+  } else {
+    html=`<div style="font-size:12.5px;color:var(--ink-soft);margin:0 2px 10px;line-height:1.5">💡 Not sure who buys ${esc(BATCH_PRODUCT)}? <a href="javascript:void(0)" onclick="deepSearch()" style="color:var(--gold-dark);font-weight:600">Let the AI work out the industries and search the web →</a></div>`+html;
+  }
   root.innerHTML=html;
   window.scrollTo({top:root.offsetTop-70,behavior:'smooth'});
 }
@@ -1054,6 +1141,7 @@ async function smartFind(forceFresh){
     }
   }
 
+  try{ await productIntel(p,false); }catch(e){ /* ranking still works without it */ }
   // batch the matched companies
   const BATCH=40;
   const batches=[];
@@ -1068,7 +1156,9 @@ async function smartFind(forceFresh){
 
   for(let b=0;b<batches.length;b++){
     const list=batches[b].map((d,i)=>`${i+1}. ${d.name} | ${d.type||d.cat} | ${d.district||''} | ${d.phone||''}`).join('\n');
-    const prompt=`A supplier in Sri Lanka sells "${p}". Below is part of their real business directory (hardware shops, traders, factories, safety dealers, steel/welding firms, etc.).
+    const it=INTEL[intelKey(p)];
+    const intelLine=it?`\nWHO USES "${p}": ${intelGroups(it).map(g=>g.name+' ('+(g.why||'')+')').join('; ')}. Also called: ${(it.synonyms||[]).join(', ')}.\n`:'';
+    const prompt=`A supplier in Sri Lanka sells "${p}". Below is part of their real business directory (hardware shops, traders, factories, safety dealers, steel/welding firms, etc.).${intelLine}
 Most of these are general hardware/trading businesses whose NAME may not mention "${p}" — but many would still BUY or RESELL it (e.g. a hardware shop resells gloves; a factory or fabricator buys gloves). Be INCLUSIVE: keep any business that could plausibly buy or resell "${p}", not just ones with the product in their name. Only drop ones that are clearly unrelated.
 For each kept business give role (Buyer or Reseller) and a short reason.
 Return ONLY a JSON array using the EXACT name and phone from the list: [{"name","phone","role","reason"}]. Keep as many as reasonably fit.
@@ -1128,7 +1218,7 @@ async function getSaved(query, kind, district){
   }catch(e){ return null; }
 }
 async function saveSearch(query, kind, district, results){
-  if(!sb || !results || !results.length) return;
+  if(!sb || !results || (Array.isArray(results) && !results.length)) return;
   try{
     // delete old cache for this query+kind so we keep only the latest
     await sb.from(T_SAVED).delete().eq('query',query.toLowerCase().trim()).eq('kind',kind).eq('district',district||'');
@@ -1167,7 +1257,7 @@ async function saveToDirectory(results, product){
   const rows=fresh.map(d=>({
     name:d.name,
     // LEARNING: tag the product into the type so future searches match this company strongly
-    type:((d.type||d.role||'Supplier')+' — deals in '+product).slice(0,120),
+    type:((d.industry?d.industry+' — ':'')+(d.type||d.role||'Supplier')+' — deals in '+product).slice(0,160),
     cat:cat,
     addr:d.addr||'',
     phone:d.phone||'',
@@ -1186,78 +1276,95 @@ async function saveToDirectory(results, product){
 async function deepSearch(forceFresh){
   const p=product(), dist=document.getElementById('district').value, area=document.getElementById('area').value.trim();
   const root=document.getElementById('results');
-  const where = area || dist || 'Sri Lanka';
-  // show offline first
+  if(!p){ alert('Type a product first.'); return; }
+  // directory matches first (free)
   runSearch();
-  const live=document.createElement('div');
-  root.appendChild(live);
-
-  // Check saved cache first (free) unless forcing fresh
+  let live=document.getElementById('liveBox');
+  if(!live){ live=document.createElement('div'); live.id='liveBox'; root.appendChild(live); }
+  live.innerHTML=`<div class="sec">🌐 Deep search</div><div class="loading"><span class="spin"></span>Step 1 — working out who buys ${esc(p)} in Sri Lanka…</div>`;
+  let intel;
+  try{ intel=await productIntel(p,false); }
+  catch(e){ live.innerHTML=`<div class="sec">🌐 Deep search</div><div class="empty">Could not work out the buyers: ${esc(e&&e.message||e)}</div>`; return; }
+  if(product()!==p) return;   // user typed something else meanwhile
+  // saved web results for this product + district (free) unless a fresh search is asked for
+  let savedHtml='';
   if(!forceFresh){
     const saved=await getSaved(p,'deep',dist);
     if(saved && saved.results && saved.results.length){
-      let arr=saved.results.filter(d=>d&&d.name && !LAST_OFFLINE.includes((d.name||'').toLowerCase().trim()));
-      live.innerHTML=`<div class="sec">🌐 Live web results — saved ${savedAgo(saved.created_at)} (free)</div>`+
-        `<div style="margin:0 2px 10px"><button class="btn2" style="width:auto;padding:8px 13px;font-size:13px" onclick="deepSearch(true)">🔄 Search fresh (uses API)</button></div>`+
-        arr.map(d=>leadCard(d)).join('');
-      return;
+      const arr=saved.results.filter(d=>d&&d.name && !LAST_OFFLINE.includes((d.name||'').toLowerCase().trim()));
+      savedHtml=`<div class="sec">🌐 Web results — saved ${esc(savedAgo(saved.created_at))} (free) · ${arr.length} compan${arr.length===1?'y':'ies'}</div>`+renderGrouped(arr);
     }
   }
-  live.innerHTML=`<div class="sec">🌐 Live web results</div><div class="loading"><span class="spin"></span>Searching the web for ${esc(p)} buyers &amp; sellers in ${esc(where)}…</div>`;
+  live.innerHTML=`<div class="sec">🌐 Deep search — step 1 of 2: who buys it</div>`+renderIntelPanel(p, intel, {showSearchButton:true})+`<div id="deepOut">${savedHtml}</div>`;
+}
 
-  const prompt=`You are a B2B sales-lead researcher for a supplier in Sri Lanka who wants to sell "${p}".
-First think: which kinds of organisations in Sri Lanka would NEED or BUY "${p}"? Also think which shops/distributors would RESELL it.
-Then search Rainbow Pages, Yellow Pages, Google, Facebook business pages and company websites for REAL such businesses in or near ${where}, Sri Lanka.
+// web results grouped by industry
+function renderGrouped(arr){
+  const by={}; arr.forEach(d=>{ const g=d.industry||'Other'; (by[g]=by[g]||[]).push(d); });
+  return Object.keys(by).map(g=>`<div class="sec" style="font-size:14px;margin-top:14px">${esc(g)} <span style="color:var(--gray-mid);font-weight:400">· ${by[g].length}</span></div>`+by[g].map(d=>leadCard(d)).join('')).join('');
+}
 
-QUALITY RULES (important):
+async function deepSearchRun(){
+  const p=product(), dist=document.getElementById('district').value, area=document.getElementById('area').value.trim();
+  const where = area || dist || 'Sri Lanka';
+  const groups=pickedGroups();
+  if(!groups.length){ alert('Tick at least one industry to search.'); return; }
+  const out=document.getElementById('deepOut'); if(!out) return;
+  // skip companies already in the directory (shown above or not), so only NEW ones appear
+  const seen=new Set([...LAST_OFFLINE, ...CATALOG.map(c=>(c.name||'').toLowerCase().trim())]);
+  const all=[];
+  out.innerHTML=`<div class="sec">🌐 Deep search — step 2 of 2: searching the web</div>
+    <div id="deepProg" style="margin:0 2px 10px"></div><div id="deepList"></div>`;
+  const prog=document.getElementById('deepProg'), list=document.getElementById('deepList');
+  const status={}; groups.forEach(g=>status[g.name]='⏳ waiting');
+  const drawProg=()=>{ prog.innerHTML=groups.map(g=>`<div style="display:flex;justify-content:space-between;gap:8px;font-size:12.5px;padding:4px 0;border-bottom:1px solid var(--border)"><span>${esc(g.name)} <span style="color:var(--gray-mid)">· ${g.kind==='Reseller'?'reseller':'buyer'}</span></span><span style="color:var(--gray-mid);white-space:nowrap">${status[g.name]}</span></div>`).join(''); };
+  drawProg();
+
+  const searchOne=async (g)=>{
+    status[g.name]='🔎 searching…'; drawProg();
+    const terms=(g.search_terms||[]).map(t=>String(t).replace(/\{where\}/g, where)).join('; ');
+    const prompt=`You are a B2B sales-lead researcher for a supplier in Sri Lanka who sells "${p}".
+TARGET: businesses of this kind — ${g.name} (${g.why||''}). They would ${g.kind==='Reseller'?'RESELL':'BUY and USE'} "${p}".
+Search the web (Google, Rainbow Pages, Yellow Pages Sri Lanka, Facebook business pages, company websites, trade directories, port/harbour/industry listings) for REAL such businesses in or near ${where}, Sri Lanka.
+Useful searches: ${terms}
+
+QUALITY RULES:
 - Only REAL businesses you can verify from search results — never invent names or phone numbers.
-- Prefer businesses that SPECIFICALLY deal in "${p}" or its product family, over generic shops.
-- Include a PHONE NUMBER whenever it appears in the source. Sri Lankan format (0XX XXX XXXX or 07X XXX XXXX).
-- Include the town/city in "addr" so location is known.
-- Skip any business you cannot verify.
-
-For EACH business decide:
-- BUYER (would purchase "${p}" for their own use), or
-- RESELLER (a shop/distributor/importer that would stock and resell "${p}")
-and give a short specific REASON that mentions what the business actually does.
-
-Return ONLY a JSON array, no prose. Each item:
-{"name","type","addr","phone","website","role","reason"}
-- "type": what the business actually deals in (e.g. "Pump & irrigation supplier"), be specific
-- "role": exactly "Buyer" or "Reseller"
-- "reason": one short sentence tied to their real activity
-- "website": website or Facebook URL if found, else ""
-- "phone": phone if known, else ""
-Return 12-20 of the strongest, most specific leads.`;
-
-
-
-  try{
-    const data=await aiCall(prompt);
-    trackUsage('deep',1);
-    let text=data.text||"";
-    let arr=[];
-    // Robust parse: try full array, then objects, then loosen
-    let mm=text.match(/\[[\s\S]*\]/);
-    if(mm){ try{ arr=JSON.parse(mm[0]); }catch(e){
-      // salvage individual {...} objects
-      const objs=text.match(/\{[^{}]*\}/g)||[];
-      for(const o of objs){ try{ arr.push(JSON.parse(o)); }catch(_){} }
-    }}
-    if(!Array.isArray(arr)) arr=[];
-    // Dedupe: drop live results already shown in the offline directory
-    arr=arr.filter(d=>d&&d.name && !LAST_OFFLINE.includes((d.name||'').toLowerCase().trim()));
-    if(arr.length){
-      saveSearch(p,'deep',dist,arr);
-      const addedCount=await saveToDirectory(arr, p);
-      live.innerHTML=`<div class="sec">🌐 Live web results — ${arr.length} new (not in your directory)</div>`+
-        (addedCount>0?`<div style="background:#EAF6F0;border:1px solid #37C871;border-radius:12px;padding:11px 13px;margin:0 2px 14px;font-size:13px;color:var(--ink)">✅ <b>${addedCount}</b> new compan${addedCount===1?'y':'ies'} saved to your directory — they'll appear in your free searches from now on.</div>`:'')+
-        arr.map(d=>leadCard(d)).join('');
-    }else{
-      live.innerHTML=`<div class="sec">🌐 Live web results</div><div class="empty">No new web results beyond your directory this time. Try a nearby town or a broader product word.</div>`;
+- Include a PHONE NUMBER whenever it appears in the source (Sri Lankan format 0XX XXX XXXX or 07X XXX XXXX). Mobile numbers are best (WhatsApp).
+- Include the town/city in "addr".
+- Skip businesses you cannot verify.
+Return ONLY a JSON array, no prose. Each item: {"name","type","addr","phone","website","role","reason"}
+- "type": what the business actually does, specific (e.g. "Fishing boat yard", "Tower crane hire")
+- "role": "${g.kind}"
+- "reason": one short sentence on why they need "${p}"
+Return 8-15 of the strongest, most specific leads.`;
+    try{
+      const data=await aiCall(prompt);
+      trackUsage('deep',1);
+      const text=data.text||'';
+      let arr=[];
+      const mm=text.match(/\[[\s\S]*\]/);
+      if(mm){ try{ arr=JSON.parse(mm[0]); }catch(e){ (text.match(/\{[^{}]*\}/g)||[]).forEach(o=>{ try{ arr.push(JSON.parse(o)); }catch(_){} }); } }
+      if(!Array.isArray(arr)) arr=[];
+      const fresh=[];
+      arr.forEach(d=>{ if(!d||!d.name) return; const k=String(d.name).toLowerCase().trim(); if(seen.has(k)) return; seen.add(k); d.industry=g.name; d.role=d.role||g.kind; fresh.push(d); });
+      all.push(...fresh);
+      status[g.name]=fresh.length?`✅ ${fresh.length} found`:'— none new'; drawProg();
+      if(fresh.length) list.insertAdjacentHTML('beforeend', `<div class="sec" style="font-size:14px;margin-top:14px">${esc(g.name)} <span style="color:var(--gray-mid);font-weight:400">· ${fresh.length}</span></div>`+fresh.map(d=>leadCard(d)).join(''));
+    }catch(e){
+      status[g.name]='⚠️ '+esc(e&&e.message||'failed'); drawProg();
     }
-  }catch(e){
-    live.innerHTML=`<div class="sec">🌐 Live web results</div><div class="empty">Live search unavailable right now (offline directory above still works).<br><span style="font-size:12px">${esc(e && e.message || '')}</span></div>`;
+  };
+  // three industries at a time
+  const queue=groups.slice();
+  await Promise.all([1,2,3].map(async()=>{ while(queue.length){ const g=queue.shift(); await searchOne(g); } }));
+
+  if(all.length){
+    saveSearch(p,'deep',dist,all);
+    const added=await saveToDirectory(all, p);
+    prog.insertAdjacentHTML('beforeend', `<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13px">✅ <b>${all.length}</b> new compan${all.length===1?'y':'ies'} across ${groups.length} industr${groups.length===1?'y':'ies'}${added>0?` — <b>${added}</b> saved to your directory (they show in Find Leads from now on)`:''}.</div>`);
+  } else {
+    prog.insertAdjacentHTML('beforeend', `<div class="empty">No new web results beyond your directory. Try a nearby town, All districts, or tick other industries.</div>`);
   }
 }
 
