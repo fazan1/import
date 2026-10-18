@@ -15,6 +15,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '');
+// Trade Finder (public/trade-finder.html) is a plain page on this site: it reads this to use the same database and login
+try { if (supabaseUrl && supabaseAnonKey) localStorage.setItem('crm-sb-config', JSON.stringify({ url: supabaseUrl, key: supabaseAnonKey })); } catch { /* private mode */ }
 
 /* ---------------------------------------------------------------------------
    Book awareness. For the tables in BOOKED_TABLES only:
