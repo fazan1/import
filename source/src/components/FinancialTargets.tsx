@@ -19,6 +19,7 @@ interface FinancialRecord {
   import_goods_value: number;
   import_receivable: number;
   bank_balance: number;
+  cash_in_hand?: number;
   investor_liability: number;
   monthly_sales: number;
   cost_of_sales: number;
@@ -64,7 +65,7 @@ function calculateTotalAssets(r: FinancialRecord) {
   return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) +
     r.shop_receivable + r.cheques_in_hand +
     r.import_goods_value + r.import_receivable +
-    r.bank_balance + r.property_deposit;
+    r.bank_balance + (r.cash_in_hand || 0) + r.property_deposit;
 }
 
 function calculateNetCapital(r: FinancialRecord) {

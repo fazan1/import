@@ -22,6 +22,7 @@ interface FinancialRecord {
   import_goods_value: number;
   import_receivable: number;
   bank_balance: number;
+  cash_in_hand: number;
   investor_liability: number;
   supplier_payable: number;
   agent_payable: number;
@@ -35,7 +36,7 @@ interface FinancialRecord {
   property_deposit: number;
 }
 
-const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
+const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
 const NEW_COLS = ['supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent', 'monthly_expenses'];
 
 function norm(row: Record<string, unknown>): FinancialRecord {
@@ -54,7 +55,7 @@ const shortDate = (date: string) => new Date(date + 'T00:00:00').toLocaleDateStr
 
 export function calculateTotalAssets(r: FinancialRecord) {
   return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) + r.shop_receivable + r.cheques_in_hand +
-    r.import_goods_value + r.import_receivable + r.bank_balance + r.property_deposit;
+    r.import_goods_value + r.import_receivable + r.bank_balance + (r.cash_in_hand || 0) + r.property_deposit;
 }
 export function calculateTotalLiabilities(r: FinancialRecord) {
   return r.investor_liability + (r.supplier_payable || 0) + (r.agent_payable || 0) + (r.bank_loan || 0) + (r.cheques_issued || 0);
@@ -71,7 +72,7 @@ function grossProfitOf(r: FinancialRecord) {
 const gpIsEstimate = (r: FinancialRecord) => !(r.cost_of_sales > 0) && r.margin_percent > 0 && r.monthly_sales > 0;
 function calculateGPPercent(r: FinancialRecord) { return r.monthly_sales === 0 ? 0 : (grossProfitOf(r) / r.monthly_sales) * 100; }
 function netProfitOf(r: FinancialRecord) { return grossProfitOf(r) - (r.monthly_expenses || 0); }
-function calculateLiquidCash(r: FinancialRecord) { return r.bank_balance + r.cheques_in_hand; }
+function calculateLiquidCash(r: FinancialRecord) { return r.bank_balance + (r.cash_in_hand || 0) + r.cheques_in_hand; }
 function stockOf(r: FinancialRecord) { return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) + r.import_goods_value; }
 /** whole months between two record dates (at least 1) */
 function monthsBetween(a: string, b: string) {
@@ -116,7 +117,7 @@ export default function CEONetwork() {
     // start from last month's balances (stock, customers, debts move a little each month); sales and expenses start empty
     const carry: Record<string, number> = {};
     NUM_FIELDS.forEach((f) => { carry[f] = 0; });
-    if (latest) ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
+    if (latest) ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
     if (needsSql) NEW_COLS.forEach((f) => { delete carry[f]; });
     const { data, error } = await supabase.from('financial_records').insert([{ date: dateStr, month: monthName(dateStr), ...carry }]).select();
     if (error) { alert('Could not add the record: ' + error.message); return; }
@@ -276,7 +277,7 @@ function AIInsights({ records }: { records: FinancialRecord[] }) {
   // --- CASH ---
   const dCash = cashNow - cashBefore;
   if (dCash !== 0) insights.liquidity.push(`Ready cash went ${dCash > 0 ? 'up' : 'down'} ${m(Math.abs(dCash))} ${since}`);
-  insights.liquidity.push(`You have ${m(cashNow)} in bank and cheques — ${cashShare.toFixed(0)}% of the business${cashShare < 5 ? ' — dangerously low' : cashShare < 10 ? ' — keep more for emergencies' : ' — a healthy cushion'}`);
+  insights.liquidity.push(`You have ${m(cashNow)} in bank, cash and cheques — ${cashShare.toFixed(0)}% of the business${cashShare < 5 ? ' — dangerously low' : cashShare < 10 ? ' — keep more for emergencies' : ' — a healthy cushion'}`);
   if (current.monthly_expenses > 0) insights.liquidity.push(`At ${m(current.monthly_expenses)} expenses a month, your cash lasts about ${(cashNow / current.monthly_expenses).toFixed(1)} months without sales`);
   else insights.liquidity.push('Add your monthly expenses (rent, salaries, transport…) to see how many months your cash lasts');
 
@@ -412,6 +413,7 @@ const columnGroups: { label: string; color: string; columns: { key: string; labe
       { key: 'import_goods_value', label: 'Import goods' },
       { key: 'import_receivable', label: 'Import customers' },
       { key: 'bank_balance', label: 'Bank' },
+      { key: 'cash_in_hand', label: 'Cash in hand' },
       { key: 'property_deposit', label: 'Property dep.' },
     ],
   },
