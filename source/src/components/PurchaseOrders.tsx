@@ -395,12 +395,13 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
   }
 
   function getFilteredItems(searchTerm: string): ItemRecord[] {
-    if (!searchTerm.trim()) return allItems.slice(0, 10);
-    const term = searchTerm.toLowerCase();
-    return allItems.filter(item =>
-      item.item_name.toLowerCase().includes(term) ||
-      (item.sku?.toLowerCase() || '').includes(term)
-    ).slice(0, 10);
+    // every typed word must appear somewhere in the name / code, in any order ("shoe 37" finds "Safety Shoe Size 37")
+    const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return allItems.slice(0, 30);
+    return allItems.filter((item) => {
+      const hay = ((item.item_name || '') + ' ' + (item.sku || '')).toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }).slice(0, 30);
   }
 
   function updateItem(index: number, field: keyof NewItem, value: string) {
@@ -1138,6 +1139,11 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm"
                         placeholder="Search item..."
                       />
+                      {activeDropdown === index && filteredItems.length === 0 && (searchTerms[index] || '').trim() !== '' && (
+                        <div className="absolute z-10 w-full min-w-[260px] mt-1 bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs text-gray-500">
+                          No item found in Items. It will be saved as typed — add it in Masters → Items to pick it next time.
+                        </div>
+                      )}
                       {activeDropdown === index && filteredItems.length > 0 && (
                         <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
                           {filteredItems.map((itemRecord) => (
