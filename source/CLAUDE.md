@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V149)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V150)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -142,6 +142,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v147 (owner: "only warehouse items show") Warehouse stock table also lists MASTER ITEMS that are not kept as stock (no wh_products row linked by master_item_id or same name), at the bottom under "Master items — not kept as stock" and via a "Master items (N)" chip: Qty "not stocked", Sold (month) = sales invoice lines (by item_id, else by name; cancelled/draft left out), tooltip all time, "Keep stock" button adds it to the warehouse (QuickQty new). Warehouse loads busy_sales_invoices (+items) with fetchAllPages. PO / Sales Invoice drop-downs already listed every master item (unchanged).
   v148 (owner: shop login typing "shoe 37" in a PO found nothing) Purchase Order + Purchase Bill item search is word-by-word like Sales Invoice (every typed word anywhere in name/SKU, any order, 30 results) and shows a "No item found in Items" hint. The Items master had only 100 items — nothing is hidden from the shop login (items has read-all policies, no book column). sql/items-visibility-check.sql = read-only diagnostic (Supabase editor shows only the LAST statement's result — give owner one combined query).
   v149 (owner: "showing only 10 items") item drop-downs in Purchase Order, Purchase Bill, Sales Invoice, Sales Order list up to 300 matches (was 30; PO/Bill were 10 before v148), taller scroll box on PO/Bill.
+  v150 PO item drop-down footer "showing X of Y items in Items master" + alert when the items load fails (owner in LCL 2026 sees only 12 items in a new PO although items has 100 rows — diagnosing: items is not booked/filtered in code; waiting for sql/items-visibility-check.sql result).
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own

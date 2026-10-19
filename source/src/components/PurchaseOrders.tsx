@@ -244,6 +244,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
     if (suppliersRes.data) setSuppliers(suppliersRes.data);
     if (!ordersRes.error) setOrders(ordersRes.data);
     if (itemsRes.data) setAllItems(itemsRes.data);
+    if (itemsRes.error) alert('Could not load the Items master (item search will be short): ' + itemsRes.error);
     if (salesOrdersRes.data) setSalesOrders(salesOrdersRes.data);
     if (batchesRes.data) {
       const uniqueBatches = [...new Set(batchesRes.data.map(b => b.batch_number).filter(Boolean))] as string[];
@@ -1160,6 +1161,7 @@ export default function PurchaseOrders({ preselectedSOItems, preselectedSOId, on
                               </span>
                             </button>
                           ))}
+                          <div className="px-3 py-1 text-[10px] font-mono uppercase tracking-wide text-gray-400 bg-gray-50 border-t border-gray-100">showing {filteredItems.length} of {allItems.length} items in Items master</div>
                         </div>
                       )}
                     </div>
