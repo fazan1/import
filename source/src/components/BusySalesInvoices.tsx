@@ -5,7 +5,7 @@ import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { replaceLines } from '../lib/lines';
-import { syncInvoiceStock, removeInvoiceStock, describeIssue } from '../lib/whIssue';
+import { syncInvoiceStock, removeInvoiceStock, describeIssue, backfillInvoiceStock } from '../lib/whIssue';
 import InvoicePrint from './InvoicePrint';
 
 interface Customer {
@@ -666,6 +666,13 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     loadData();
   }
 
+  // one-time: invoices saved before the warehouse link never moved stock
+  async function handleBackfillStock() {
+    if (!confirm('Issue warehouse stock for every invoice that has not done so yet?\n\nInvoices that already issued stock are left alone. Items not in the warehouse are skipped.')) return;
+    const r = await backfillInvoiceStock(invoices);
+    alert(`Done.\nIssued stock for ${r.done} invoice(s); ${r.skipped} already done / nothing to issue.` + (r.errors.length ? `\n\nProblems:\n${r.errors.join('\n')}` : ''));
+  }
+
   async function handleDeleteInvoice(id: string) {
     if (!confirm('Are you sure you want to delete this invoice? It will be moved to the Recycle Bin.')) return;
 
@@ -794,6 +801,8 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Sales Invoices</h2>
+        <div className="flex items-center gap-2">
+        <button onClick={handleBackfillStock} className="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" title="Older invoices (before the warehouse link) never reduced stock. This issues their stock now; invoices that already did are left alone.">Issue stock for older invoices</button>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-cyan-600 rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-all shadow-lg"
@@ -801,6 +810,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
           <Plus className="w-4 h-4" />
           <span>New Invoice</span>
         </button>
+        </div>
       </div>
 
       {/* Manage Partners Modal */}

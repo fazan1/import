@@ -39,19 +39,29 @@ export async function syncInvoiceStock(inv: { id: string; number: string; custom
   const byMaster = new Map(products.filter((x) => x.master_item_id).map((x) => [x.master_item_id as string, x]));
   const byName = new Map(products.map((x) => [key(x.name), x]));
 
-  // which product and location for each invoice line
+  // which product for each line, and how much comes from each location:
+  // take from the location with the most stock first, then the next, until the quantity is covered;
+  // whatever is still short comes from the biggest location (it goes negative, the owner sees it in Warehouse)
   const want: { product: Product; qty: number; locId: string }[] = [];
+  const add = (product: Product, locId: string, qty: number) => {
+    const same = want.find((w) => w.product.id === product.id && w.locId === locId);
+    if (same) same.qty += qty; else want.push({ product, qty, locId });
+  };
+  const live = new Map<string, number>(); // product|loc -> qty still available during this allocation
+  s.data.forEach((x) => live.set(x.product_id + '|' + x.location_id, Number(x.qty) || 0));
   for (const ln of lines) {
-    const qty = Number(ln.quantity) || 0;
+    let qty = Number(ln.quantity) || 0;
     if (qty <= 0) continue;
     const prod = (ln.item_id && byMaster.get(ln.item_id)) || byName.get(key(ln.item_name));
     if (!prod) { out.skipped.push(ln.item_name); continue; }
-    // the location holding the most of it (first active location when none has any)
-    const stocks = s.data.filter((x) => x.product_id === prod.id && locs.some((lc) => lc.id === x.location_id));
-    const best = stocks.sort((a, b) => Number(b.qty) - Number(a.qty))[0];
-    const locId = best && Number(best.qty) > 0 ? best.location_id : locs[0].id;
-    const same = want.find((w) => w.product.id === prod.id && w.locId === locId);
-    if (same) same.qty += qty; else want.push({ product: prod, qty, locId });
+    const piles = locs.map((lc) => ({ locId: lc.id, qty: live.get(prod.id + '|' + lc.id) || 0 })).sort((a, b) => b.qty - a.qty);
+    for (const pile of piles) {
+      if (qty <= 0) break;
+      if (pile.qty <= 0) continue;
+      const take = Math.min(pile.qty, qty);
+      add(prod, pile.locId, take); live.set(prod.id + '|' + pile.locId, pile.qty - take); qty -= take;
+    }
+    if (qty > 0) { const big = piles[0]?.locId || locs[0].id; add(prod, big, qty); live.set(prod.id + '|' + big, (live.get(prod.id + '|' + big) || 0) - qty); }
   }
 
   // replace whatever this invoice issued before
@@ -85,4 +95,21 @@ export function describeIssue(r: IssueResult): string {
   if (r.issued.length) parts.push('Warehouse: issued ' + r.issued.map((x) => `${x.qty} ${x.name} (${x.location})`).join(', '));
   if (r.skipped.length) parts.push('Not in the warehouse (stock not changed): ' + r.skipped.join(', '));
   return parts.join('\n');
+}
+
+/** Older invoices (saved before v142) never moved stock: issue them now. Only invoices with no linked issue note are touched. */
+export async function backfillInvoiceStock(invoices: { id: string; invoice_number: string; customer_name: string | null; invoice_date: string; status: string; busy_sales_invoice_items?: Line[] }[]): Promise<{ done: number; skipped: number; errors: string[] }> {
+  const res = { done: 0, skipped: 0, errors: [] as string[] };
+  const { data: linked, error } = await supabase.from('wh_notes').select('sales_invoice_id').not('sales_invoice_id', 'is', null);
+  if (error) { res.errors.push(error.message); return res; }
+  const has = new Set((linked || []).map((x: { sales_invoice_id: string }) => x.sales_invoice_id));
+  for (const inv of invoices) {
+    if (has.has(inv.id) || inv.status === 'cancelled' || inv.status === 'draft') { res.skipped++; continue; }
+    const lines = inv.busy_sales_invoice_items || [];
+    if (!lines.length) { res.skipped++; continue; }
+    const r = await syncInvoiceStock({ id: inv.id, number: inv.invoice_number, customer: inv.customer_name || '', date: inv.invoice_date }, lines);
+    if (r.error) res.errors.push(`${inv.invoice_number}: ${r.error}`);
+    else if (r.issued.length) res.done++; else res.skipped++;
+  }
+  return res;
 }
