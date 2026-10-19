@@ -267,11 +267,11 @@ export default function BusySalesOrders({ onCreateInvoice, onCopyToPO }: BusySal
   function getFilteredItems(searchTerm: string): ItemRecord[] {
     // every typed word must appear somewhere in the name / code, in any order
     const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return allItems.slice(0, 30);
+    if (!words.length) return allItems.slice(0, 300);
     return allItems.filter((item) => {
       const hay = ((item.item_name || '') + ' ' + (item.sku || '')).toLowerCase();
       return words.every((w) => hay.includes(w));
-    }).slice(0, 30);
+    }).slice(0, 300);
   }
 
   function getFilteredCustomers(): Customer[] {

@@ -267,11 +267,11 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
   function getFilteredItems(searchTerm: string): ItemRecord[] {
     // every typed word must appear somewhere in the name / code, in any order ("shoe 37" finds "Safety Shoe Size 37")
     const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return allItems.slice(0, 30);
+    if (!words.length) return allItems.slice(0, 300);
     return allItems.filter((item) => {
       const hay = ((item.item_name || '') + ' ' + (item.sku || '')).toLowerCase();
       return words.every((w) => hay.includes(w));
-    }).slice(0, 30);
+    }).slice(0, 300);
   }
 
   function selectItem(index: number, item: ItemRecord) {
@@ -790,7 +790,7 @@ export default function PurchaseBillPage({ purchaseOrderId, onBack }: Props) {
                         placeholder="Search item..."
                       />
                       {activeDropdown === index && filteredItems.length > 0 && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                           {filteredItems.map((itemRecord) => (
                             <button
                               key={itemRecord.id}

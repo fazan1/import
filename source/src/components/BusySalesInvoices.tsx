@@ -342,11 +342,11 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
     const all = whOnly.length ? [...allItems, ...whOnly] : allItems;
     // every typed word must appear somewhere in the name / code, in any order ("sliding deeper" finds "Deeper Sliding ...")
     const words = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
-    if (!words.length) return all.slice(0, 30);
+    if (!words.length) return all.slice(0, 300);
     return all.filter((item) => {
       const hay = ((item.item_name || '') + ' ' + (item.sku || '')).toLowerCase();
       return words.every((w) => hay.includes(w));
-    }).slice(0, 30);
+    }).slice(0, 300);
   }
 
   function getFilteredCustomers(): Customer[] {
