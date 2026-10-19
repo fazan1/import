@@ -668,10 +668,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
 
   // one-time: invoices saved before the warehouse link never moved stock
   async function handleBackfillStock() {
-    if (!confirm('Issue warehouse stock for every invoice that has not done so yet?\n\nInvoices that already issued stock are left alone. Items not in the warehouse are skipped.')) return;
+    if (!confirm('Rebuild the warehouse issues of ALL invoices from their lines?\n\nEach invoice\'s earlier issue is replaced by a fresh one (same quantities), so wrong or missing ones get corrected. Items not in the warehouse are skipped. Safe to run any time.')) return;
     const r = await backfillInvoiceStock(invoices);
     console.log('warehouse backfill', r);
-    alert(`Done. Issued stock for ${r.done} invoice(s); ${r.skipped} skipped.` +
+    alert(`Done. Rebuilt the stock issue of ${r.done} invoice(s); ${r.skipped} skipped.` +
       (r.errors.length ? `\n\nPROBLEMS:\n${r.errors.join('\n')}` : '') +
       (r.report.length ? `\n\nDetails:\n${r.report.slice(0, 25).join('\n')}${r.report.length > 25 ? `\n… and ${r.report.length - 25} more` : ''}` : ''));
     loadData();
@@ -806,7 +806,7 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Sales Invoices</h2>
         <div className="flex items-center gap-2">
-        <button onClick={handleBackfillStock} className="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" title="Older invoices (before the warehouse link) never reduced stock. This issues their stock now; invoices that already did are left alone.">Issue stock for older invoices</button>
+        <button onClick={handleBackfillStock} className="px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50" title="Replaces every invoice's warehouse issue with a fresh one worked out from its lines. Use it after fixing products or when stock looks wrong.">Rebuild stock from invoices</button>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-teal-500 to-cyan-600 rounded-lg hover:from-teal-600 hover:to-cyan-700 transition-all shadow-lg"

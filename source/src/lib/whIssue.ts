@@ -36,8 +36,14 @@ export async function syncInvoiceStock(inv: { id: string; number: string; custom
   const products = p.data.filter((x) => x.is_active !== false);
   const locs = l.data.filter((x) => x.is_active !== false);
   if (!locs.length) { out.error = 'No warehouse location set up'; return out; }
-  const byMaster = new Map(products.filter((x) => x.master_item_id).map((x) => [x.master_item_id as string, x]));
-  const byName = new Map(products.map((x) => [key(x.name), x]));
+  const totalOf = (pid: string) => s.data.filter((x) => x.product_id === pid).reduce((t, x) => t + (Number(x.qty) || 0), 0);
+  // the warehouse can hold the same product twice (e.g. one linked to the Items master, one added by name):
+  // take every candidate and use the one that actually holds stock
+  const findProduct = (ln: Line): Product | undefined => {
+    const cands = products.filter((x) => (ln.item_id && x.master_item_id === ln.item_id) || key(x.name) === key(ln.item_name));
+    if (!cands.length) return undefined;
+    return cands.sort((a, b) => totalOf(b.id) - totalOf(a.id) || (a.master_item_id === ln.item_id ? -1 : 1))[0];
+  };
 
   // which product for each line, and how much comes from each location:
   // take from the location with the most stock first, then the next, until the quantity is covered;
@@ -52,7 +58,7 @@ export async function syncInvoiceStock(inv: { id: string; number: string; custom
   for (const ln of lines) {
     let qty = Number(ln.quantity) || 0;
     if (qty <= 0) continue;
-    const prod = (ln.item_id && byMaster.get(ln.item_id)) || byName.get(key(ln.item_name));
+    const prod = findProduct(ln);
     if (!prod) { out.skipped.push(ln.item_name); continue; }
     const piles = locs.map((lc) => ({ locId: lc.id, qty: live.get(prod.id + '|' + lc.id) || 0 })).sort((a, b) => b.qty - a.qty);
     for (const pile of piles) {
@@ -97,28 +103,17 @@ export function describeIssue(r: IssueResult): string {
   return parts.join('\n');
 }
 
-/** Older invoices (saved before v142) never moved stock: issue them now.
-    An invoice counts as done only when its linked issue note(s) have lines; empty notes (from an older mechanism) are redone. */
+/** Rebuild the warehouse issues of EVERY invoice from its lines (replaces whatever each invoice issued before).
+    Safe to run any time: the result only depends on the invoices. */
 export async function backfillInvoiceStock(invoices: { id: string; invoice_number: string; customer_name: string | null; invoice_date: string; status: string; busy_sales_invoice_items?: Line[] }[]): Promise<{ done: number; skipped: number; errors: string[]; report: string[] }> {
   const res = { done: 0, skipped: 0, errors: [] as string[], report: [] as string[] };
-  const { data: linked, error } = await supabase.from('wh_notes').select('id, sales_invoice_id').not('sales_invoice_id', 'is', null);
-  if (error) { res.errors.push('Could not read warehouse notes: ' + error.message); return res; }
-  const noteIds = (linked || []).map((x: { id: string }) => x.id);
-  const withLines = new Set<string>();
-  if (noteIds.length) {
-    const { data: ls, error: e2 } = await supabase.from('wh_note_lines').select('note_id').in('note_id', noteIds);
-    if (e2) { res.errors.push('Could not read warehouse note lines: ' + e2.message); return res; }
-    (ls || []).forEach((l: { note_id: string }) => withLines.add(l.note_id));
-  }
-  const done = new Set((linked || []).filter((x: { id: string }) => withLines.has(x.id)).map((x: { sales_invoice_id: string }) => x.sales_invoice_id));
   for (const inv of invoices) {
     if (inv.status === 'cancelled' || inv.status === 'draft') { res.skipped++; continue; }
-    if (done.has(inv.id)) { res.skipped++; res.report.push(`${inv.invoice_number}: already issued`); continue; }
     const lines = inv.busy_sales_invoice_items || [];
     if (!lines.length) { res.skipped++; res.report.push(`${inv.invoice_number}: no item lines`); continue; }
     const r = await syncInvoiceStock({ id: inv.id, number: inv.invoice_number, customer: inv.customer_name || '', date: inv.invoice_date }, lines);
     if (r.error) { res.errors.push(`${inv.invoice_number}: ${r.error}`); continue; }
-    if (r.issued.length) { res.done++; res.report.push(`${inv.invoice_number}: issued ` + r.issued.map((x) => `${x.qty} ${x.name}`).join(', ') + (r.skipped.length ? ` (not in warehouse: ${r.skipped.join(', ')})` : '')); }
+    if (r.issued.length) { res.done++; res.report.push(`${inv.invoice_number}: issued ` + r.issued.map((x) => `${x.qty} ${x.name} (${x.location})`).join(', ') + (r.skipped.length ? ` — not in warehouse: ${r.skipped.join(', ')}` : '')); }
     else { res.skipped++; res.report.push(`${inv.invoice_number}: nothing to issue — not in warehouse: ${r.skipped.join(', ') || '(no items)'}`); }
   }
   return res;
