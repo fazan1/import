@@ -44,7 +44,7 @@ source/.env is not committed; it needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_
 ## SQL files already applied to the live database (all in /sql)
 book-switch-setup, savings-setup, shop-lock-all (19 "book lock" policies), shipments-admin-view, staff-password-setup, user-delete-setup, clearing-agents-setup, rename-to-bline-shop,
 and (confirmed ALL TRUE by check-everything.sql on 13 Oct 2026) security-lock, packing-lines-book, old-collection-only, books-separate,
-charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026: history-and-auto-charges (v111 + v112 trigger without sibling-rate copy). Applied 16 Oct 2026: sales-numbers-unique (all 3 rules on), ceo-network-upgrade. Applied 18 Oct 2026: partner-payouts, trade-finder-setup + trade-finder-data (871 companies / 48 contacts / 22 saved). check-everything.sql (read-only, 13 rows) and health-check.sql verify it.
+charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026: history-and-auto-charges (v111 + v112 trigger without sibling-rate copy). Applied 16 Oct 2026: sales-numbers-unique (all 3 rules on), ceo-network-upgrade. Applied 18 Oct 2026: partner-payouts, trade-finder-setup + trade-finder-data (871 companies / 48 contacts / 22 saved). Applied 19 Oct 2026: warehouse-invoice-link (link column already existed; 3 wh_notes were already linked to invoices before v142 — some older mechanism (DB trigger?) made them; syncInvoiceStock deletes+recreates per invoice so there is no double deduction either way). check-everything.sql (read-only, 13 rows) and health-check.sql verify it.
 
 ## Open items
 - Books decided (v96): LCL 2026 is the only new book; it must never count OLD. OLD stays open until old customers are paid
