@@ -86,6 +86,20 @@ export default function CEONetwork() {
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [needsSql, setNeedsSql] = useState(false);
+  // owner's own names for the typed columns (shared across devices; empty = the default name)
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    supabase.from('capital_settings').select('value').eq('key', 'ceo_column_labels').maybeSingle()
+      .then(({ data }) => { if (data?.value && typeof data.value === 'object') setLabels(data.value as Record<string, string>); });
+  }, []);
+  async function renameColumn(key: string, current: string, fallback: string) {
+    const v = prompt(`Name for this column (leave empty to go back to "${fallback}")`, current);
+    if (v === null) return;
+    const next = { ...labels }; if (v.trim()) next[key] = v.trim(); else delete next[key];
+    setLabels(next);
+    const { error } = await supabase.from('capital_settings').upsert({ key: 'ceo_column_labels', value: next, updated_at: new Date().toISOString() });
+    if (error) alert('Could not save the column name: ' + error.message + '\n(run charity-setup.sql once if the capital_settings table is missing)');
+  }
 
   useEffect(() => {
     loadFinancialRecords();
@@ -191,6 +205,8 @@ export default function CEONetwork() {
         updateDate={updateDate}
         deleteRecord={deleteRecord}
         addNewRecord={addNewRecord}
+        labels={labels}
+        renameColumn={renameColumn}
       />
     </div>
   );
@@ -398,6 +414,8 @@ interface RecordsTableProps {
   updateDate: (id: string, newDate: string) => void;
   deleteRecord: (id: string) => void;
   addNewRecord: () => void;
+  labels: Record<string, string>;
+  renameColumn: (key: string, current: string, fallback: string) => void;
 }
 
 const columnGroups: { label: string; color: string; columns: { key: string; label: string; computed?: (r: FinancialRecord) => number }[] }[] = [
@@ -453,8 +471,9 @@ const calculatedColumns = [
 
 function RecordsTable({
   records, editingCell, editingDate, setEditingCell, setEditingDate,
-  updateCell, updateDate, deleteRecord, addNewRecord,
+  updateCell, updateDate, deleteRecord, addNewRecord, labels, renameColumn,
 }: RecordsTableProps) {
+  const nameOf = (col: { key: string; label: string }) => labels[col.key] || col.label;
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -494,7 +513,7 @@ function RecordsTable({
                       colIdx === group.columns.length - 1 ? 'border-r border-gray-700' : ''
                     }`}
                   >
-                    {col.label}
+                    {col.computed ? nameOf(col) : <button type="button" onClick={() => renameColumn(col.key, nameOf(col), col.label)} className="hover:text-white hover:underline decoration-dotted underline-offset-2" title="Tap to rename this column">{nameOf(col)}</button>}
                   </th>
                 ))
               )}
@@ -582,6 +601,7 @@ function RecordsTable({
           </tbody>
         </table>
       </div>
+      {records.length > 0 && <p className="px-4 py-2 text-[11px] text-gray-400 border-t border-gray-100">Tap a column name in the header to rename it (same name on every device). Tap a figure to change it.</p>}
 
       {records.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 px-6">
