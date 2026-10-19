@@ -13,6 +13,7 @@ interface FinancialRecord {
   month: string;
   total_factory_inventory: number;
   shop_stock_value: number;
+  lc_stock_value?: number;
   shop_receivable: number;
   cheques_in_hand: number;
   import_goods_value: number;
@@ -60,7 +61,7 @@ interface TrendData {
 }
 
 function calculateTotalAssets(r: FinancialRecord) {
-  return r.total_factory_inventory + r.shop_stock_value +
+  return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) +
     r.shop_receivable + r.cheques_in_hand +
     r.import_goods_value + r.import_receivable +
     r.bank_balance + r.property_deposit;

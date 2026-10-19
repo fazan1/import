@@ -16,6 +16,7 @@ interface FinancialRecord {
   month: string;
   total_factory_inventory: number;
   shop_stock_value: number;
+  lc_stock_value: number;
   shop_receivable: number;
   cheques_in_hand: number;
   import_goods_value: number;
@@ -34,7 +35,7 @@ interface FinancialRecord {
   property_deposit: number;
 }
 
-const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
+const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
 const NEW_COLS = ['supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent', 'monthly_expenses'];
 
 function norm(row: Record<string, unknown>): FinancialRecord {
@@ -52,7 +53,7 @@ const monthName = (date: string) => new Date(date + 'T00:00:00').toLocaleString(
 const shortDate = (date: string) => new Date(date + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 export function calculateTotalAssets(r: FinancialRecord) {
-  return r.total_factory_inventory + r.shop_stock_value + r.shop_receivable + r.cheques_in_hand +
+  return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) + r.shop_receivable + r.cheques_in_hand +
     r.import_goods_value + r.import_receivable + r.bank_balance + r.property_deposit;
 }
 export function calculateTotalLiabilities(r: FinancialRecord) {
@@ -71,7 +72,7 @@ const gpIsEstimate = (r: FinancialRecord) => !(r.cost_of_sales > 0) && r.margin_
 function calculateGPPercent(r: FinancialRecord) { return r.monthly_sales === 0 ? 0 : (grossProfitOf(r) / r.monthly_sales) * 100; }
 function netProfitOf(r: FinancialRecord) { return grossProfitOf(r) - (r.monthly_expenses || 0); }
 function calculateLiquidCash(r: FinancialRecord) { return r.bank_balance + r.cheques_in_hand; }
-function stockOf(r: FinancialRecord) { return r.total_factory_inventory + r.shop_stock_value + r.import_goods_value; }
+function stockOf(r: FinancialRecord) { return r.total_factory_inventory + r.shop_stock_value + (r.lc_stock_value || 0) + r.import_goods_value; }
 /** whole months between two record dates (at least 1) */
 function monthsBetween(a: string, b: string) {
   const da = new Date(a + 'T00:00:00'), db = new Date(b + 'T00:00:00');
@@ -115,7 +116,7 @@ export default function CEONetwork() {
     // start from last month's balances (stock, customers, debts move a little each month); sales and expenses start empty
     const carry: Record<string, number> = {};
     NUM_FIELDS.forEach((f) => { carry[f] = 0; });
-    if (latest) ['total_factory_inventory', 'shop_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
+    if (latest) ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'import_receivable', 'bank_balance', 'investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
     if (needsSql) NEW_COLS.forEach((f) => { delete carry[f]; });
     const { data, error } = await supabase.from('financial_records').insert([{ date: dateStr, month: monthName(dateStr), ...carry }]).select();
     if (error) { alert('Could not add the record: ' + error.message); return; }
@@ -405,6 +406,7 @@ const columnGroups: { label: string; color: string; columns: { key: string; labe
     columns: [
       { key: 'total_factory_inventory', label: 'Factory stock' },
       { key: 'shop_stock_value', label: 'Shop stock (sell. price)' },
+      { key: 'lc_stock_value', label: 'LC-2026 stock' },
       { key: 'shop_receivable', label: 'Shop customers' },
       { key: 'cheques_in_hand', label: 'Cheques in hand' },
       { key: 'import_goods_value', label: 'Import goods' },
