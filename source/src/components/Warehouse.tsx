@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Warehouse as WarehouseIcon, Plus, Printer, Trash2, Search, ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, SlidersHorizontal, X, MapPin, Package, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchAllPages } from '../lib/fetchAll';
 
 type Kind = 'in' | 'issue' | 'transfer' | 'adjust';
 interface Location { id: string; name: string; is_active: boolean; }
@@ -46,12 +47,12 @@ export default function Warehouse() {
     const [l, p, n, ln, s, mi] = await Promise.all([
       supabase.from('wh_locations').select('*').order('name'),
       supabase.from('wh_products').select('*').order('name'),
-      supabase.from('wh_notes').select('*').order('note_date', { ascending: false }).order('created_at', { ascending: false }),
-      supabase.from('wh_note_lines').select('*').order('line_no'),
+      fetchAllPages<Note>(() => supabase.from('wh_notes').select('*').order('note_date', { ascending: false }).order('created_at', { ascending: false }).order('id')),
+      fetchAllPages<Line>(() => supabase.from('wh_note_lines').select('*').order('line_no').order('id')),
       supabase.from('wh_stock').select('*'),
       supabase.from('items').select('id, item_name, sku, unit, is_active, sales_price').order('item_name'),
     ]);
-    if (l.error || p.error || n.error) { alert('Warehouse tables not found — run warehouse-setup.sql in Supabase first.\n' + (l.error?.message ?? p.error?.message ?? n.error?.message)); setLoading(false); return; }
+    if (l.error || p.error || n.error) { alert('Warehouse tables not found — run warehouse-setup.sql in Supabase first.\n' + (l.error?.message ?? p.error?.message ?? n.error)); setLoading(false); return; }
     setLocations(l.data ?? []); setProducts(p.data ?? []); setNotes((n.data ?? []) as Note[]); setLines((ln.data ?? []) as Line[]);
     setStock(((s.data ?? []) as Stock[]).map((x) => ({ ...x, qty: Number(x.qty) })));
     setMaster(((mi.data ?? []) as MasterItem[]).filter((m) => m.is_active !== false));
@@ -63,6 +64,14 @@ export default function Warehouse() {
   const activeLocs = locations.filter((l) => l.is_active);
   const qtyAt = (pid: string, lid: string) => stock.find((s) => s.product_id === pid && s.location_id === lid)?.qty ?? 0;
   const total = (pid: string) => stock.filter((s) => s.product_id === pid && (locFilter === 'all' || s.location_id === locFilter)).reduce((t, s) => t + s.qty, 0);
+  // Sold this month = quantity on issue notes dated this month (sales invoices + hand issues); tooltip shows all time
+  const soldBy = useMemo(() => {
+    const d = new Date(); const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const issueMonth = new Map<string, boolean>(); notes.forEach((n) => { if (n.kind === 'issue') issueMonth.set(n.id, (n.note_date || '').slice(0, 7) === month); });
+    const m: Record<string, { month: number; all: number }> = {};
+    lines.forEach((l) => { if (!issueMonth.has(l.note_id)) return; const e = (m[l.product_id] ||= { month: 0, all: 0 }); const q = Number(l.qty) || 0; e.all += q; if (issueMonth.get(l.note_id)) e.month += q; });
+    return m;
+  }, [notes, lines]);
 
   const q = search.trim().toLowerCase();
   const visibleProducts = products.filter((p) => p.is_active && (!q || p.name.toLowerCase().includes(q)));
@@ -220,7 +229,7 @@ export default function Warehouse() {
             <div className="bg-white border border-gray-200 rounded-lg overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr><th className="text-left px-4 py-2">Product</th><th className="text-right px-3 py-2">Cost</th><th className="text-right px-3 py-2">Sell price</th>{activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <th key={l.id} className="text-right px-3 py-2">{l.name}</th>)}<th className="text-right px-3 py-2">Qty</th><th className="text-right px-3 py-2">Value</th><th className="px-3 py-2 w-28"></th></tr>
+                  <tr><th className="text-left px-4 py-2">Product</th><th className="text-right px-3 py-2">Cost</th><th className="text-right px-3 py-2">Sell price</th>{activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <th key={l.id} className="text-right px-3 py-2">{l.name}</th>)}<th className="text-right px-3 py-2">Qty</th><th className="text-right px-3 py-2" title="Issued this month (sales invoices and issue notes)">Sold (month)</th><th className="text-right px-3 py-2">Value</th><th className="px-3 py-2 w-28"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {sortedProducts.map((p, i) => {
@@ -228,13 +237,14 @@ export default function Warehouse() {
                     const firstEmpty = stockFilter === 'all' && t <= 0 && !low && (i === 0 || rank(sortedProducts[i - 1]) < rank(p));
                     return (
                       <React.Fragment key={p.id}>
-                        {firstEmpty && <tr><td colSpan={7 + (activeLocs.length > 1 && locFilter === 'all' ? activeLocs.length : 0)} className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">{t < 0 ? 'Negative' : 'Not in stock'}</td></tr>}
+                        {firstEmpty && <tr><td colSpan={8 + (activeLocs.length > 1 && locFilter === 'all' ? activeLocs.length : 0)} className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">{t < 0 ? 'Negative' : 'Not in stock'}</td></tr>}
                         <tr className={`hover:bg-gray-50 ${low ? 'bg-amber-50/60' : ''}`}>
                           <td className="px-4 py-2"><button onClick={() => setMovProduct(p)} className="text-left font-medium text-gray-900 hover:text-teal-700">{p.name}</button>{low && <span className="ml-2 text-[10px] bg-amber-200 text-amber-900 px-1.5 rounded align-middle">LOW</span>}<div className="text-xs text-gray-400">{p.unit}{p.min_qty > 0 ? ` · min ${fmtQ(p.min_qty)}` : ''}</div></td>
                           <td className="px-3 py-2 text-right text-gray-600">{p.avg_cost ? fmtQ(p.avg_cost) : <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2 text-right">{p.sell_price ? fmtQ(p.sell_price) : <span className="text-gray-300">—</span>}</td>
                           {activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <td key={l.id} className="px-3 py-2 text-right text-gray-600">{fmtQ(qtyAt(p.id, l.id))}</td>)}
                           <td className="px-3 py-2 text-right"><button onClick={() => setQuick({ mode: 'set', product: p })} title="Set exact count" className={`font-bold text-base ${t < 0 ? 'text-red-600' : t === 0 ? 'text-gray-300' : 'text-gray-900'}`}>{fmtQ(t)}</button></td>
+                          <td className="px-3 py-2 text-right text-gray-700" title={soldBy[p.id] ? `All time: ${fmtQ(soldBy[p.id].all)}` : ''}>{soldBy[p.id]?.month ? fmtQ(soldBy[p.id].month) : <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2 text-right text-gray-700">{p.avg_cost && t > 0 ? fmtQ(Math.round(t * (p.avg_cost || 0))) : <span className="text-gray-300">—</span>}</td>
                           <td className="px-3 py-2 text-right whitespace-nowrap">
                             <button onClick={() => setQuick({ mode: 'in', product: p })} className="w-8 h-8 rounded-lg border border-gray-300 text-green-700 hover:bg-green-50 font-bold" title="Add stock">+</button>
