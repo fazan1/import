@@ -9,6 +9,9 @@ interface Product { id: string; name: string; unit: string; min_qty: number; is_
 interface MasterItem { id: string; item_name: string; sku: string | null; unit: string; is_active?: boolean; sales_price?: number | null; }
 interface Note { id: string; note_no: string; kind: Kind; note_date: string; from_location_id: string | null; to_location_id: string | null; issued_to: string | null; remarks: string | null; created_at: string; sales_invoice_id?: string | null; }
 interface Line { id: string; note_id: string; product_id: string; qty: number; remark: string | null; line_no: number; }
+interface InvLine { item_id: string | null; item_name: string; quantity: number }
+interface Inv { id: string; invoice_date: string; status: string; busy_sales_invoice_items?: InvLine[] }
+const nameKey = (x: string | null | undefined) => (x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 interface Stock { product_id: string; location_id: string; qty: number; }
 interface DraftLine { product_id: string; qty: string; remark: string; cost: string; }
 type Quick = { mode: 'in' | 'issue' | 'set'; product: Product } | { mode: 'new'; name: string; unit?: string; masterId?: string; sellPrice?: number };
@@ -33,29 +36,33 @@ export default function Warehouse() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [stock, setStock] = useState<Stock[]>([]);
+  const [invoices, setInvoices] = useState<Inv[]>([]);
   const [search, setSearch] = useState('');
   const [locFilter, setLocFilter] = useState<string>('all');
   const [newKind, setNewKind] = useState<Kind | null>(null);
   const [viewNote, setViewNote] = useState<Note | null>(null);
   const [movProduct, setMovProduct] = useState<Product | null>(null);
   const [quick, setQuick] = useState<Quick | null>(null);
-  const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'empty'>('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in' | 'empty' | 'master'>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { load(); }, []);
   async function load() {
-    const [l, p, n, ln, s, mi] = await Promise.all([
+    const [l, p, n, ln, s, mi, inv] = await Promise.all([
       supabase.from('wh_locations').select('*').order('name'),
       supabase.from('wh_products').select('*').order('name'),
       fetchAllPages<Note>(() => supabase.from('wh_notes').select('*').order('note_date', { ascending: false }).order('created_at', { ascending: false }).order('id')),
       fetchAllPages<Line>(() => supabase.from('wh_note_lines').select('*').order('line_no').order('id')),
       supabase.from('wh_stock').select('*'),
-      supabase.from('items').select('id, item_name, sku, unit, is_active, sales_price').order('item_name'),
+      fetchAllPages<MasterItem>(() => supabase.from('items').select('id, item_name, sku, unit, is_active, sales_price').order('item_name').order('id')),
+      // sales invoices: what was sold of master items that are NOT kept in the warehouse (those in the warehouse are counted from issue notes)
+      fetchAllPages<Inv>(() => supabase.from('busy_sales_invoices').select('id, invoice_date, status, busy_sales_invoice_items (item_id, item_name, quantity)').order('id')),
     ]);
     if (l.error || p.error || n.error) { alert('Warehouse tables not found — run warehouse-setup.sql in Supabase first.\n' + (l.error?.message ?? p.error?.message ?? n.error)); setLoading(false); return; }
     setLocations(l.data ?? []); setProducts(p.data ?? []); setNotes((n.data ?? []) as Note[]); setLines((ln.data ?? []) as Line[]);
     setStock(((s.data ?? []) as Stock[]).map((x) => ({ ...x, qty: Number(x.qty) })));
     setMaster(((mi.data ?? []) as MasterItem[]).filter((m) => m.is_active !== false));
+    setInvoices(inv.data ?? []);
     setLoading(false);
   }
 
@@ -72,6 +79,25 @@ export default function Warehouse() {
     lines.forEach((l) => { if (!issueMonth.has(l.note_id)) return; const e = (m[l.product_id] ||= { month: 0, all: 0 }); const q = Number(l.qty) || 0; e.all += q; if (issueMonth.get(l.note_id)) e.month += q; });
     return m;
   }, [notes, lines]);
+  const soldMaster = useMemo(() => {
+    const d = new Date(); const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const byId: Record<string, { month: number; all: number }> = {}; const byName: Record<string, { month: number; all: number }> = {};
+    invoices.forEach((inv) => {
+      if (inv.status === 'cancelled' || inv.status === 'draft') return;
+      const thisMonth = (inv.invoice_date || '').slice(0, 7) === month;
+      (inv.busy_sales_invoice_items || []).forEach((ln) => {
+        const q = Number(ln.quantity) || 0; if (!q) return;
+        const bump = (e: { month: number; all: number }) => { e.all += q; if (thisMonth) e.month += q; };
+        // a line linked to a master item counts by id; a line typed by name only counts by name (never both)
+        if (ln.item_id) bump(byId[ln.item_id] ||= { month: 0, all: 0 }); else bump(byName[nameKey(ln.item_name)] ||= { month: 0, all: 0 });
+      });
+    });
+    return (m: MasterItem): { month: number; all: number } | undefined => {
+      const a = byId[m.id], b = byName[nameKey(m.item_name)];
+      if (!a && !b) return undefined;
+      return { month: (a?.month || 0) + (b?.month || 0), all: (a?.all || 0) + (b?.all || 0) };
+    };
+  }, [invoices]);
 
   const q = search.trim().toLowerCase();
   const visibleProducts = products.filter((p) => p.is_active && (!q || p.name.toLowerCase().includes(q)));
@@ -143,6 +169,14 @@ export default function Warehouse() {
   const rank = (p: Product) => (isLow(p) ? 0 : total(p.id) > 0 ? 1 : total(p.id) < 0 ? 2 : 3); // low → in stock → negative → empty
   const sortedProducts = [...visibleProducts].filter((p) => stockFilter === 'all' || (stockFilter === 'in' ? total(p.id) > 0 : total(p.id) <= 0)).sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? total(b.id) - total(a.id) : 0) || a.name.localeCompare(b.name));
   const inStockCount = visibleProducts.filter((p) => total(p.id) > 0).length;
+  const linkedMaster = new Set(products.filter((p) => p.is_active && p.master_item_id).map((p) => p.master_item_id as string));
+  const whNameKeys = new Set(products.filter((p) => p.is_active).map((p) => nameKey(p.name)));
+  const masterRows = (stockFilter === 'all' || stockFilter === 'master')
+    ? master.filter((m) => !linkedMaster.has(m.id) && !whNameKeys.has(nameKey(m.item_name)) && (!q || m.item_name.toLowerCase().includes(q) || (m.sku ?? '').toLowerCase().includes(q)))
+        .sort((a, b) => (soldMaster(b)?.month || 0) - (soldMaster(a)?.month || 0) || (soldMaster(b)?.all || 0) - (soldMaster(a)?.all || 0) || a.item_name.localeCompare(b.item_name))
+    : [];
+  const masterCount = master.filter((m) => !linkedMaster.has(m.id) && !whNameKeys.has(nameKey(m.item_name))).length;
+  const extraCols = activeLocs.length > 1 && locFilter === 'all' ? activeLocs.length : 0;
   const chip = (active: boolean) => `px-3 py-1.5 rounded-lg text-sm border ${active ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`;
 
   return (
@@ -204,6 +238,7 @@ export default function Warehouse() {
             <button onClick={() => setStockFilter('all')} className={chip(stockFilter === 'all')}>All ({visibleProducts.length})</button>
             <button onClick={() => setStockFilter('in')} className={chip(stockFilter === 'in')}>In stock ({inStockCount})</button>
             <button onClick={() => setStockFilter('empty')} className={chip(stockFilter === 'empty')}>Empty ({visibleProducts.length - inStockCount})</button>
+            <button onClick={() => setStockFilter('master')} className={chip(stockFilter === 'master')} title="Master items that are not kept as warehouse stock — sold straight from invoices">Master items ({masterCount})</button>
           </div>
           {lowCount > 0 && <div className="mb-3 flex items-center gap-2 text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2"><AlertTriangle className="w-4 h-4" />{lowCount} product{lowCount > 1 ? 's' : ''} below minimum</div>}
 
@@ -219,7 +254,7 @@ export default function Warehouse() {
           )}
           {noMatch && <button onClick={() => setQuick({ mode: 'new', name: search.trim() })} className="w-full mb-3 flex items-center gap-2 px-4 py-3 bg-teal-50 border border-dashed border-teal-300 text-teal-800 rounded-lg text-sm font-medium hover:bg-teal-100"><Plus className="w-4 h-4" />Add "{search.trim()}" as a new product and put its quantity</button>}
 
-          {products.length === 0 && !q ? (
+          {products.length === 0 && masterRows.length === 0 && !q ? (
             <div className="bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center text-gray-500 text-sm">
               <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
               Type a product name in the box above — it will offer your master items — then put its quantity.
@@ -232,12 +267,12 @@ export default function Warehouse() {
                   <tr><th className="text-left px-4 py-2">Product</th><th className="text-right px-3 py-2">Cost</th><th className="text-right px-3 py-2">Sell price</th>{activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <th key={l.id} className="text-right px-3 py-2">{l.name}</th>)}<th className="text-right px-3 py-2">Qty</th><th className="text-right px-3 py-2" title="Issued this month (sales invoices and issue notes)">Sold (month)</th><th className="text-right px-3 py-2">Value</th><th className="px-3 py-2 w-28"></th></tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {sortedProducts.map((p, i) => {
+                  {(stockFilter === 'master' ? [] : sortedProducts).map((p, i) => {
                     const t = total(p.id); const low = p.min_qty > 0 && t < p.min_qty;
                     const firstEmpty = stockFilter === 'all' && t <= 0 && !low && (i === 0 || rank(sortedProducts[i - 1]) < rank(p));
                     return (
                       <React.Fragment key={p.id}>
-                        {firstEmpty && <tr><td colSpan={8 + (activeLocs.length > 1 && locFilter === 'all' ? activeLocs.length : 0)} className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">{t < 0 ? 'Negative' : 'Not in stock'}</td></tr>}
+                        {firstEmpty && <tr><td colSpan={8 + extraCols} className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">{t < 0 ? 'Negative' : 'Not in stock'}</td></tr>}
                         <tr className={`hover:bg-gray-50 ${low ? 'bg-amber-50/60' : ''}`}>
                           <td className="px-4 py-2"><button onClick={() => setMovProduct(p)} className="text-left font-medium text-gray-900 hover:text-teal-700">{p.name}</button>{low && <span className="ml-2 text-[10px] bg-amber-200 text-amber-900 px-1.5 rounded align-middle">LOW</span>}<div className="text-xs text-gray-400">{p.unit}{p.min_qty > 0 ? ` · min ${fmtQ(p.min_qty)}` : ''}</div></td>
                           <td className="px-3 py-2 text-right text-gray-600">{p.avg_cost ? fmtQ(p.avg_cost) : <span className="text-gray-300">—</span>}</td>
@@ -254,10 +289,23 @@ export default function Warehouse() {
                       </React.Fragment>
                     );
                   })}
+                  {masterRows.length > 0 && <tr><td colSpan={8 + extraCols} className="px-4 pt-3 pb-1 text-[11px] uppercase tracking-wide text-gray-400 bg-gray-50">Master items — not kept as stock ({masterRows.length}) · Sold = from sales invoices</td></tr>}
+                  {masterRows.map((m) => { const sm = soldMaster(m); return (
+                    <tr key={'m:' + m.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2"><span className="font-medium text-gray-700">{m.item_name}</span><div className="text-xs text-gray-400">{m.unit}{m.sku ? ` · ${m.sku}` : ''}</div></td>
+                      <td className="px-3 py-2 text-right text-gray-300">—</td>
+                      <td className="px-3 py-2 text-right">{m.sales_price ? fmtQ(Number(m.sales_price)) : <span className="text-gray-300">—</span>}</td>
+                      {activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <td key={l.id} className="px-3 py-2 text-right text-gray-300">—</td>)}
+                      <td className="px-3 py-2 text-right text-[11px] text-gray-400" title="This item is not kept as warehouse stock">not stocked</td>
+                      <td className="px-3 py-2 text-right text-gray-700" title={sm ? `All time: ${fmtQ(sm.all)} (sales invoices)` : 'Nothing sold on invoices yet'}>{sm?.month ? fmtQ(sm.month) : <span className="text-gray-300">—</span>}</td>
+                      <td className="px-3 py-2 text-right text-gray-300">—</td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap"><button onClick={() => setQuick({ mode: 'new', name: m.item_name, unit: m.unit, masterId: m.id, sellPrice: m.sales_price || 0 })} className="text-xs px-2 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50" title="Start keeping stock of this item in the warehouse">Keep stock</button></td>
+                    </tr>
+                  ); })}
                 </tbody>
                 <tfoot className="bg-gray-50 border-t-2 border-gray-200 text-sm">
                   <tr>
-                    <td className="px-4 py-2 font-semibold text-gray-700">Total{stockFilter !== 'all' ? ' (filtered)' : ''}</td>
+                    <td className="px-4 py-2 font-semibold text-gray-700">Total{stockFilter !== 'all' ? ' (filtered)' : ''}{masterRows.length ? ' · stock only' : ''}</td>
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                     {activeLocs.length > 1 && locFilter === 'all' && activeLocs.map((l) => <td key={l.id} className="px-3 py-2 text-right text-gray-600">{fmtQ(sortedProducts.reduce((t, p) => t + Math.max(0, qtyAt(p.id, l.id)), 0))}</td>)}
@@ -269,7 +317,7 @@ export default function Warehouse() {
               </table>
             </div>
           )}
-          <p className="text-xs text-gray-400 mt-3">Value = quantity in stock x average cost. + adds stock · − issues stock · tap the number to set an exact count · tap the name for history. Sales invoices from SL Portal deduct automatically (SI-… notes); purchases never add — use Stock In.</p>
+          <p className="text-xs text-gray-400 mt-3">Value = quantity in stock x average cost. + adds stock · − issues stock · tap the number to set an exact count · tap the name for history. Sales invoices from SL Portal deduct automatically (SI-… notes); purchases never add — use Stock In. Master items that are not kept as stock are listed at the bottom with what was sold on invoices; "Keep stock" moves one into the warehouse.</p>
         </div>
       )}
 
