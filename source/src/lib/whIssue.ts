@@ -18,7 +18,7 @@ export interface IssueResult {
   error?: string;           // the warehouse part failed (the invoice itself is saved)
 }
 
-const key = (s: string | null | undefined) => (s || '').trim().toLowerCase();
+const key = (s: string | null | undefined) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
 export async function removeInvoiceStock(invoiceId: string): Promise<string | null> {
   const { error } = await supabase.from('wh_notes').delete().eq('sales_invoice_id', invoiceId);
@@ -97,19 +97,29 @@ export function describeIssue(r: IssueResult): string {
   return parts.join('\n');
 }
 
-/** Older invoices (saved before v142) never moved stock: issue them now. Only invoices with no linked issue note are touched. */
-export async function backfillInvoiceStock(invoices: { id: string; invoice_number: string; customer_name: string | null; invoice_date: string; status: string; busy_sales_invoice_items?: Line[] }[]): Promise<{ done: number; skipped: number; errors: string[] }> {
-  const res = { done: 0, skipped: 0, errors: [] as string[] };
-  const { data: linked, error } = await supabase.from('wh_notes').select('sales_invoice_id').not('sales_invoice_id', 'is', null);
-  if (error) { res.errors.push(error.message); return res; }
-  const has = new Set((linked || []).map((x: { sales_invoice_id: string }) => x.sales_invoice_id));
+/** Older invoices (saved before v142) never moved stock: issue them now.
+    An invoice counts as done only when its linked issue note(s) have lines; empty notes (from an older mechanism) are redone. */
+export async function backfillInvoiceStock(invoices: { id: string; invoice_number: string; customer_name: string | null; invoice_date: string; status: string; busy_sales_invoice_items?: Line[] }[]): Promise<{ done: number; skipped: number; errors: string[]; report: string[] }> {
+  const res = { done: 0, skipped: 0, errors: [] as string[], report: [] as string[] };
+  const { data: linked, error } = await supabase.from('wh_notes').select('id, sales_invoice_id').not('sales_invoice_id', 'is', null);
+  if (error) { res.errors.push('Could not read warehouse notes: ' + error.message); return res; }
+  const noteIds = (linked || []).map((x: { id: string }) => x.id);
+  const withLines = new Set<string>();
+  if (noteIds.length) {
+    const { data: ls, error: e2 } = await supabase.from('wh_note_lines').select('note_id').in('note_id', noteIds);
+    if (e2) { res.errors.push('Could not read warehouse note lines: ' + e2.message); return res; }
+    (ls || []).forEach((l: { note_id: string }) => withLines.add(l.note_id));
+  }
+  const done = new Set((linked || []).filter((x: { id: string }) => withLines.has(x.id)).map((x: { sales_invoice_id: string }) => x.sales_invoice_id));
   for (const inv of invoices) {
-    if (has.has(inv.id) || inv.status === 'cancelled' || inv.status === 'draft') { res.skipped++; continue; }
+    if (inv.status === 'cancelled' || inv.status === 'draft') { res.skipped++; continue; }
+    if (done.has(inv.id)) { res.skipped++; res.report.push(`${inv.invoice_number}: already issued`); continue; }
     const lines = inv.busy_sales_invoice_items || [];
-    if (!lines.length) { res.skipped++; continue; }
+    if (!lines.length) { res.skipped++; res.report.push(`${inv.invoice_number}: no item lines`); continue; }
     const r = await syncInvoiceStock({ id: inv.id, number: inv.invoice_number, customer: inv.customer_name || '', date: inv.invoice_date }, lines);
-    if (r.error) res.errors.push(`${inv.invoice_number}: ${r.error}`);
-    else if (r.issued.length) res.done++; else res.skipped++;
+    if (r.error) { res.errors.push(`${inv.invoice_number}: ${r.error}`); continue; }
+    if (r.issued.length) { res.done++; res.report.push(`${inv.invoice_number}: issued ` + r.issued.map((x) => `${x.qty} ${x.name}`).join(', ') + (r.skipped.length ? ` (not in warehouse: ${r.skipped.join(', ')})` : '')); }
+    else { res.skipped++; res.report.push(`${inv.invoice_number}: nothing to issue — not in warehouse: ${r.skipped.join(', ') || '(no items)'}`); }
   }
   return res;
 }

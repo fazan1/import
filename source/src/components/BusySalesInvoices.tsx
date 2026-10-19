@@ -670,7 +670,11 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
   async function handleBackfillStock() {
     if (!confirm('Issue warehouse stock for every invoice that has not done so yet?\n\nInvoices that already issued stock are left alone. Items not in the warehouse are skipped.')) return;
     const r = await backfillInvoiceStock(invoices);
-    alert(`Done.\nIssued stock for ${r.done} invoice(s); ${r.skipped} already done / nothing to issue.` + (r.errors.length ? `\n\nProblems:\n${r.errors.join('\n')}` : ''));
+    console.log('warehouse backfill', r);
+    alert(`Done. Issued stock for ${r.done} invoice(s); ${r.skipped} skipped.` +
+      (r.errors.length ? `\n\nPROBLEMS:\n${r.errors.join('\n')}` : '') +
+      (r.report.length ? `\n\nDetails:\n${r.report.slice(0, 25).join('\n')}${r.report.length > 25 ? `\n… and ${r.report.length - 25} more` : ''}` : ''));
+    loadData();
   }
 
   async function handleDeleteInvoice(id: string) {
