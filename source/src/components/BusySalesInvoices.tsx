@@ -5,6 +5,7 @@ import { custKey, onAccountByCustomer, netOpening } from '../lib/receivables';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { replaceLines } from '../lib/lines';
+import { syncInvoiceStock, removeInvoiceStock, describeIssue } from '../lib/whIssue';
 import InvoicePrint from './InvoicePrint';
 
 interface Customer {
@@ -549,6 +550,9 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         setSaving(false);
         return;
       }
+      // warehouse: re-issue the stock for the new lines (replaces what this invoice issued before)
+      const wh = await syncInvoiceStock({ id: editingInvoice.id, number: editingInvoice.invoice_number, customer: finalCustomerName, date: invoiceDate }, itemsToInsert);
+      const whMsg = describeIssue(wh); if (whMsg) alert(whMsg);
     } else {
       let invoiceNumber = '';
       let invoice: { id: string } | null = null;
@@ -605,6 +609,9 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
         loadData();
         return;
       }
+      // warehouse: issue the sold items from stock (one issue note per location, linked to this invoice)
+      const wh = await syncInvoiceStock({ id: newInvoiceId, number: invoiceNumber, customer: finalCustomerName, date: invoiceDate }, itemsToInsert);
+      const whMsg = describeIssue(wh); if (whMsg) alert(whMsg);
 
       // the sales order is now invoiced: it leaves the "Create from Sales Order" list, so it can't be invoiced twice
       if (selectedOrder) {
@@ -698,6 +705,10 @@ export default function BusySalesInvoices({ onRecordPayment, preselectedOrderId,
       alert('Could not delete invoice (its item lines could not be removed): ' + linesErr.message);
       return;
     }
+
+    // warehouse: remove what this invoice issued (stock goes back)
+    const whDel = await removeInvoiceStock(id);
+    if (whDel) alert('Warehouse stock could not be put back for this invoice: ' + whDel + '\n\nThe invoice is still deleted; correct the stock in Warehouse if needed.');
 
     const { error } = await supabase.from('busy_sales_invoices').delete().eq('id', id);
     if (error) {
