@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
-import { Plus, Trash2, Calendar, TrendingUp, Wallet, Building2, Scale, Banknote, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Sparkles, Landmark } from 'lucide-react';
+import { esc } from '../lib/html';
+import { companyFor } from '../lib/company';
+import { Plus, Trash2, Calendar, Printer, TrendingUp, Wallet, Building2, Scale, Banknote, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Sparkles, Landmark } from 'lucide-react';
 import FinancialTargets from './FinancialTargets';
 
 /* CEO Network (v121) — one record per month of the whole business.
@@ -181,6 +183,9 @@ export default function CEONetwork() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {latest && <button onClick={() => printMonthReport(latest, records[1] || null, labels)} className="flex items-center gap-2 border border-gray-300 bg-white text-gray-800 px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-50" title="One page for this month — print or save as PDF and forward">
+            <Printer className="w-4 h-4" />Month report
+          </button>}
           <button onClick={addNewRecord} className="flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-gray-800">
             <Plus className="w-4 h-4" />New month
           </button>
@@ -468,6 +473,56 @@ const calculatedColumns = [
   { label: 'Cust. days', fn: (r: FinancialRecord) => calculateReceivableDays(r), format: (v: number) => v.toFixed(0), color: 'text-amber-700 bg-amber-50/60' },
   { label: 'GP %', fn: (r: FinancialRecord) => calculateGPPercent(r), format: (v: number) => `${v.toFixed(1)}%`, color: 'text-green-700 bg-green-50/60' },
 ];
+
+/** Month report: one A4 page the owner can print / save as PDF and forward (WhatsApp group). */
+function printMonthReport(cur: FinancialRecord, prev: FinancialRecord | null, labels: Record<string, string>) {
+  const co = companyFor();
+  const n = (v: number) => formatNumber(v);
+  const monthTitle = new Date(cur.date + 'T00:00:00').toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  const since = prev ? `vs ${new Date(prev.date + 'T00:00:00').toLocaleString('en-GB', { month: 'short', year: 'numeric' })}` : '';
+  const chg = (a: number, b: number | null) => b === null ? '' : (a - b === 0 ? '<span class="muted">same</span>' : `<span class="${a - b > 0 ? 'up' : 'down'}">${a - b > 0 ? '+' : '−'}${n(Math.abs(a - b))}</span>`);
+  const val = (r: FinancialRecord | null, k: string) => r ? (Number((r as unknown as Record<string, number>)[k]) || 0) : 0;
+  const rows = (cols: { key: string; label: string }[]) => cols
+    .filter((c) => val(cur, c.key) !== 0 || val(prev, c.key) !== 0)
+    .map((c) => `<tr><td>${esc(labels[c.key] || c.label)}</td><td class="r">${n(val(cur, c.key))}</td>${prev ? `<td class="r">${n(val(prev, c.key))}</td><td class="r">${chg(val(cur, c.key), val(prev, c.key))}</td>` : ''}</tr>`).join('');
+  const own = columnGroups.find((g) => g.label === 'We own')!.columns, owe = columnGroups.find((g) => g.label === 'We owe')!.columns;
+  const assets = calculateTotalAssets(cur), liab = calculateTotalLiabilities(cur), cap = calculateNetBusinessCapital(cur), cash = calculateLiquidCash(cur);
+  const pAssets = prev ? calculateTotalAssets(prev) : null, pLiab = prev ? calculateTotalLiabilities(prev) : null, pCap = prev ? calculateNetBusinessCapital(prev) : null;
+  const gp = grossProfitOf(cur), np = netProfitOf(cur), est = gpIsEstimate(cur);
+  const hdr = prev ? `<th class="r">${esc(monthTitle)}</th><th class="r">${esc(since.replace('vs ', ''))}</th><th class="r">Change</th>` : `<th class="r">${esc(monthTitle)}</th>`;
+  const tile = (l: string, v: string, c = '') => `<div class="tile"><div class="tl">${l}</div><div class="tv ${c}">${v}</div></div>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(co.short)} — ${esc(monthTitle)} report</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><style>
+body{font-family:'IBM Plex Sans',Arial,sans-serif;font-size:13px;color:#111;margin:24px;max-width:800px}
+h1{font-size:22px;margin:0}h2{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.12em;color:#555}.muted{color:#777}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:14px}
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.tile{border:1px solid #ddd;border-radius:8px;padding:8px 10px}.tl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#666}.tv{font-size:16px;font-weight:700;margin-top:2px;font-family:'IBM Plex Mono',monospace}
+table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid #ddd;padding:5px 8px;text-align:left}th{background:#111;color:#fff;font-weight:600;font-size:11px}.r{text-align:right;font-family:'IBM Plex Mono',monospace}
+tr.total td{font-weight:700;border-top:2px solid #111;background:#f4f3f1}.up{color:#15803d}.down{color:#b91c1c}.orange{color:#e8552a}.red{color:#b91c1c}.green{color:#15803d}
+.note{font-size:11px;color:#777;margin-top:16px}.btn{position:fixed;top:10px;right:10px;background:#111;color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;font-family:inherit}
+@media print{body{margin:12mm}.btn{display:none}}
+</style></head><body>
+<button class="btn" onclick="window.print()">Print / Save PDF</button>
+<div class="hdr"><div><h1>${esc(co.name)}</h1><div class="muted">${esc(co.address)}${co.phone ? ' · ' + esc(co.phone) : ''}</div></div>
+<div style="text-align:right"><div style="font-size:18px;font-weight:bold">MONTHLY REPORT</div><div style="font-size:16px">${esc(monthTitle)}</div><div class="muted">as at ${esc(shortDate(cur.date))}</div></div></div>
+<div class="tiles">${tile('We own', 'Rs ' + n(assets))}${tile('We owe', 'Rs ' + n(liab), 'red')}${tile('Net capital', 'Rs ' + n(cap), cap >= 0 ? '' : 'red')}${tile('Ready cash', 'Rs ' + n(cash), 'green')}</div>
+<h2>What we own</h2><table><thead><tr><th>Item</th>${hdr}</tr></thead><tbody>${rows(own)}<tr class="total"><td>Total we own</td><td class="r">${n(assets)}</td>${prev ? `<td class="r">${n(pAssets!)}</td><td class="r">${chg(assets, pAssets)}</td>` : ''}</tr></tbody></table>
+<h2>What we owe</h2><table><thead><tr><th>Item</th>${hdr}</tr></thead><tbody>${rows(owe) || `<tr><td colspan="4" class="muted">Nothing owed</td></tr>`}<tr class="total"><td>Total we owe</td><td class="r">${n(liab)}</td>${prev ? `<td class="r">${n(pLiab!)}</td><td class="r">${chg(liab, pLiab)}</td>` : ''}</tr>
+<tr class="total"><td>NET CAPITAL (own − owe)</td><td class="r ${cap >= 0 ? '' : 'red'}">${n(cap)}</td>${prev ? `<td class="r">${n(pCap!)}</td><td class="r">${chg(cap, pCap)}</td>` : ''}</tr></tbody></table>
+<h2>This month</h2><table><thead><tr><th>Item</th>${hdr}</tr></thead><tbody>
+<tr><td>Sales</td><td class="r">${n(cur.monthly_sales)}</td>${prev ? `<td class="r">${n(prev.monthly_sales)}</td><td class="r">${chg(cur.monthly_sales, prev.monthly_sales)}</td>` : ''}</tr>
+${cur.cost_of_sales > 0 ? `<tr><td>Cost of sales</td><td class="r">${n(cur.cost_of_sales)}</td>${prev ? `<td class="r">${n(prev.cost_of_sales)}</td><td class="r"></td>` : ''}</tr>` : `<tr><td>Margin used</td><td class="r">${n(cur.margin_percent)}%</td>${prev ? `<td class="r">${n(prev.margin_percent)}%</td><td class="r"></td>` : ''}</tr>`}
+<tr><td>Gross profit${est ? ' (estimate: sales × margin %)' : ''}</td><td class="r green">${n(gp)}</td>${prev ? `<td class="r">${n(grossProfitOf(prev))}</td><td class="r">${chg(gp, grossProfitOf(prev))}</td>` : ''}</tr>
+<tr><td>Expenses</td><td class="r">${n(cur.monthly_expenses || 0)}</td>${prev ? `<td class="r">${n(prev.monthly_expenses || 0)}</td><td class="r">${chg(cur.monthly_expenses || 0, prev.monthly_expenses || 0)}</td>` : ''}</tr>
+<tr class="total"><td>NET PROFIT</td><td class="r ${np >= 0 ? 'green' : 'red'}">${n(np)}</td>${prev ? `<td class="r">${n(netProfitOf(prev))}</td><td class="r">${chg(np, netProfitOf(prev))}</td>` : ''}</tr>
+<tr><td>Own ÷ owe</td><td class="r">${calculateAssetLiabilityRatio(cur).toFixed(2)}</td>${prev ? `<td class="r">${calculateAssetLiabilityRatio(prev).toFixed(2)}</td><td class="r"></td>` : ''}</tr>
+<tr><td>Gross profit %</td><td class="r">${calculateGPPercent(cur).toFixed(1)}%</td>${prev ? `<td class="r">${calculateGPPercent(prev).toFixed(1)}%</td><td class="r"></td>` : ''}</tr>
+</tbody></table>
+<p class="note">Figures typed by the owner in CEO Network. Shop stock is at selling price. ${est ? 'Gross profit is an estimate from the margin % until the cost of sales is typed. ' : ''}Printed ${esc(new Date().toLocaleDateString('en-GB'))}.</p>
+</body></html>`;
+  const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to open the report'); return; }
+  w.document.write(html); w.document.close();
+}
 
 function RecordsTable({
   records, editingCell, editingDate, setEditingCell, setEditingDate,
