@@ -27,6 +27,8 @@ interface FinancialRecord {
   bank_balance: number;
   cash_in_hand: number;
   investor_liability: number;
+  factory_investor_liability: number;
+  lcl_investor_liability: number;
   supplier_payable: number;
   agent_payable: number;
   bank_loan: number;
@@ -39,7 +41,7 @@ interface FinancialRecord {
   property_deposit: number;
 }
 
-const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'factory_deposits', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
+const NUM_FIELDS = ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'factory_deposits', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'factory_investor_liability', 'lcl_investor_liability', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'monthly_sales', 'cost_of_sales', 'margin_percent', 'gross_profit', 'monthly_expenses', 'property_deposit'] as const;
 const NEW_COLS = ['supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent', 'monthly_expenses'];
 
 function norm(row: Record<string, unknown>): FinancialRecord {
@@ -61,7 +63,7 @@ export function calculateTotalAssets(r: FinancialRecord) {
     r.import_goods_value + (r.factory_deposits || 0) + r.import_receivable + r.bank_balance + (r.cash_in_hand || 0) + r.property_deposit;
 }
 export function calculateTotalLiabilities(r: FinancialRecord) {
-  return r.investor_liability + (r.supplier_payable || 0) + (r.agent_payable || 0) + (r.bank_loan || 0) + (r.cheques_issued || 0);
+  return r.investor_liability + (r.factory_investor_liability || 0) + (r.lcl_investor_liability || 0) + (r.supplier_payable || 0) + (r.agent_payable || 0) + (r.bank_loan || 0) + (r.cheques_issued || 0);
 }
 function calculateNetBusinessCapital(r: FinancialRecord) { return calculateTotalAssets(r) - calculateTotalLiabilities(r); }
 function calculateAssetLiabilityRatio(r: FinancialRecord) { const l = calculateTotalLiabilities(r); return l === 0 ? 0 : calculateTotalAssets(r) / l; }
@@ -134,7 +136,7 @@ export default function CEONetwork() {
     // start from last month's balances (stock, customers, debts move a little each month); sales and expenses start empty
     const carry: Record<string, number> = {};
     NUM_FIELDS.forEach((f) => { carry[f] = 0; });
-    if (latest) ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'factory_deposits', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
+    if (latest) ['total_factory_inventory', 'shop_stock_value', 'lc_stock_value', 'shop_receivable', 'cheques_in_hand', 'import_goods_value', 'factory_deposits', 'import_receivable', 'bank_balance', 'cash_in_hand', 'investor_liability', 'factory_investor_liability', 'lcl_investor_liability', 'property_deposit', 'supplier_payable', 'agent_payable', 'bank_loan', 'cheques_issued', 'margin_percent'].forEach((f) => { carry[f] = (latest as unknown as Record<string, number>)[f] || 0; });
     if (needsSql) NEW_COLS.forEach((f) => { delete carry[f]; });
     const { data, error } = await supabase.from('financial_records').insert([{ date: dateStr, month: monthName(dateStr), ...carry }]).select();
     if (error) { alert('Could not add the record: ' + error.message); return; }
@@ -447,6 +449,8 @@ const columnGroups: { label: string; color: string; columns: { key: string; labe
     color: 'bg-rose-600',
     columns: [
       { key: 'investor_liability', label: 'Investor' },
+      { key: 'factory_investor_liability', label: 'Factory investor' },
+      { key: 'lcl_investor_liability', label: 'LCL investor' },
       { key: 'supplier_payable', label: 'Suppliers' },
       { key: 'agent_payable', label: 'Clearing agent' },
       { key: 'bank_loan', label: 'Bank loan' },

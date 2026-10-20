@@ -22,6 +22,8 @@ interface FinancialRecord {
   bank_balance: number;
   cash_in_hand?: number;
   investor_liability: number;
+  factory_investor_liability?: number;
+  lcl_investor_liability?: number;
   monthly_sales: number;
   cost_of_sales: number;
   gross_profit: number;
@@ -71,7 +73,7 @@ function calculateTotalAssets(r: FinancialRecord) {
 
 function calculateNetCapital(r: FinancialRecord) {
   // what we own minus everything we owe (same rule as the CEO Network cards)
-  return calculateTotalAssets(r) - r.investor_liability - (r.supplier_payable || 0) - (r.agent_payable || 0) - (r.bank_loan || 0) - (r.cheques_issued || 0);
+  return calculateTotalAssets(r) - r.investor_liability - (r.factory_investor_liability || 0) - (r.lcl_investor_liability || 0) - (r.supplier_payable || 0) - (r.agent_payable || 0) - (r.bank_loan || 0) - (r.cheques_issued || 0);
 }
 
 function calculateGPPercent(r: FinancialRecord) {
