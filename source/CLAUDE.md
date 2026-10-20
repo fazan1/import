@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V158)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V159)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -151,6 +151,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v156 CEO Network "Month report" button (printMonthReport): one A4 pop-up (print / save PDF, forward to brothers) — company header, 4 tiles, We own / We owe / This month tables with previous-month column + change, uses the owner's renamed labels, zero rows hidden, estimate note. Route is /#/ceo (Tools, needs sessionStorage tools-unlocked=1 in tests). Import-calc CSV -> SQL converter: scratchpad calc2sql.py (handles margin or typed sell price, unpriced lines, missing weights, date from archive by landed total).
   v157 CEO Network: "Factory deposits" column (financial_records.factory_deposits, sql/ceo-network-factory-deposits.sql) after Import goods in We own (owner: deposit paid to the shoe factory); counted in assets + Financial Targets + month report.
   v158 CEO Network: We owe columns "Factory investor" + "LCL investor" (financial_records.factory_investor_liability / lcl_investor_liability, sql/ceo-network-investors.sql) after Investor; counted in liabilities, Net capital, Financial Targets, month report.
+  v159 CEO Network records table: column names in CAPITALS (owner).
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own

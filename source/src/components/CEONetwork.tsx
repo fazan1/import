@@ -570,7 +570,7 @@ function RecordsTable({
                 group.columns.map((col, colIdx) => (
                   <th
                     key={col.key}
-                    className={`px-2 py-1.5 text-right font-medium whitespace-nowrap text-[10px] ${
+                    className={`px-2 py-1.5 text-right font-medium whitespace-nowrap text-[10px] uppercase tracking-wide ${
                       colIdx === group.columns.length - 1 ? 'border-r border-gray-700' : ''
                     }`}
                   >
@@ -581,7 +581,7 @@ function RecordsTable({
               {calculatedColumns.map((col, idx) => (
                 <th
                   key={col.label}
-                  className={`px-2 py-1.5 text-right font-medium whitespace-nowrap text-[10px] ${
+                  className={`px-2 py-1.5 text-right font-medium whitespace-nowrap text-[10px] uppercase tracking-wide ${
                     idx === calculatedColumns.length - 1 ? 'border-r border-gray-700' : ''
                   }`}
                 >
