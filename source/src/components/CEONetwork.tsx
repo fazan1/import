@@ -541,7 +541,7 @@ function RecordsTable({
         <table className="w-full text-xs">
           <thead>
             <tr className="bg-[#111111] text-white">
-              <th rowSpan={2} className="sticky left-0 z-10 bg-[#111111] px-3 py-2 text-left font-semibold whitespace-nowrap border-r border-gray-700 w-28">
+              <th rowSpan={2} className="sticky left-0 z-10 bg-[#111111] px-3 py-2 text-left font-semibold uppercase tracking-wide whitespace-nowrap border-r border-gray-700 w-28">
                 Date
               </th>
               {columnGroups.map((group) => (
@@ -574,7 +574,7 @@ function RecordsTable({
                       colIdx === group.columns.length - 1 ? 'border-r border-gray-700' : ''
                     }`}
                   >
-                    {col.computed ? nameOf(col) : <button type="button" onClick={() => renameColumn(col.key, nameOf(col), col.label)} className="hover:text-white hover:underline decoration-dotted underline-offset-2" title="Tap to rename this column">{nameOf(col)}</button>}
+                    {col.computed ? nameOf(col) : <button type="button" onClick={() => renameColumn(col.key, nameOf(col), col.label)} className="uppercase tracking-wide hover:text-white hover:underline decoration-dotted underline-offset-2" title="Tap to rename this column">{nameOf(col)}</button>}
                   </th>
                 ))
               )}
