@@ -386,7 +386,8 @@ export default function ImportCostCalculator() {
     config: Record<string, unknown>;
     lines: Record<string, unknown>[];
   }) {
-    const cfg = calc.config as {
+    // older saves can have no config / no lines at all — open them as a blank sheet instead of failing silently
+    const cfg = (calc.config || {}) as {
       buyCurrency?: string;
       exchangeRate?: number | null;
       seafreight?: number | null;
@@ -410,7 +411,7 @@ export default function ImportCostCalculator() {
     setReference(calc.reference);
     setLoadedId(calc.id);
 
-    const loadedLines = (calc.lines as unknown as ProductLine[]).map((l) => ({
+    const loadedLines = ((Array.isArray(calc.lines) ? calc.lines : []) as unknown as ProductLine[]).map((l) => ({
       ...l,
       id: crypto.randomUUID(),
       cubic: l.cubic ?? null,
@@ -421,7 +422,7 @@ export default function ImportCostCalculator() {
     const padCount = Math.max(0, INITIAL_LINES - loadedLines.length);
     setLines([...loadedLines, ...Array.from({ length: padCount }, createEmptyLine)]);
     setShowSaved(false);
-    setSaveMsg('Loaded');
+    setSaveMsg(loadedLines.length ? 'Loaded' : 'Loaded — this file was saved with no items');
     setTimeout(() => setSaveMsg(''), 3000);
   }
 

@@ -126,6 +126,7 @@ export default function SavedCalculations({ onLoad, onClose }: Props) {
                       {fmt(c.total_profit)}
                     </td>
                     <td className="px-4 py-2.5 text-gray-500 text-xs">
+                      {Array.isArray(c.lines) && c.lines.length > 0 ? <span className="mr-2 text-gray-600">{c.lines.length} item{c.lines.length > 1 ? 's' : ''}</span> : <span className="mr-2 text-amber-700" title="Saved before anything was typed">empty</span>}
                       {new Date(c.created_at).toLocaleDateString('en-GB', {
                         day: '2-digit',
                         month: 'short',
