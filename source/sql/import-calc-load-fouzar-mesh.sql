@@ -1,0 +1,11 @@
+-- IMPORT CALCULATOR: load the "Fouzar Mesh" calculation (from the owner's CSV export) as a saved file with all its lines.
+-- Safe to re-run: it is added only once (same customer, date and landed total). Run on the MAIN Supabase project only.
+INSERT INTO public.import_calculations (customer_name, reference, config, lines, total_landed, total_sell, total_profit, created_at, updated_at)
+SELECT 'Fouzar Mesh', '',
+  '{"buyCurrency": "CNY", "localCurrency": "LKR", "exchangeRate": 52, "seafreight": null, "totalImportCost": 217500, "importTaxPercent": null, "boostedSettings": null, "allocMode": "kg"}'::jsonb,
+  '[{"id": "4a70adcf-6149-4940-ba5c-c8ba8ff3cc73", "code": "No 8", "buyPrice": 609.0, "dutyRate": null, "unit": "pcs", "qty": 5.0, "weight": 27.0, "totalWeight": null, "cubic": null, "marginPercent": 40.0, "marketPrice": null, "sellPrice": null}, {"id": "d52a3481-a9aa-4ad0-83f1-1932926d4af6", "code": "No 12", "buyPrice": 710.0, "dutyRate": null, "unit": "pcs", "qty": 5.0, "weight": 33.0, "totalWeight": null, "cubic": null, "marginPercent": 40.0, "marketPrice": null, "sellPrice": null}, {"id": "23badb55-69b3-4d33-b656-f9365349abcb", "code": "No 14", "buyPrice": 812.0, "dutyRate": null, "unit": "pcs", "qty": 5.0, "weight": 38.0, "totalWeight": null, "cubic": null, "marginPercent": 32.0, "marketPrice": null, "sellPrice": null}, {"id": "f4739d48-d91c-43f8-a6e7-0921d27d80c4", "code": "No 20", "buyPrice": 609.0, "dutyRate": null, "unit": "pcs", "qty": 5.0, "weight": 25.0, "totalWeight": null, "cubic": null, "marginPercent": 40.0, "marketPrice": null, "sellPrice": null}, {"id": "2621de26-ac2f-4e43-a91f-464792c4d9cb", "code": "No 18", "buyPrice": 558.0, "dutyRate": null, "unit": "pcs", "qty": 5.0, "weight": 22.0, "totalWeight": null, "cubic": null, "marginPercent": 40.0, "marketPrice": null, "sellPrice": null}]'::jsonb,
+  1074980.0, 1483522.4, 408542.4, '2026-08-06 09:00:00+00', now()
+WHERE NOT EXISTS (SELECT 1 FROM public.import_calculations WHERE customer_name = 'Fouzar Mesh' AND created_at::date = '2026-08-06' AND total_landed = 1074980.0);
+
+SELECT customer_name, jsonb_array_length(lines) AS items, total_landed, total_sell, total_profit, created_at::date AS saved_on
+FROM public.import_calculations ORDER BY created_at;
