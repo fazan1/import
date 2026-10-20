@@ -372,6 +372,7 @@ export default function ImportCostCalculator() {
     setSaving(false);
     if (error) {
       setSaveMsg('Failed to save');
+      alert('Could not save the calculation: ' + error.message + (/import_calculations|schema cache|does not exist/i.test(error.message) ? '\n\nThe calculator tables are missing — run import-calculator-setup.sql in Supabase (MAIN project) once.' : ''));
     } else {
       setSaveMsg(loadedId ? 'Updated' : 'Saved');
     }

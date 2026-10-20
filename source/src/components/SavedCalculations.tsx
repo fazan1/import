@@ -31,10 +31,11 @@ export default function SavedCalculations({ onLoad, onClose }: Props) {
 
   async function fetchCalcs() {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('import_calculations')
       .select('*')
       .order('created_at', { ascending: false });
+    if (error) alert('Could not load saved calculations: ' + error.message + (/import_calculations|schema cache|does not exist/i.test(error.message) ? '\n\nThe calculator tables are missing — run import-calculator-setup.sql in Supabase (MAIN project) once.' : ''));
     setCalcs((data as SavedCalc[]) ?? []);
     setLoading(false);
   }

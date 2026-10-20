@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V153)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V154)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -146,6 +146,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v151 CEO Network: new typed column "LC-2026 stock" (financial_records.lc_stock_value, sql/ceo-network-lc-stock.sql) in We own, counted in total assets / stock share / Financial Targets; carried to the new month like the other balances. sql/masters-shared-fix.sql (given to owner, not yet confirmed run): shop login saw only a few ITEMS -> removes any book-filtering policy + trg_stamp_locked_book from items/suppliers/customers/clearing_agents, keeps locked no edit/delete.
   v152 CEO Network: "Cash in hand" column (financial_records.cash_in_hand, sql/ceo-network-cash.sql) after Bank in We own; counted in assets and in liquid cash (cashShare advice) + Financial Targets.
   v153 CEO Network column names are renameable by the owner: tap a header -> prompt; names stored in capital_settings key ceo_column_labels (jsonb {field: name}); empty = default label. Columns themselves (DB fields) stay the same.
+  v154 Import Calculator "database not there": no SQL ever created import_calculations / import_settings -> sql/import-calculator-setup.sql (CREATE IF NOT EXISTS + missing columns + open all / members only / locked keep out; idempotent, tested twice). Save and Saved-list now alert the real error with a hint to run that file.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
