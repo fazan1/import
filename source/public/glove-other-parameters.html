@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Other parameters — 10-gauge glove knitting machine</title>
+<style>
+:root {
+  --kimi-color-text-primary: #1a1a1a;
+  --kimi-color-text-secondary: #4d4d4d;
+  --kimi-color-text-tertiary: #8c8c8c;
+  --kimi-color-text-quaternary: #bfbfbf;
+  --kimi-color-surface: #ffffff;
+  --kimi-color-surface-muted: #f5f5f5;
+  --kimi-color-surface-raised: #ffffff;
+  --kimi-color-surface-strong: #ececec;
+  --kimi-color-border: #e0e0e0;
+  --kimi-color-danger: #d4380d;
+  --kimi-color-positive: #389e0d;
+  --kimi-color-warning: #d48806;
+  --kimi-color-accent: #e8552a;
+  --kimi-chart-1: #e8552a;
+  --kimi-chart-2: #d4380d;
+  --kimi-chart-3: #389e0d;
+  --kimi-chart-4: #722ed1;
+  --kimi-chart-5: #8c8c8c;
+  --t-fast: 120ms;
+  --t-normal: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kimi-color-text-primary: #e8e8e8;
+    --kimi-color-text-secondary: #b3b3b3;
+    --kimi-color-text-tertiary: #7a7a7a;
+    --kimi-color-text-quaternary: #4d4d4d;
+    --kimi-color-surface: #161616;
+    --kimi-color-surface-muted: #1f1f1f;
+    --kimi-color-surface-raised: #242424;
+    --kimi-color-surface-strong: #2e2e2e;
+    --kimi-color-border: #333333;
+    --kimi-color-danger: #ff4d2e;
+    --kimi-color-positive: #58c224;
+    --kimi-color-warning: #e6a23c;
+    --kimi-color-accent: #e8552a;
+  }
+}
+html, body { margin: 0; padding: 0; background: var(--kimi-color-surface); }
+body { max-width: 960px; margin: 0 auto; padding: 24px 16px; box-sizing: border-box; }
+</style>
+<style>
+  .gm-root { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--kimi-color-text-primary); }
+  .gm-root button { font: inherit; }
+  .gm-head { margin-bottom: 12px; }
+  .gm-title { font-size: 20px; font-weight: 500; letter-spacing: 0; }
+  .gm-sub { font-size: 12px; color: var(--kimi-color-text-tertiary); margin-top: 2px; }
+  .gm-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .gm-tab { font-size: 14px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--kimi-color-border); background: transparent; color: var(--kimi-color-text-secondary); cursor: pointer; transition: all var(--t-fast) var(--ease-out); }
+  .gm-tab:hover { border-color: var(--kimi-color-text-secondary); }
+  .gm-tab.gm-on { background: var(--kimi-color-text-primary); color: var(--kimi-color-surface); border-color: var(--kimi-color-text-primary); }
+  .gm-list { border: 1px solid var(--kimi-color-border); border-radius: 12px; overflow: hidden; }
+  .gm-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 14px; background: transparent; border: none; border-bottom: 1px solid var(--kimi-color-border); cursor: pointer; transition: background var(--t-fast) var(--ease-out); }
+  .gm-row:last-child { border-bottom: none; }
+  .gm-row:hover { background: var(--kimi-color-surface-muted); }
+  .gm-row.gm-on { background: var(--kimi-color-surface-muted); box-shadow: inset 2px 0 0 var(--kimi-color-text-primary); }
+  .gm-name { flex: 1; font-size: 14px; min-width: 0; }
+  .gm-kind { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--kimi-color-surface-strong); color: var(--kimi-color-text-tertiary); flex: 0 0 auto; }
+  .gm-val { font-size: 14px; font-weight: 500; min-width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
+  .gm-detail { margin-top: 12px; border: 1px solid var(--kimi-color-border); border-radius: 12px; padding: 16px; animation: gmin var(--t-normal) var(--ease-out); }
+  @keyframes gmin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .gm-d-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .gm-d-title { font-size: 17px; font-weight: 500; }
+  .gm-chip { font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 6px; background: var(--kimi-color-surface-strong); font-variant-numeric: tabular-nums; }
+  .gm-what { font-size: 14px; color: var(--kimi-color-text-secondary); line-height: 22px; margin-bottom: 12px; max-width: 76ch; }
+  .gm-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .gm-cols { grid-template-columns: 1fr; } }
+  .gm-col { border: 1px solid var(--kimi-color-border); border-radius: 10px; padding: 12px; }
+  .gm-col-a { border-color: color-mix(in srgb, var(--kimi-color-danger) 40%, transparent); }
+  .gm-col-b { border-color: color-mix(in srgb, var(--kimi-color-accent) 40%, transparent); }
+  .gm-col-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .gm-col-a .gm-col-title { color: var(--kimi-color-danger); }
+  .gm-col-b .gm-col-title { color: var(--kimi-color-accent); }
+  .gm-col ul { margin: 0 0 10px; padding-left: 16px; font-size: 13px; color: var(--kimi-color-text-secondary); line-height: 20px; }
+  .gm-act { font-size: 13px; line-height: 20px; border-top: 1px solid var(--kimi-color-border); padding-top: 8px; }
+  .gm-act b { font-weight: 500; }
+  .gm-foot { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gm-note { font-size: 12px; color: var(--kimi-color-text-tertiary); }
+</style>
+</head>
+<body>
+<div class="gm-root">
+  <div class="gm-head">
+    <div class="gm-title">Other parameters — 10-gauge glove knitting machine</div>
+    <div class="gm-sub">Tap any setting to see what it means and when to raise or lower it</div>
+  </div>
+  <div class="gm-tabs" id="gmTabs"></div>
+  <div class="gm-list" id="gmList"></div>
+  <div class="gm-detail" id="gmDetail"></div>
+  <div class="gm-foot">
+    <span class="gm-note">Values shown are the machine's current settings. Ranges given are typical guidance for this machine type — always confirm critical limits with the machine manual.</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+  var DN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
+
+  var D = [
+  {p:1,n:'Size selection',v:'M',k:'select',what:'Chooses the glove size pattern. The machine adjusts stitch counts and finger shaping so the knitted glove matches the ordered size.',a:{t:'Choosing the size',items:['Set S / M / L / XL exactly per the order sheet — a wrong size is a full batch of rejects','After changing size, run one piece at first-run speed and measure before full production']}},
+  {p:1,n:'Type selection',v:'General',k:'select',what:'Selects the pattern family — General for standard five-finger gloves, or special styles (conjoined, half-finger) that use the extra finger settings on page 3.',a:{t:'Choosing the type',items:['Use General for normal gloves — it ignores the special finger-tip and conjoined-palm settings','Switch type only together with the matching pattern file and size card']}},
+  {p:1,n:'Dropping detection',v:'OFF',k:'toggle',what:'When ON, the machine stops if a finished glove does not drop off the needles, preventing it from being knitted into the next glove.',a:{t:'When to turn it ON',items:['Turn ON if gloves hang up on needles or you get double-knitted pieces','Turn OFF for normal stable running — lint on the sensor causes false stops']},b:{t:'When OFF (current)',items:['Fine while dropping is reliable','Check the drop chute and needle condition if stuck gloves appear']}},
+  {p:1,n:'Sub yarn function',v:'OFF',k:'toggle',what:'Feeds a second (sub) yarn together with the main yarn to reinforce zones such as the wrist cuff or palm.',a:{t:'When to turn it ON',items:['For orders requiring reinforced cuff or palm areas','Remember to also turn ON sub scissors so the sub yarn is cut cleanly']},b:{t:'When OFF (current)',items:['Normal single-yarn knitting — saves yarn and cycle time','Correct setting for standard gloves']}},
+  {p:1,n:'Overlocking function',v:'ON',k:'toggle',what:'Enables the overlocking head that sews the elastic wrist edge. This must be ON for any glove with a finished elastic wrist.',a:{t:'When ON (current)',items:['Required for all standard finished gloves — do not switch off mid-order','Pair with correct hook/cut yarn laps on page 3']},b:{t:'When to turn it OFF',items:['Only for unfinished-cuff pieces or maintenance of the overlock head','If off, the wrist edge unravels — never ship gloves knitted this way']}},
+  {p:1,n:'Knotting function',v:'0',k:'num',unit:'wraps',what:'Number of wraps the knotter makes to tie the yarn end when changing or finishing. Set to 0, knotting is currently disabled.',a:{t:'Value too HIGH',items:['Knot becomes bulky and jams at the knotter or needle hooks','Knot visible as a lump inside the glove','Longer cycle time per knot']},aDo:'Decrease toward 1 or 0 if the knot jams or shows as a defect; check and clean the knotter blades first.',b:{t:'Value too LOW (or 0 = off)',items:['Yarn ends not tied — can unravel at the wrist or seam','Loose tails appear during wearing or washing']},bDo:'Increase to 1–2 wraps if ends come loose; 0 is fine only when yarn ends are sealed by overlocking instead.'},
+  {p:1,n:'Blowing function',v:'ON',k:'toggle',what:'Air blow clears cut yarn ends and lint away from the knitting zone and drop area after each piece.',a:{t:'When ON (current)',items:['Keeps needles and sinkers clean — fewer dropped stitches','Essential for dark yarns where lint shows']},b:{t:'When to turn it OFF',items:['If air pressure is weak and the blower stalls the cycle','Very light yarns that fly around and tangle with the blow']}},
+  {p:1,n:'Sub scissors function',v:'OFF',k:'toggle',what:'Second scissors that cut the sub (second) yarn. Only active when the sub yarn function is used.',a:{t:'When to turn it ON',items:['Must be ON whenever sub yarn function is ON — otherwise the sub yarn is never cut and tangles']},b:{t:'When OFF (current)',items:['Correct for normal single-yarn production']}},
+  {p:1,n:'Cancel half needle function',v:'OFF',k:'toggle',what:'Cancels half-needle knitting on the small-palm side. Half needles narrow the little-finger side of the palm for shaping.',a:{t:'When to turn it ON',items:['For straight, non-shaped patterns that must not narrow','When half needles are mechanically faulty and you must keep production running temporarily']},b:{t:'When OFF (current)',items:['Normal shaping is active — palm tapers correctly toward the little finger','Keep OFF for all standard fitted gloves']}},
+  {p:1,n:'Sealing sequence',v:'Cut first',k:'select',what:'Order of operations at the wrist edge — here the yarn is cut first, then sealed (overlocked).',a:{t:'Choosing the sequence',items:['Cut first: clean edge, standard for most yarns — current setting is correct','Seal first: only for slippery yarns that pull back when cut; test one piece before switching']}},
+  {p:1,n:'Main scissors releasing sequence',v:'Successively',k:'select',what:'How the main scissors release after cutting — successively (one after another) or simultaneously.',a:{t:'Choosing the sequence',items:['Successively: gentler on fine yarns, less shock on the blade — current setting','Simultaneous: faster cycle, use for coarse yarns only']}},
+  {p:1,n:'Distance of half needle on small palm',v:'Short distance',k:'select',what:'Spacing of the half needles on the little-finger side of the palm. Changes how sharply the palm tapers.',a:{t:'Choosing the distance',items:['Short distance: stronger taper, snug little-finger side — current setting','Long distance: straighter palm, roomier fit; switch if gloves feel tight across the palm']}},
+  {p:1,n:'Half needle function of yarn fixing',v:'OFF',k:'toggle',what:'Uses the half needles to hold and fix the yarn at the start of a piece, anchoring the first courses.',a:{t:'When to turn it ON',items:['When the starting yarn slips and the first rows are loose or ladder','On slippery or elastic-blend yarns that do not grip at cast-on']},b:{t:'When OFF (current)',items:['Normal cast-on holds fine with the standard yarn']}},
+  {p:1,n:'Head speed when inserting elastic yarn',v:'130 (function ON)',k:'num',unit:'speed',what:'Carriage speed while the elastic yarn is being laid into the wrist. It runs slower than normal knitting so the elastic is placed evenly.',a:{t:'Value too HIGH',items:['Elastic laid loose, wavy or with gaps at the wrist','Missed elastic stitches and uneven tension around the cuff','Higher elastic breakage from snatching']},aDo:'Decrease toward 100–110 if the elastic line looks wavy or the wrist tension is uneven.',b:{t:'Value too LOW',items:['Elastic pulled too tight — stiff, narrow wrist','Elastic feeder drags, elastic snaps frequently','Slower cycle with no quality gain']},bDo:'Increase toward 130–140 if the wrist is puckered or the elastic keeps snapping from over-stretch.'},
+  {p:1,n:'Laps of releasing yarn on intact finger',v:'2',k:'num',unit:'laps',what:'How many courses of yarn are released (floated) when forming the web next to a normal closed finger.',a:{t:'Value too HIGH',items:['Weak, loose web between fingers — holes too large','Extra yarn consumption and longer cycle']},aDo:'Decrease to 1–2 if the web feels flimsy or holes appear at the finger base.',b:{t:'Value too LOW',items:['Fingers joined together or web too tight','Stress on yarn at finger separation → breakage']},bDo:'Increase toward 2–3 if fingers are sticking together or yarn keeps breaking at the web.'},
+  {p:1,n:'Laps of releasing yarn on hole finger',v:'3',k:'num',unit:'laps',what:'Yarn courses released when forming the finger that carries an opening/hole (for styles with a hole or different finger structure).',a:{t:'Value too HIGH',items:['Opening too large, edge unsupported','Yarn waste, longer cycle']},aDo:'Decrease to 2 if the hole edge is loose or oversized.',b:{t:'Value too LOW',items:['Hole too small or closes up','Yarn tension spike → snapped yarn at the finger']},bDo:'Increase to 3–4 if the hole closes or yarn breaks at that finger.'},
+  {p:1,n:'Rear density value of half needle',v:'11',k:'num',unit:'density',what:'Knitting density on the rear bed where half needles work the small palm. Higher number = tighter fabric.',a:{t:'Value too HIGH',items:['Small palm too tight — glove fits small, yarn breaks at the taper','Visible density step where half needles engage']},aDo:'Decrease by 1–2 if the palm side feels tight or yarn breaks at the little-finger base.',b:{t:'Value too LOW',items:['Loose, shapeless small palm','Holes or ladders between fingers']},bDo:'Increase by 1–2 if the small palm looks baggy or shows holes.'},
+  {p:1,n:'Idling speed',v:'160',k:'num',unit:'speed',what:'Speed for running the machine unloaded — used for warm-up after oiling and for clearing lint before production.',a:{t:'Value too HIGH',items:['Unnecessary wear and heat when running empty','Risk of missed lubrication points on fast dry runs']},aDo:'Decrease to 120–140 for warm-up runs; idling does not need full speed.',b:{t:'Value too LOW',items:['Warm-up takes too long, oil does not reach all points','Ineffective lint clearing']},bDo:'Increase toward 160 if warm-up cycles run too slowly — never exceed the manual limit for unloaded running.'},
+  {p:1,n:'Jogging speed',v:'20',k:'num',unit:'speed',what:'Inching speed for setup — moving the carriage step by step while fitting needles, checking cams or finding pattern start.',a:{t:'Value too HIGH',items:['Carriage overshoots position during setup','Danger to hands and tools at the needle bed']},aDo:'Keep it low — 15–25 is the safe setup band. Never jog fast with hands near the bed.',b:{t:'Value too LOW',items:['Setup becomes painfully slow — only a time issue, no quality risk']},bDo:'Increase slightly to 25–30 if setup feels sluggish, but never trade safety for speed here.'},
+  {p:2,n:'Reboot speed',v:'120',k:'num',unit:'speed',what:'Speed the machine accelerates to right after a restart or reset, before settling into normal production.',a:{t:'Value too HIGH',items:['Yarn or needle breakage in the first seconds after restart','Missed yarn pickups right after a stop — defects at restart point']},aDo:'Decrease toward sealing speed (100–120) or add slow restart laps if restarts keep breaking yarn.',b:{t:'Value too LOW',items:['Every stop costs more recovery time — lost output across the shift','Long slow stretch before reaching production speed']},bDo:'Increase toward 120–130 once restarts run clean; match it roughly to sealing speed.'},
+  {p:2,n:'Sealing speed',v:'120',k:'num',unit:'speed',what:'Carriage speed while the wrist edge is being sealed (overlocked). Kept moderate so the overlock head tracks the needles precisely.',a:{t:'Value too HIGH',items:['Overlock seam skips stitches or misses the edge','Cut elastic, damaged wrist edge, more rejects at inspection']},aDo:'Decrease to 100–110 if wrist edges show skipped seams or the overlock head mis-tracks.',b:{t:'Value too LOW',items:['Wrist section takes too long — bottlenecks the whole cycle']},bDo:'Increase toward 120–130 only after the seam is confirmed clean at current speed.'},
+  {p:2,n:'Speed before changing fingers',v:'120',k:'num',unit:'speed',what:'Speed the carriage must drop to just before the finger-change mechanism engages, so the cams can shift cleanly.',a:{t:'Value too HIGH',items:['Finger cams fail to engage — misaligned or stuck fingers','Pattern distortion at the finger roots, machine alarms']},aDo:'Decrease to 80–100 if you get finger-change faults or misaligned fingers.',b:{t:'Value too LOW',items:['Cycle time grows with no quality benefit']},bDo:'Increase gradually up to 120 once finger changes run fault-free.'},
+  {p:2,n:'Speed of changing yarn',v:'80',k:'num',unit:'speed',what:'Carriage speed during the yarn exchange (transferring knitting from old yarn to new at change or start).',a:{t:'Value too HIGH',items:['New yarn not picked up — float stitches, dropped courses','Knots or tails pulled through the fabric']},aDo:'Decrease to 60–70 if you see float stitches or missed pickups after a yarn change.',b:{t:'Value too LOW',items:['Yarn change drags — time loss only, low quality risk']},bDo:'Increase toward 90–100 only when every change is confirmed clean.'},
+  {p:2,n:'Knotting speed',v:'80',k:'num',unit:'speed',what:'Speed at which the knotter ties the yarn end. Too fast and the knot is loose or misformed; too slow adds dead time.',a:{t:'Value too HIGH',items:['Loose, slip-prone knots; knotter misses the wrap','Yarn tail too long inside the glove']},aDo:'Decrease to 60–70 if knots slip or tails are long.',b:{t:'Value too LOW',items:['Knotting station becomes the bottleneck of the cycle']},bDo:'Increase toward 90 once knots are consistently tight and small.'},
+  {p:2,n:'Idling laps',v:'5',k:'num',unit:'laps',what:'Empty courses the machine knits at start/end with no product, to settle the yarn, clear the feeders and stabilize tension before real knitting.',a:{t:'Value too HIGH',items:['Wasted yarn and time on every piece','Long loose chain at the start can tangle in the sinkers']},aDo:'Decrease to 3–4 if starts are stable and yarn cost matters.',b:{t:'Value too LOW',items:['First real courses are loose or uneven — rejects at the cuff','Yarn not yet seated when production starts']},bDo:'Increase to 5–6 if the first rows show loose stitches or tension wobble.'},
+  {p:2,n:'First-run speed',v:'40',k:'num',unit:'speed',what:'Speed of the very first cycle after loading a pattern or resetting — a verification run to check the pattern forms correctly before full production.',a:{t:'Value too HIGH',items:['Errors discovered only at full speed — a full batch of bad gloves before anyone notices','Crashing the carriage into a mis-set cam at speed']},aDo:'Keep it low (30–50). Never raise the first-run speed to save time.',b:{t:'Value too LOW',items:['Only cost is a slower verification pass — no quality downside']},bDo:'No need to increase; if anything, keep this the slowest speed on the machine.'},
+  {p:2,n:'Speed of releasing elastic yarn',v:'80',k:'num',unit:'speed',what:'Speed while the elastic yarn is being released/relaxed at the end of the wrist section, before cut-off.',a:{t:'Value too HIGH',items:['Elastic released with a snap — tension spike snaps the elastic','Wrist edge puckers after release']},aDo:'Decrease to 60–70 if elastic snaps at release or the edge puckers.',b:{t:'Value too LOW',items:['Release takes too long; elastic may relax unevenly and leave a wavy edge']},bDo:'Increase toward 90–100 if the edge looks stretched or wavy after release.'},
+  {p:2,n:'Number of elastic yarn on the end of wrist',v:'1',k:'num',unit:'strands',what:'How many elastic threads are knitted into the wrist edge. 1 = standard elastic edge; 2 = stronger, tighter cuff.',a:{t:'Value too HIGH (2 strands)',items:['Wrist too tight — hard to put on, elastic marks on skin','Double elastic cost and more elastic breakage']},aDo:'Decrease to 1 unless the order explicitly calls for a reinforced elastic wrist.',b:{t:'Value too LOW',items:['Wrist edge loose — glove slips off the hand','Cuff rolls over during wear']},bDo:'Increase to 2 only for orders requiring a firm grip cuff, and lower insert speed accordingly.'},
+  {p:2,n:'Elastic yarn final release value',v:'25',k:'num',unit:'value',what:'How much tension is released from the elastic right before cut-off — controls how the elastic tail behaves at the final stitch.',a:{t:'Value too HIGH',items:['Elastic springs back too far — long loose tail at the wrist','Tail sticks out of the overlock seam']},aDo:'Decrease toward 15–20 if you see loose elastic tails after cutting.',b:{t:'Value too LOW',items:['Elastic stays tight at the cut — puckered or gathered edge','Elastic snaps at the cut point from residual tension']},bDo:'Increase toward 25–30 if the wrist edge puckers or elastic keeps snapping at cut-off.'},
+  {p:2,n:'Speed after oiling',v:'100',k:'num',unit:'speed',what:'Speed the machine returns to after lubrication, paired with the slow-running laps below so oil spreads before full production.',a:{t:'Value too HIGH',items:['Oil not distributed yet — dry spots wear needles and cams','Oil throw-off contaminates the yarn and fabric']},aDo:'Keep it at or below 100 until the slow laps are finished; let the laps do their job.',b:{t:'Value too LOW',items:['Only delays return to production — no quality benefit']},bDo:'Once the slow laps complete, the machine can rise to normal speeds automatically.'},
+  {p:2,n:'Laps of slow running after oiling',v:'5',k:'num',unit:'laps',what:'How many slow courses the machine runs after oiling to spread lubricant across the needle bed before speed rises.',a:{t:'Value too HIGH',items:['Small time loss only — no harm to the machine']},aDo:'5 is already generous; 3–4 is enough for daily oiling.',b:{t:'Value too LOW (or skipped)',items:['Oil stays pooled at feed points — dry cams and needle hooks later','Staining on the first gloves from excess oil']},bDo:'Increase to 5–6 after a full oil service or if the first pieces after oiling show marks or stiffness.'},
+  {p:2,n:'Needle breakage detection function',v:'OFF',k:'toggle',what:'When ON, the machine stops automatically the moment a needle breaks — protecting the needle bed and the fabric.',a:{t:'When to turn it ON',items:['When knitting expensive yarns or fine gauges where a broken needle ruins many courses','On night shifts with no operator watching']},b:{t:'When OFF (current)',items:['Acceptable with an attentive operator and cheap yarn','Turn OFF if dust causes constant false trips — but clean the sensor instead if possible']}},
+  {p:2,n:'Needle breakage detection interval',v:'0',k:'num',unit:'interval',what:'How often the breakage detector checks (in courses or seconds, per machine convention). 0 = checking at every cycle / fastest.',a:{t:'Value too HIGH',items:['Broken needle runs many courses before detection — larger damage']},aDo:'Decrease toward 0–1 so a break stops the machine almost immediately.',b:{t:'Value too LOW',items:['Sensor interrogates constantly — more false trips from lint and vibration']},bDo:'Increase the interval slightly only if false stops dominate with detection ON.'},
+  {p:2,n:'Front needle quantity',v:'58',k:'num',unit:'needles',what:'Number of needles installed on the front bed for this machine/model. It is a machine specification, not a production setting.',a:{t:'Never increase',items:['More needles than the bed is built for damages cams and carriage','Pattern coordinates all shift — every glove becomes wrong']},aDo:'Do not change. If this number is wrong, the pattern file or machine model setting is wrong — fix that instead.',b:{t:'Never decrease',items:['Fewer needles narrows the fabric — wrong glove width','Empty needle slots snag yarn and drop stitches']},bDo:'Do not change. Needle count is set at installation and verified at maintenance.'},
+  {p:2,n:'Rear needle quantity',v:'58',k:'num',unit:'needles',what:'Number of needles on the rear bed — again a fixed machine specification for this model.',a:{t:'Never increase',items:['Same consequences as front bed — mechanical damage and pattern shift']},aDo:'Do not change; verify only during needle-bed maintenance.',b:{t:'Never decrease',items:['Rear bed gaps cause ladders and holes exactly where half needles work']},bDo:'Do not change. If gloves show odd holes at the palm taper, inspect needles — do not edit this value.'},
+  {p:2,n:'Stop main yarn before resetting',v:'OFF',k:'toggle',what:'When ON, the main yarn is cut and stopped before the machine resets, so the reset cannot pull loops out of the fabric on the bed.',a:{t:'When to turn it ON',items:['When resets keep pulling yarn and dropping courses from the piece on the bed','With slippery yarns that slide under tension']},b:{t:'When OFF (current)',items:['Fine for normal stops where the piece stays parked correctly','One less cut per reset — slightly less yarn waste']}},
+  {p:2,n:'Laps of three-finger conjoined palm',v:'0',k:'num',unit:'laps',what:'Courses knitted in conjoined (joined) structure for the three-finger section of mitten-style patterns. 0 = feature unused.',a:{t:'Value too HIGH',items:['On a normal glove this creates a wrongly joined, thick palm section']},aDo:'Keep at 0 unless running the conjoined pattern type this setting belongs to.',b:{t:'Value too LOW',items:['Only wrong when the conjoined pattern IS running — then the joined section is too short']},bDo:'When running conjoined styles, set per the pattern card for that style.'},
+  {p:2,n:'Depth of pressing needle (overlocking)',v:'0',k:'num',unit:'depth',what:'How deep the overlock presser sinks the needles when forming the wrist seam. 0 = default/standard press depth.',a:{t:'Value too HIGH',items:['Needles over-bent — breakage and damaged hooks','Wrist seam too tight, fabric puckers']},aDo:'Decrease toward 0 if overlocking causes needle damage or a gathered seam.',b:{t:'Value too LOW',items:['Presser does not form the seam — skipped overlock stitches','Elastic edge not captured, wrist unravels']},bDo:'Increase in small steps only if the overlock seam skips stitches with a healthy presser.'},
+  {p:2,n:'Distance of yarn fixing on palm',v:'0',k:'num',unit:'distance',what:'Where on the palm the yarn is fixed/tacked during formation. 0 = standard position at the palm base.',a:{t:'Value too HIGH',items:['Tack point too high on the palm — visible bump or tension mark in the glove body']},aDo:'Return to 0 unless a specific pattern card calls for a moved tack point.',b:{t:'Value too LOW',items:['Yarn fixed too low — insufficient hold, first palm courses loosen']},bDo:'Leave at 0 for standard patterns; adjust only per pattern documentation.'},
+  {p:3,n:'Hook yarn laps (overlocking)',v:'1',k:'num',unit:'laps',what:'How many wraps the hook yarn takes when catching the wrist edge for overlocking.',a:{t:'Value too HIGH',items:['Bulky overlock start, yarn build-up at the seam corner','Longer cycle, more yarn']},aDo:'Decrease to 1 if the seam start is bulky; 1 is standard.',b:{t:'Value too LOW',items:['Hook misses or releases the edge — overlock seam does not start','Wrist edge opens after washing']},bDo:'Increase to 2 only if the seam start repeatedly misses on slippery yarn.'},
+  {p:3,n:'Cut yarn laps (overlocking)',v:'1',k:'num',unit:'laps',what:'Wraps the cutter yarn takes before the final cut at the wrist overlock.',a:{t:'Value too HIGH',items:['Yarn bundle too thick to cut cleanly — frayed ends','Extra yarn consumption']},aDo:'Decrease to 1 if the cut end frays; check cutter blade sharpness too.',b:{t:'Value too LOW',items:['Cut end slips back and unravels before the overlock captures it']},bDo:'Increase to 2 if wrist ends unravel before sealing.'},
+  {p:3,n:'Hide yarn ends function (overlocking)',v:'ON',k:'toggle',what:'Automatically tucks the cut yarn tail into the fabric so the inside of the glove has no loose ends.',a:{t:'When ON (current)',items:['Clean inside finish — no irritation for the wearer','Essential for inspection-passing first-quality gloves']},b:{t:'When to turn it OFF',items:['Rarely — only if the hiding action itself marks the fabric on very fine yarns']}},
+  {p:3,n:'Adjusting knitting speed',v:'OFF',k:'toggle',what:'Lets the machine slow down automatically in dense/tight sections (like the wrist) where needle load is highest.',a:{t:'When to turn it ON',items:['When knitting dense cuffs at high production speed and needles keep breaking','When the wrist section shows tension marks at full speed']},b:{t:'When OFF (current)',items:['Fine when the machine runs comfortably at constant speed','Slightly faster cycle, simpler behaviour']}},
+  {p:3,n:'Density location of hiding yarn ends',v:'243',k:'num',unit:'position',what:'The exact stitch/course coordinate where the yarn-end hiding action happens. It is a pattern-file value, not tuned by hand.',a:{t:'Wrong value',items:['Hide point lands mid-pattern — visible dip or mark on the glove face','Yarn end not hidden at all']},aDo:'Do not adjust by trial. Restore the value from the original pattern file for this glove model.',b:{t:'Wrong value',items:['Same as above — the coordinate must match the pattern file exactly']},bDo:'Reload the pattern or re-enter 243 per the pattern card.'},
+  {p:3,n:'Density value of hiding yarn ends',v:'16',k:'num',unit:'density',what:'Fabric density used at the yarn-hiding point — the machine briefly knits tighter to lock the tail in.',a:{t:'Value too HIGH',items:['Hide point much tighter than surrounding fabric — visible ring or gauge mark']},aDo:'Match it to the neighbouring density values (±1–2) if a ring shows.',b:{t:'Value too LOW',items:['Tail not locked — works loose after washing and wear']},bDo:'Increase toward the local density if tails come out of the fabric.'},
+  {p:3,n:'Sub/scissors idling movement',v:'0',k:'num',unit:'value',what:'Idle positioning movement of the sub-scissors mechanism. 0 = no idle offset.',a:{t:'Value too HIGH',items:['Sub scissors sit away from home — slower response, wrong cut timing']},aDo:'Return to 0 unless the mechanism documentation specifies an offset.',b:{t:'Value too LOW',items:['No issue — 0 is the normal resting setting']},bDo:'Keep at 0.'},
+  {p:3,n:'Laps of insert yarn at little finger tip',v:'0',k:'num',unit:'laps',what:'Extra reinforcement yarn inserted at the little-finger tip. 0 = off — currently no reinforcement anywhere (all five finger tips are 0).',a:{t:'Value too HIGH',items:['Tip becomes stiff and thick — uncomfortable, looks different from spec','Extra yarn and cycle time on every piece']},aDo:'Keep 0 unless the order is for reinforced/wear-resistant gloves; then set per the spec sheet.',b:{t:'Value too LOW (0)',items:['No reinforcement — tips wear through fast on heavy-duty gloves']},bDo:'For anti-wear orders, set typically 2–4 laps at the specified fingers only, and test one glove for stiffness.'}
+  ];
+  ['ring','middle','index','thumb'].forEach(function (f) {
+    D.push({p:3,n:'Laps of insert yarn at ' + f + ' finger tip',v:'0',k:'num',unit:'laps',what:'Same reinforcement setting as the little finger tip, applied to the ' + f + ' finger.',a:{t:'Value too HIGH',items:['Stiff, thick tip — mismatch with the other fingers if set unevenly']},aDo:'Keep all five finger tips at the same value (all 0 for standard gloves, or all set together for reinforced orders).',b:{t:'Value too LOW (0)',items:['Tip unprotected on wear-resistant orders']},bDo:'Set together with the other fingers per the order spec.'});
+  });
+
+  var KIND = { num: 'number', toggle: 'on/off', select: 'option' };
+  var tabsEl = document.getElementById('gmTabs');
+  var listEl = document.getElementById('gmList');
+  var detEl = document.getElementById('gmDetail');
+  var page = 1, sel = -1;
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function renderTabs() {
+    tabsEl.innerHTML = [1, 2, 3].map(function (p) {
+      return '<button class="gm-tab' + (p === page ? ' gm-on' : '') + '" data-p="' + p + '">Page ' + p + '</button>';
+    }).join('');
+  }
+
+  function renderList() {
+    var rows = D.map(function (m, i) { return { m: m, i: i }; }).filter(function (x) { return x.m.p === page; });
+    listEl.innerHTML = rows.map(function (x) {
+      return '<button class="gm-row' + (x.i === sel ? ' gm-on' : '') + '" data-i="' + x.i + '">' +
+        '<span class="gm-name">' + esc(x.m.n) + '</span>' +
+        '<span class="gm-kind">' + KIND[x.m.k] + '</span>' +
+        '<span class="gm-val">' + esc(x.m.v) + (x.m.unit ? ' ' + x.m.unit : '') + '</span></button>';
+    }).join('');
+  }
+
+  function renderDetail() {
+    if (sel < 0) { detEl.innerHTML = ''; return; }
+    var m = D[sel];
+    var cols;
+    if (m.k === 'toggle') {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' +
+        '<div class="gm-col gm-col-b"><div class="gm-col-title">' + DN + ' ' + esc(m.b.t) + '</div><ul>' +
+        m.b.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    } else if (m.k === 'select') {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    } else {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' +
+        '<div class="gm-act"><b>Action:</b> ' + esc(m.aDo) + '</div></div>' +
+        '<div class="gm-col gm-col-b"><div class="gm-col-title">' + DN + ' ' + esc(m.b.t) + '</div><ul>' +
+        m.b.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' +
+        '<div class="gm-act"><b>Action:</b> ' + esc(m.bDo) + '</div></div>';
+    }
+    detEl.innerHTML = '<div class="gm-d-head"><span class="gm-d-title">' + esc(m.n) + '</span>' +
+      '<span class="gm-chip">' + esc(m.v) + (m.unit ? ' ' + m.unit : '') + '</span>' +
+      '<span class="gm-kind">' + KIND[m.k] + '</span></div>' +
+      '<div class="gm-what">' + esc(m.what) + '</div>' +
+      '<div class="gm-cols">' + cols + '</div>';
+  }
+
+  tabsEl.addEventListener('click', function (e) {
+    var t = e.target.closest('.gm-tab');
+    if (!t) return;
+    page = +t.getAttribute('data-p'); sel = -1;
+    renderTabs(); renderList(); renderDetail();
+  });
+
+  listEl.addEventListener('click', function (e) {
+    var r = e.target.closest('.gm-row');
+    if (!r) return;
+    sel = +r.getAttribute('data-i');
+    renderList(); renderDetail();
+    detEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  renderTabs(); renderList();
+})();
+
+</script>
+</body>
+</html>
