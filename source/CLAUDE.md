@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V165)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V166)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -158,6 +158,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v163 Machine Settings: tabs grouped (Pattern setting / Machine setting); Pattern 1: Functions (20 rows: size/type, dropping detection, sub yarn, overlocking, knotting, blowing, sub scissors, sealing sequence, head speed elastic, laps, idling/jog), Pattern 3: Overlocking & finger tips (13 rows), Pattern 2: Speeds = the old Chinese speeds page with English labels from the English machine + 2 extra rows (press depth overlocking, yarn fixing distance). Param kinds: number / onoff / fixed / choice.
   v164 owner: "remove the first one it's wrong" -> Pattern 1: Functions page removed (that screenshot was not this machine's page); pages now Pattern: Speeds, Pattern: Overlocking & finger tips + 3 Machine setting pages.
   v165 CORRECTION: the owner meant remove the CHINESE-screen speeds page (the machine he said "forget everything" about), keep the Pattern setting screens. Pages now: Pattern 1 Functions, Pattern 2 Speeds (English screen values: elastic final 25, press depth overlocking 0, yarn fixing 0; no Chinese text), Pattern 3 Overlocking & finger tips, then Machine setting: Positions & oiling, Scissors & head, Broken needle detection.
+  v166 owner: "delete machine setting it's wrong" -> Positions & oiling, Scissors & head, Broken needle detection pages removed. Only the 3 Pattern setting pages remain; more pages to come from the owner.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
