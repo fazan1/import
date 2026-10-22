@@ -8,13 +8,13 @@ import { Plus, X, Info, Cpu, ChevronRight, Trash2 } from 'lucide-react';
    The owner adds his machines and types each machine's value; values are saved in factory_machine_settings
    (sql/factory-machine-settings.sql) so every phone shows the same. Nothing here talks to the machine. */
 
-type Kind = 'number' | 'onoff' | 'fixed';
+type Kind = 'number' | 'onoff' | 'fixed' | 'choice';
 interface Param { key: string; label: string; zh?: string; kind: Kind; typical: string; what: string; up: string; down: string; fault: string }
-interface Page { id: string; title: string; note: string; params: Param[] }
+interface Page { id: string; group: string; title: string; note: string; params: Param[] }
 
 const PAGES: Page[] = [
   {
-    id: 'positions', title: 'Positions & oiling', note: 'Where the hook, scissors, fork and elastic act in each turn of the cylinder, the press needle depth, and self-oiling.',
+    id: 'positions', group: 'Machine setting', title: 'Positions & oiling', note: 'Where the hook, scissors, fork and elastic act in each turn of the cylinder, the press needle depth, and self-oiling.',
     params: [
       { key: 'slots', label: 'Slots number', kind: 'fixed', typical: '52', what: 'How many needle slots the cylinder has. A machine fact, set by the maker.', up: 'Not changed. Must equal the real cylinder.', down: 'Not changed.', fault: 'If it does not match the cylinder, every position on this page is wrong.' },
       { key: 'hook_angle', label: 'Angle at which the hook blade hooks down', kind: 'number', typical: '185', what: 'The point in the turn where the hook blade comes down to catch the yarn at a yarn change.', up: 'Hooks later in the turn.', down: 'Hooks earlier.', fault: 'Yarn missed at the start of a finger or colour change: move by 2 or 3 either way and knit one glove.' },
@@ -39,7 +39,7 @@ const PAGES: Page[] = [
     ],
   },
   {
-    id: 'scissors', title: 'Scissors & head', note: 'The two cutters (main yarn and sub yarn = elastic or second colour), the knitting speeds, finger-tip sealing rods and the home positions.',
+    id: 'scissors', group: 'Machine setting', title: 'Scissors & head', note: 'The two cutters (main yarn and sub yarn = elastic or second colour), the knitting speeds, finger-tip sealing rods and the home positions.',
     params: [
       { key: 'main_sciss_speed', label: 'Main scissors speed', kind: 'number', typical: '200', what: 'Speed of the motor that moves the main yarn cutter.', up: 'Cuts faster, can overshoot or jam.', down: 'Slower cycle, safer.', fault: 'Main scissors motor alarm, or cutter hitting the needles = lower to 150.' },
       { key: 'sub_sciss_speed', label: 'Sub scissors speed', kind: 'number', typical: '200', what: 'Speed of the motor that moves the second cutter (elastic / second colour).', up: 'Faster.', down: 'Slower, safer.', fault: 'Sub scissors motor alarm = lower to 150.' },
@@ -63,7 +63,7 @@ const PAGES: Page[] = [
     ],
   },
   {
-    id: 'needle', title: 'Broken needle detection', note: 'Where in the turn the machine listens for a broken needle, front and back, and which solenoid logic the yarn feeders use.',
+    id: 'needle', group: 'Machine setting', title: 'Broken needle detection', note: 'Where in the turn the machine listens for a broken needle, front and back, and which solenoid logic the yarn feeders use.',
     params: [
       { key: 'bnd_back_start', label: 'Effective starting position of broken needle detection signal (back)', kind: 'number', typical: '285', what: 'The point in the turn where the machine starts listening to the rear broken-needle sensor.', up: 'Starts later.', down: 'Starts earlier.', fault: 'False "broken needle" stops on the back with good needles = narrow the window (start later / end earlier). Broken needles on the back not caught = widen it.' },
       { key: 'bnd_back_end', label: 'Effective ending position of broken needle detection signal (back)', kind: 'number', typical: '90', what: 'Where the machine stops listening to the rear sensor.', up: 'Ends later (wider window).', down: 'Ends earlier (narrower window).', fault: 'Same as above.' },
@@ -78,28 +78,72 @@ const PAGES: Page[] = [
     ],
   },
   {
-    id: 'speeds', title: 'Speeds (Chinese screen)', note: 'The speed page some machines show in Chinese. Chinese text shown under each name so you can match it on the screen.',
+    id: 'pattern1', group: 'Pattern setting', title: 'Pattern 1: Functions', note: 'Which features of the glove program are switched on, the size and type, and the order of cutting and sealing.',
     params: [
-      { key: 'restart_speed', label: 'Restart speed', zh: '重启速度', kind: 'number', typical: '120', what: 'Speed after a stop or a yarn fix.', up: 'Restarts faster.', down: 'Gentler restart.', fault: 'Dropped stitches on the first rows after a restart = lower to 100.' },
-      { key: 'closing_speed', label: 'Closing (seal) speed', zh: '封口速度', kind: 'number', typical: '120', what: 'Speed while sewing the finger tip closed.', up: 'Faster closing.', down: 'Slower, tighter closing.', fault: 'Holes at finger tips = lower to 100.' },
-      { key: 'pre_finger_speed', label: 'Speed before finger change', zh: '换指前速度', kind: 'number', typical: '120', what: 'Speed on the last rows before the carriage moves to the next finger.', up: 'Faster.', down: 'Slower.', fault: 'Loose or uneven finger joins = lower to 100.' },
-      { key: 'yarn_change_speed', label: 'Yarn change speed', zh: '换纱速度', kind: 'number', typical: '80', what: 'Speed while a second yarn is brought in.', up: 'Faster change.', down: 'Safer change.', fault: 'Yarn breaks at a colour or elastic change = lower to 60.' },
+      { key: 'size_sel', label: 'Size selection', kind: 'choice', typical: 'M', what: 'Which glove size program runs (S, M, L, XL). It changes the row counts of every part.', up: 'Bigger size = more rows, more yarn.', down: 'Smaller size.', fault: 'Glove too big or small overall = wrong size selected, check this before touching densities.' },
+      { key: 'type_sel', label: 'Type selection', kind: 'choice', typical: 'General', what: 'Which glove type program runs (General = plain 5-finger; others for special styles).', up: '-', down: '-', fault: 'Wrong finger order or missing parts = wrong type.' },
+      { key: 'drop_detect', label: 'Dropping detection', kind: 'onoff', typical: 'OFF', what: 'Sensor that stops the machine when the glove drops off the needles (fabric fall).', up: 'ON = stops when the fabric drops.', down: 'OFF = keeps running with no fabric, wasting yarn and risking needles.', fault: 'Machine runs on after a glove falls = turn ON.' },
+      { key: 'sub_yarn_fn', label: 'Sub yarn function', kind: 'onoff', typical: 'OFF', what: 'Use a second (sub) yarn in the program, e.g. a second colour or reinforcing yarn.', up: 'ON = the sub yarn feeder is used where the pattern says.', down: 'OFF = single yarn only.', fault: 'Second yarn never appears = this is OFF.' },
+      { key: 'overlock_fn', label: 'Overlocking function', kind: 'onoff', typical: 'ON', what: 'The finishing step that hides the yarn ends (overlocking) after the glove is knitted.', up: 'ON = yarn ends hidden automatically.', down: 'OFF = ends left loose, trimmed by hand.', fault: 'Loose yarn ends on finished gloves = turn ON and check Pattern 3.' },
+      { key: 'knot_fn', label: 'Knotting function', kind: 'number', typical: '0', what: 'How many knots are tied at a yarn change. 0 = no knot.', up: 'More knots = stronger join, small lump.', down: '0 = no knot, relies on overlocking.', fault: 'Yarn joins opening = set 1.' },
+      { key: 'blow_fn', label: 'Blowing function', kind: 'onoff', typical: 'ON', what: 'Air blow that clears lint and yarn ends from the needles.', up: 'ON = cleaner needles.', down: 'OFF = more lint, more needle jams.', fault: 'Lint build-up, lines in the fabric = turn ON (needs air supply).' },
+      { key: 'sub_sciss_fn', label: 'Sub scissors function', kind: 'onoff', typical: 'OFF', what: 'Whether the second cutter is used at all. Only needed when a sub yarn or elastic is cut separately.', up: 'ON = sub scissors cut the sub yarn.', down: 'OFF = sub scissors never move.', fault: 'Sub yarn not cut = turn ON (and check the sub scissors version on Scissors & head).' },
+      { key: 'cancel_half_needle', label: 'Cancel half needle function', kind: 'onoff', typical: 'OFF', what: 'Turns off the half-needle step used at the small palm.', up: 'ON = half needle step skipped.', down: 'OFF = half needle used as the pattern says.', fault: 'Leave OFF unless the technician says so.' },
+      { key: 'seal_seq', label: 'Sealing sequence', kind: 'choice', typical: 'Cut first', what: 'At the finger tip: cut the yarn first then seal, or seal first then cut.', up: 'Cut first = shorter tail inside the tip.', down: 'Seal first = safer hold on thin yarn.', fault: 'Tips opening = try the other order.' },
+      { key: 'main_release_seq', label: 'Main scissors releasing sequence', kind: 'choice', typical: 'Successively', what: 'How the main scissors release the yarn: one after the other (successively) or together.', up: '-', down: '-', fault: 'Yarn tangling at release = try the other option.' },
+      { key: 'half_needle_dist', label: 'Distance of half needle on small palm', kind: 'choice', typical: 'Short distance', what: 'How far the half-needle step travels on the small palm (short / long).', up: 'Long = wider half-needle area.', down: 'Short = narrower.', fault: 'Small palm shape off = try the other.' },
+      { key: 'half_needle_fix', label: 'Half needle function of yarn fixing', kind: 'onoff', typical: 'OFF', what: 'Use the half-needle move while fixing the yarn end.', up: 'ON.', down: 'OFF.', fault: 'Leave as the working machine.' },
+      { key: 'head_speed_elastic_on', label: 'Head speed when inserting elastic yarn (on/off)', kind: 'onoff', typical: 'ON', what: 'Whether a special head speed is used while the elastic is fed.', up: 'ON = uses the value below.', down: 'OFF = normal speed while feeding elastic.', fault: 'Elastic breaking as it is fed = ON with a lower value.' },
+      { key: 'head_speed_elastic', label: 'Head speed when inserting elastic yarn', kind: 'number', typical: '130', what: 'The head speed used while elastic is fed (when the switch above is ON).', up: 'Faster, more elastic breaks.', down: 'Slower, safer.', fault: 'Elastic snapping at the wrist = lower to 110.' },
+      { key: 'laps_release_intact', label: 'Laps of releasing yarn on intact finger', kind: 'number', typical: '2', what: 'Rows over which the yarn is released at the tip of a closed finger.', up: 'More rows = softer tip.', down: 'Fewer rows = tighter tip.', fault: 'Finger tip pointed or tight = raise by 1.' },
+      { key: 'laps_release_hole', label: 'Laps of releasing yarn on hole finger', kind: 'number', typical: '3', what: 'Same for an open (fingerless) finger.', up: 'Softer open edge.', down: 'Tighter edge.', fault: 'Open finger edge curling = adjust by 1.' },
+      { key: 'rear_density_half', label: 'Rear density value of half needle', kind: 'number', typical: '11', what: 'Stitch tightness on the rear plate during the half-needle step.', up: 'Looser.', down: 'Tighter.', fault: 'Small palm back loose or tight = change by 1.' },
+      { key: 'idling_speed', label: 'Idling speed', kind: 'number', typical: '160', what: 'Speed when the machine turns without knitting.', up: 'Faster idle.', down: 'Slower.', fault: 'Leave.' },
+      { key: 'jog_speed', label: 'Jogging speed', kind: 'number', typical: '20', what: 'Speed when the operator inches the machine by hand (jog button).', up: 'Faster jog, less control.', down: 'Slower, finer control.', fault: 'Leave at 20.' },
+    ],
+  },
+  {
+    id: 'pattern3', group: 'Pattern setting', title: 'Pattern 3: Overlocking & finger tips', note: 'The yarn-end hiding (overlocking) step and extra yarn at each finger tip.',
+    params: [
+      { key: 'ol_hook_laps', label: 'Hook yarn laps (overlocking)', kind: 'number', typical: '1', what: 'Rows during which the yarn is hooked at the start of overlocking.', up: 'Holds the end over more rows.', down: 'Fewer rows.', fault: 'Yarn end slipping out at the start of overlocking = raise to 2.' },
+      { key: 'ol_cut_laps', label: 'Cut yarn laps (overlocking)', kind: 'number', typical: '1', what: 'Rows knitted before the yarn is cut at the end of overlocking.', up: 'Longer hidden tail.', down: 'Shorter.', fault: 'Hidden tail too short and popping out = raise to 2.' },
+      { key: 'ol_hide_fn', label: 'Hide yarn ends function (overlocking)', kind: 'onoff', typical: 'ON', what: 'Whether the yarn ends are tucked inside during overlocking.', up: 'ON = ends hidden.', down: 'OFF = ends visible.', fault: 'Visible yarn ends = turn ON.' },
+      { key: 'adj_knit_speed', label: 'Adjusting knitting speed', kind: 'onoff', typical: 'OFF', what: 'Lets the operator change the knitting speed from the run screen without entering settings.', up: 'ON = speed knob active.', down: 'OFF = fixed speeds from the pattern.', fault: 'Leave OFF so nobody changes speeds by accident.' },
+      { key: 'ol_density_loc', label: 'Density location of hiding yarn ends (overlocking)', kind: 'number', typical: '243', what: 'Where in the turn the density changes for the yarn-end hiding step.', up: 'Later in the turn.', down: 'Earlier.', fault: 'Hidden end sits in the wrong place on the glove = move by 5.' },
+      { key: 'ol_density_val', label: 'Density value of hiding yarn ends (overlocking)', kind: 'number', typical: '16', what: 'Stitch tightness used while hiding the yarn ends.', up: 'Looser.', down: 'Tighter.', fault: 'Hidden end bulky = loosen by 1. End not held = tighten by 1.' },
+      { key: 'sub_sciss_idle', label: 'Sub scissors idling movement', kind: 'number', typical: '0', what: 'Small movement of the sub scissors while idling, to keep them clear of the yarn. 0 = none.', up: 'Moves more.', down: '0 = stays still.', fault: 'Sub scissors catching yarn while idle = set 1.' },
+      { key: 'ol_hook_fn', label: 'Hook yarn function (overlocking)', kind: 'onoff', typical: 'ON', what: 'Whether the yarn is hooked at the start of overlocking (the second "Hook yarn laps" line on the screen is this switch).', up: 'ON.', down: 'OFF = no hook, end may slip.', fault: 'Overlocking misses the yarn end = turn ON.' },
+      { key: 'tip_little', label: 'Laps of insert yarn at little finger tip', kind: 'number', typical: '0', what: 'Extra reinforcing rows with the sub yarn at the little finger tip. 0 = none.', up: 'Stronger tip.', down: 'Plain tip.', fault: 'Tips wearing through = set 2 (needs the sub yarn function ON).' },
+      { key: 'tip_ring', label: 'Laps of insert yarn at ring finger tip', kind: 'number', typical: '0', what: 'Same for the ring finger.', up: 'Stronger tip.', down: 'Plain.', fault: 'Same.' },
+      { key: 'tip_middle', label: 'Laps of insert yarn at middle finger tip', kind: 'number', typical: '0', what: 'Same for the middle finger.', up: 'Stronger tip.', down: 'Plain.', fault: 'Same.' },
+      { key: 'tip_index', label: 'Laps of insert yarn at index finger tip', kind: 'number', typical: '0', what: 'Same for the index finger.', up: 'Stronger tip.', down: 'Plain.', fault: 'Same.' },
+      { key: 'tip_thumb', label: 'Laps of insert yarn at thumb tip', kind: 'number', typical: '0', what: 'Same for the thumb.', up: 'Stronger tip.', down: 'Plain.', fault: 'Same.' },
+    ],
+  },
+  {
+    id: 'speeds', group: 'Pattern setting', title: 'Pattern 2: Speeds', note: 'Speeds for each stage of the glove. Some machines show this page in Chinese: the Chinese text is under each name.',
+    params: [
+      { key: 'restart_speed', label: 'Reboot speed', zh: '重启速度', kind: 'number', typical: '120', what: 'Speed after a stop or a yarn fix.', up: 'Restarts faster.', down: 'Gentler restart.', fault: 'Dropped stitches on the first rows after a restart = lower to 100.' },
+      { key: 'closing_speed', label: 'Sealing speed', zh: '封口速度', kind: 'number', typical: '120', what: 'Speed while sewing the finger tip closed.', up: 'Faster closing.', down: 'Slower, tighter closing.', fault: 'Holes at finger tips = lower to 100.' },
+      { key: 'pre_finger_speed', label: 'Speed before changing fingers', zh: '换指前速度', kind: 'number', typical: '120', what: 'Speed on the last rows before the carriage moves to the next finger.', up: 'Faster.', down: 'Slower.', fault: 'Loose or uneven finger joins = lower to 100.' },
+      { key: 'yarn_change_speed', label: 'Speed of changing yarn', zh: '换纱速度', kind: 'number', typical: '80', what: 'Speed while a second yarn is brought in.', up: 'Faster change.', down: 'Safer change.', fault: 'Yarn breaks at a colour or elastic change = lower to 60.' },
       { key: 'knot_speed', label: 'Knotting speed', zh: '打结速度', kind: 'number', typical: '80', what: 'Speed while the knot is made.', up: 'Faster.', down: 'Surer knot.', fault: 'Knots open or missing = lower to 60.' },
-      { key: 'idle_circles', label: 'Idle run circles', zh: '空跑圈数', kind: 'number', typical: '5', what: 'Empty turns before knitting starts.', up: 'More empty turns.', down: 'Fewer.', fault: 'Leave.' },
-      { key: 'crawl_speed', label: 'Crawl speed', zh: '首行速度', kind: 'number', typical: '40', what: 'Slow speed for positioning and the first stitches.', up: 'Faster first row.', down: 'Slower first row.', fault: 'First row not catching = lower to 30.' },
-      { key: 'elastic_speed', label: 'Elastic yarn release speed', zh: '橡筋放线速度', kind: 'number', typical: '80', what: 'How fast the elastic is fed in the wrist.', up: 'More elastic fed = looser wrist.', down: 'Less elastic fed = tighter wrist.', fault: 'Wrist too tight = raise by 10. Wrist too loose = lower by 10.' },
-      { key: 'elastic_after_wrist', label: 'Elastic circles after wrist', zh: '手腕最后橡筋数', kind: 'number', typical: '1', what: 'Extra rows knitted with elastic after the wrist.', up: 'More elastic rows.', down: 'Fewer.', fault: 'Leave.' },
-      { key: 'elastic_after_cut', label: 'Elastic release after cut', zh: '橡筋最后放线', kind: 'number', typical: '20', what: 'Elastic let out after the cut so it does not snap back into the wrist.', up: 'Longer tail left.', down: 'Shorter tail.', fault: 'Elastic tail pulling back into the wrist = raise (your machines have 16 and 20).' },
+      { key: 'idle_circles', label: 'Idling laps', zh: '空跑圈数', kind: 'number', typical: '5', what: 'Empty turns before knitting starts.', up: 'More empty turns.', down: 'Fewer.', fault: 'Leave.' },
+      { key: 'crawl_speed', label: 'First-run speed', zh: '首行速度', kind: 'number', typical: '40', what: 'Slow speed for positioning and the first stitches.', up: 'Faster first row.', down: 'Slower first row.', fault: 'First row not catching = lower to 30.' },
+      { key: 'elastic_speed', label: 'Speed of releasing elastic yarn', zh: '橡筋放线速度', kind: 'number', typical: '80', what: 'How fast the elastic is fed in the wrist.', up: 'More elastic fed = looser wrist.', down: 'Less elastic fed = tighter wrist.', fault: 'Wrist too tight = raise by 10. Wrist too loose = lower by 10.' },
+      { key: 'elastic_after_wrist', label: 'Number of elastic yarn on the end of wrist', zh: '手腕最后橡筋数', kind: 'number', typical: '1', what: 'Extra rows knitted with elastic after the wrist.', up: 'More elastic rows.', down: 'Fewer.', fault: 'Leave.' },
+      { key: 'elastic_after_cut', label: 'Elastic yarn final release value', zh: '橡筋最后放线', kind: 'number', typical: '20', what: 'Elastic let out after the cut so it does not snap back into the wrist.', up: 'Longer tail left.', down: 'Shorter tail.', fault: 'Elastic tail pulling back into the wrist = raise (your machines have 16, 20 and 25).' },
       { key: 'after_oil_speed', label: 'Speed after oiling', zh: '加油后速度', kind: 'number', typical: '100', what: 'Speed for a few turns right after self-oiling.', up: 'Faster after oiling.', down: 'Slower.', fault: 'Oil marks on gloves after oiling = lower.' },
-      { key: 'after_oil_circles', label: 'Slow circles after oiling', zh: '加油后慢速圈数', kind: 'number', typical: '5', what: 'How many turns run at the "after oiling" speed.', up: 'More slow turns.', down: 'Fewer.', fault: 'Leave.' },
-      { key: 'bnd_enable', label: 'Broken needle detection', zh: '断针检测功能', kind: 'onoff', typical: 'OFF', what: 'Whether the machine stops when it detects a broken needle.', up: 'ON = stops at a broken needle.', down: 'OFF = keeps knitting a line of holes until someone sees it.', fault: 'Gloves with a line of holes found late = turn ON and set the check interval to 1 or 2.' },
-      { key: 'needles_front', label: 'Front needle plate needles', zh: '前针板针数', kind: 'fixed', typical: '58', what: 'Needle count on the front plate. A machine fact.', up: 'Must equal the real plate.', down: 'Must equal the real plate.', fault: 'Wrong count = the finger widths are wrong.' },
-      { key: 'needles_rear', label: 'Rear needle plate needles', zh: '后针板针数', kind: 'fixed', typical: '58', what: 'Needle count on the rear plate.', up: 'Must equal the real plate.', down: 'Must equal the real plate.', fault: 'Same.' },
-      { key: 'bnd_interval', label: 'Broken needle check interval', zh: '断针检测间隔', kind: 'number', typical: '0', what: 'How often the broken-needle check runs (in rows). Only matters when detection is ON.', up: 'Checks less often.', down: 'Checks more often (0 = every row).', fault: 'Set 1 or 2 when detection is ON.' },
-      { key: 'stop_main_before_reset', label: 'Stop main yarn before reset', zh: '复位前先停主纱', kind: 'onoff', typical: 'OFF', what: 'Whether the main yarn feed stops before the machine resets.', up: 'ON.', down: 'OFF.', fault: 'Leave OFF unless the main yarn tangles on reset.' },
-      { key: 'three_finger_circles', label: 'Three finger palm circles', zh: '三指掌圈数', kind: 'number', typical: '0', what: 'Palm rows for three-finger gloves only.', up: 'More palm rows on three-finger gloves.', down: 'Fewer.', fault: '0 is correct for five-finger gloves.' },
-      { key: 'press_depth_hot', label: 'Press needle depth (hot melt)', zh: '压针深度(热熔)', kind: 'number', typical: '17', what: 'How far the needle presses down in the hot-melt wrist.', up: 'Stronger seal, more wear.', down: 'Weaker seal.', fault: 'Wrist seam not sealing = raise by 1. Needles bending or fabric marked = lower by 1.' },
-      { key: 'wrist_travel', label: 'Wrist no-thread travel', zh: '手掌无线头行程', kind: 'number', typical: '292', what: 'How far the carriage moves at the wrist with no thread.', up: 'Longer travel.', down: 'Shorter.', fault: 'Leave unless the wrist cut lands in the wrong place.' },
+      { key: 'after_oil_circles', label: 'Laps of slow running after oiling', zh: '加油后慢速圈数', kind: 'number', typical: '5', what: 'How many turns run at the "after oiling" speed.', up: 'More slow turns.', down: 'Fewer.', fault: 'Leave.' },
+      { key: 'bnd_enable', label: 'Needle breakage detection function', zh: '断针检测功能', kind: 'onoff', typical: 'OFF', what: 'Whether the machine stops when it detects a broken needle.', up: 'ON = stops at a broken needle.', down: 'OFF = keeps knitting a line of holes until someone sees it.', fault: 'Gloves with a line of holes found late = turn ON and set the check interval to 1 or 2.' },
+      { key: 'needles_front', label: 'Front needle quantity', zh: '前针板针数', kind: 'fixed', typical: '58', what: 'Needle count on the front plate. A machine fact.', up: 'Must equal the real plate.', down: 'Must equal the real plate.', fault: 'Wrong count = the finger widths are wrong.' },
+      { key: 'needles_rear', label: 'Rear needle quantity', zh: '后针板针数', kind: 'fixed', typical: '58', what: 'Needle count on the rear plate.', up: 'Must equal the real plate.', down: 'Must equal the real plate.', fault: 'Same.' },
+      { key: 'bnd_interval', label: 'Needle breakage detection interval', zh: '断针检测间隔', kind: 'number', typical: '0', what: 'How often the broken-needle check runs (in rows). Only matters when detection is ON.', up: 'Checks less often.', down: 'Checks more often (0 = every row).', fault: 'Set 1 or 2 when detection is ON.' },
+      { key: 'stop_main_before_reset', label: 'Stop main yarn before resetting', zh: '复位前先停主纱', kind: 'onoff', typical: 'OFF', what: 'Whether the main yarn feed stops before the machine resets.', up: 'ON.', down: 'OFF.', fault: 'Leave OFF unless the main yarn tangles on reset.' },
+      { key: 'three_finger_circles', label: 'Laps of three-finger conjoined palm', zh: '三指掌圈数', kind: 'number', typical: '0', what: 'Palm rows for three-finger gloves only.', up: 'More palm rows on three-finger gloves.', down: 'Fewer.', fault: '0 is correct for five-finger gloves.' },
+      { key: 'press_depth_hot', label: 'Depth of pressing needle (hot melt)', zh: '压针深度(热熔)', kind: 'number', typical: '17', what: 'How far the needle presses down in the hot-melt wrist.', up: 'Stronger seal, more wear.', down: 'Weaker seal.', fault: 'Wrist seam not sealing = raise by 1. Needles bending or fabric marked = lower by 1.' },
+      { key: 'press_depth_overlock', label: 'Depth of pressing needle (overlocking)', kind: 'number', typical: '0', what: 'How far the press needle goes down during the overlocking (yarn-end hiding) step. 0 = not used.', up: 'Presses deeper while overlocking.', down: 'Lighter / off.', fault: 'Yarn ends not held down after overlocking = try 10 to 15 (copy a machine that does it well).' },
+      { key: 'wrist_travel', label: 'Distance of yarn fixing on palm', zh: '手掌无线头行程', kind: 'number', typical: '292', what: 'How far the carriage moves on the palm with no thread while the yarn end is fixed. The Chinese machine shows 292, the English one 0 (= default).', up: 'Longer travel.', down: 'Shorter.', fault: 'Leave unless the yarn end on the palm is fixed in the wrong place.' },
     ],
   },
 ];
@@ -169,8 +213,13 @@ export default function FactoryMachineGuide() {
 
       {dbError && <div className="mb-4 text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-2.5">Values cannot be saved yet: {dbError}. Run <b>factory-machine-settings.sql</b> in Supabase once (MAIN project). The explanations below still work.</div>}
 
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {PAGES.map((p) => <button key={p.id} onClick={() => setPage(p.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${page === p.id ? 'bg-[#111] text-white border-[#111]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{p.title}</button>)}
+      <div className="space-y-2 mb-4">
+        {[...new Set(PAGES.map((p) => p.group))].map((g) => (
+          <div key={g} className="flex gap-2 flex-wrap items-center">
+            <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500 w-28">{g}</span>
+            {PAGES.filter((p) => p.group === g).map((p) => <button key={p.id} onClick={() => setPage(p.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${page === p.id ? 'bg-[#111] text-white border-[#111]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>{p.title}</button>)}
+          </div>
+        ))}
       </div>
       <p className="text-xs text-gray-500 mb-3">{cur.note}</p>
 
@@ -190,7 +239,7 @@ export default function FactoryMachineGuide() {
                 <td className="px-3 py-2 text-xs text-gray-400">{i + 1}</td>
                 <td className="px-3 py-2">
                   <button onClick={() => setOpen(p)} className="text-left font-medium text-gray-900 hover:text-[#e8552a] flex items-start gap-1.5">
-                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" /><span>{p.label}{p.zh && <span className="block text-xs text-gray-500 font-normal">{p.zh}</span>}{p.kind === 'fixed' && <span className="ml-2 text-[10px] font-mono uppercase tracking-wide text-gray-400">machine fact</span>}</span>
+                    <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-gray-400" /><span>{p.label}{p.zh && <span className="block text-xs text-gray-500 font-normal">{p.zh}</span>}{p.kind === 'fixed' && <span className="ml-2 text-[10px] font-mono uppercase tracking-wide text-gray-400">machine fact</span>}{p.kind === 'onoff' && <span className="ml-2 text-[10px] font-mono uppercase tracking-wide text-gray-400">on / off</span>}{p.kind === 'choice' && <span className="ml-2 text-[10px] font-mono uppercase tracking-wide text-gray-400">choice</span>}</span>
                   </button>
                 </td>
                 <td className="px-3 py-2 text-right font-mono text-gray-500">{p.typical}</td>
