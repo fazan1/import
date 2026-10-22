@@ -475,24 +475,45 @@ var PAGES = [
   .ak-btn{font:inherit;font-size:14px;padding:9px 16px;border-radius:10px;border:0;background:var(--kimi-color-accent);color:#fff;cursor:pointer}
   .ak-btn:disabled{opacity:.5;cursor:default}
   .ak-hint{font-size:11px;color:var(--kimi-color-text-tertiary);margin-top:6px}
+  .ak-old{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--kimi-color-text-tertiary);margin:4px 0 2px}
+  .ak-del{font-size:11px;color:var(--kimi-color-text-tertiary);background:none;border:0;cursor:pointer;align-self:flex-start;padding:0 0 4px 12px}
+  .ak-del:hover{color:var(--kimi-color-danger)}
 </style>
 <div class="ak-box" id="akBox">
   <div class="ak-title">Ask about this setting</div>
   <div class="ak-msgs" id="akMsgs"></div>
   <div class="ak-row"><input class="ak-in" id="akIn" placeholder="e.g. what happens if I set it to 255? / why does it break at the end?"><button class="ak-btn" id="akBtn">Ask</button></div>
-  <div class="ak-hint">Answers use only this setting and the others on this page. Nothing is saved.</div>
+  <div class="ak-hint" id="akHint">Answers use only this setting and the others on this page. Questions and answers are saved under this setting.</div>
 </div>
 <script>
 (function(){
   var box=document.getElementById('akBox'), msgsEl=document.getElementById('akMsgs'), inEl=document.getElementById('akIn'), btn=document.getElementById('akBtn');
   var det=document.getElementById('gmDetail'), list=document.getElementById('gmList');
   var history=[], lastKey='', busy=false;
+  var GUIDE=(document.title.split('—')[0]||'guide').trim();
+  function cfg(){try{return JSON.parse(localStorage.getItem('crm-sb-config')||'{}');}catch(e){return {};}}
+  function rest(path,opts){var c=cfg(); if(!c.url||!c.key) return Promise.reject(new Error('no db config')); var h={'apikey':c.key,'Authorization':'Bearer '+token(),'Content-Type':'application/json','Prefer':'return=representation'}; return fetch(c.url+'/rest/v1/'+path,Object.assign({headers:h},opts||{}));}
+  function addSaved(row){
+    var q=document.createElement('div'); q.className='ak-m ak-u'; q.textContent=row.question;
+    var a=document.createElement('div'); a.className='ak-m ak-a'; a.textContent=row.answer;
+    var d=document.createElement('button'); d.className='ak-del'; d.textContent='remove'; d.title=new Date(row.created_at).toLocaleString();
+    d.addEventListener('click',function(){ if(!confirm('Remove this saved question?')) return; rest('factory_setting_chats?id=eq.'+row.id,{method:'DELETE'}).then(function(){q.remove();a.remove();d.remove();}).catch(function(e){alert('Could not remove: '+e.message);}); });
+    msgsEl.appendChild(q); msgsEl.appendChild(a); msgsEl.appendChild(d);
+  }
+  function loadSaved(key){
+    rest('factory_setting_chats?guide=eq.'+encodeURIComponent(GUIDE)+'&setting_title=eq.'+encodeURIComponent(key)+'&order=created_at.asc&limit=30').then(function(r){return r.ok?r.json():[];}).then(function(rows){
+      if(key!==lastKey||!rows.length) return;
+      var h=document.createElement('div'); h.className='ak-old'; h.textContent='Earlier questions on this setting'; msgsEl.insertBefore(h,msgsEl.firstChild);
+      rows.forEach(addSaved);
+      history=rows.slice(-3).reduce(function(acc,row){acc.push({role:'user',text:row.question},{role:'assistant',text:row.answer});return acc;},[]);
+    }).catch(function(){});
+  }
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function titleOf(){var t=det.querySelector('.gm-d-title'); return t?t.textContent.trim():'';}
   function sync(){
     var key=titleOf();
     if(!key){box.classList.remove('ak-on'); return;}
-    if(key!==lastKey){lastKey=key; history=[]; msgsEl.innerHTML=''; inEl.value='';}
+    if(key!==lastKey){lastKey=key; history=[]; msgsEl.innerHTML=''; inEl.value=''; loadSaved(key);}
     box.classList.add('ak-on');
   }
   new MutationObserver(sync).observe(det,{childList:true,subtree:true}); sync();
@@ -511,6 +532,7 @@ var PAGES = [
       var raw=await res.text(); var data={}; try{data=JSON.parse(raw);}catch(e){throw new Error(res.status===404?'The assistant service is not deployed on this site yet.':'Unexpected answer: '+raw.slice(0,100));}
       if(!res.ok) throw new Error(data.message||data.error||('Service answered '+res.status));
       add('assistant',data.text||'(no answer)'); history.push({role:'user',text:q},{role:'assistant',text:data.text||''});
+      rest('factory_setting_chats',{method:'POST',body:JSON.stringify({guide:GUIDE,setting_title:lastKey,question:q,answer:data.text||''})}).then(function(r){ if(!r.ok) document.getElementById('akHint').textContent='Answered, but not saved: run factory-setting-chats.sql in Supabase once.'; }).catch(function(){});
     }catch(e){ add('error', e&&e.name==='AbortError'?'The assistant took too long. Try again.':(e&&e.message||String(e))); }
     finally{ busy=false; btn.disabled=false; btn.textContent='Ask'; }
   }
