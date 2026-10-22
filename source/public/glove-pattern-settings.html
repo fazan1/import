@@ -16,7 +16,7 @@ html,body{margin:0;background:var(--kimi-color-surface)}body{max-width:900px;mar
   .gm-title { font-size: 20px; font-weight: 500; letter-spacing: 0; }
   .gm-sub { font-size: 12px; color: var(--kimi-color-text-tertiary); margin-top: 2px; }
   .gm-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-  .gm-tab { font-size: 14px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--kimi-color-border); background: transparent; color: var(--kimi-color-text-secondary); cursor: pointer; transition: all var(--t-fast) var(--ease-out); }
+  .gm-tab { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--kimi-color-border); background: transparent; color: var(--kimi-color-text-secondary); cursor: pointer; transition: all var(--t-fast) var(--ease-out); }
   .gm-tab:hover { border-color: var(--kimi-color-text-secondary); }
   .gm-tab.gm-on { background: var(--kimi-color-text-primary); color: var(--kimi-color-surface); border-color: var(--kimi-color-text-primary); }
   .gm-list { border: 1px solid var(--kimi-color-border); border-radius: 12px; overflow: hidden; }
@@ -403,11 +403,11 @@ var PAGES = [
   function renderTabs() {
     var out = '';
     for (var p = 1; p <= 12; p++) {
-      out += '<button class="gm-tab' + (p === page ? ' gm-on' : '') + '" data-p="' + p + '" title="' + esc(PAGENAMES[p]) + '">' + p + '</button>';
+      out += '<button class="gm-tab' + (p === page ? ' gm-on' : '') + '" data-p="' + p + '">' + esc(PAGENAMES[p]) + '</button>';
     }
     tabsEl.innerHTML = out;
     var cap = document.getElementById('gmCaption');
-    if (cap) cap.textContent = 'Page ' + page + ' — ' + PAGENAMES[page];
+    if (cap) cap.textContent = PAGENAMES[page] + ' — tap a name above to open its page; tap a setting, zone, column or row for the explanation';
   }
 
   function renderList() {
