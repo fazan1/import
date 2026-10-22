@@ -412,9 +412,9 @@ var PAGES = [
 
   function renderList() {
     if (page === 1) { listEl.innerHTML = PAGE1 + '<div class="gm-hintrow" style="text-align:center;font-size:12px;color:var(--kimi-color-text-tertiary);padding:4px 0 10px">Tap a zone number or a tool button below</div>'; markGlove(); return; }
-    if (TABLEPAGEMAP[page] !== undefined) { renderTablePage(); return; }
+    var tableHtml = TABLEPAGEMAP[page] !== undefined ? renderTablePage() + '<div style="padding:10px 14px 4px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--kimi-color-text-tertiary);border-top:1px solid var(--kimi-color-border)">Values, usage and when to change them — tap a line</div>' : '';
     var rows = D.map(function (m, i) { return { m: m, i: i }; }).filter(function (x) { return x.m.p === page; });
-    listEl.innerHTML = rows.map(function (x) {
+    listEl.innerHTML = tableHtml + rows.map(function (x) {
       return '<button class="gm-row' + (x.i === sel ? ' gm-on' : '') + '" data-i="' + x.i + '">' +
         '<span class="gm-name">' + esc(x.m.n) + '</span>' +
         '<span class="gm-kind">' + KIND[x.m.k] + '</span>' +
@@ -447,7 +447,7 @@ var PAGES = [
       html += '<div style="display:flex;gap:6px;justify-content:center;margin-top:8px;flex-wrap:wrap">' + p.buttons.map(function (b) { return '<button class="gt-bbtn" data-b="' + esc(b) + '">' + esc(b) + '</button>'; }).join('') + '</div>';
     }
     html += '<div style="font-size:12px;color:var(--kimi-color-text-tertiary);text-align:center;margin:8px 0 10px">Highlighted cells = active values · 0 = ignored · tap a column header or row number</div>';
-    listEl.innerHTML = html;
+    return html;
   }
 
   function renderDetail() {
