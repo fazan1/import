@@ -6,8 +6,8 @@ Live site: import-psi.vercel.app, deployed from GitHub repo fazan1/import.
 Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not descriptions.
 
 ## How to build and deliver (always do this)
-1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V173)
+1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html, glove-guides.json). Also copy source/api/assistant.cjs to /api/assistant.js at the repo root (Vercel function).
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V174)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -166,6 +166,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v171 Pattern Settings page tabs show the page NAMES (Glove pattern, Density table, ...) instead of 1-12; tapping a name opens that page with its table.
   v172 Pattern Settings table pages (Density, Sub yarn, Knot, Blow, Head location): the table is shown first and the page's settings list (value / usage / when to change) is listed UNDER it, tappable like the other pages (renderTablePage returns html; renderList appends the D rows).
   v173 Pattern Settings: pages 7-12 removed (duplicates of Mechanical Settings / Other Parameters); 6 pages remain: Glove pattern + 5 tables.
+  v174 FACTORY -> FACTORY ASSISTANT (FactoryAssistant.tsx, view/module factory-assistant): AI chat, FACTORY ONLY (owner: "only for factory problem"). Page gathers factory_problems + factory_steps (under the user's own login) + public/glove-guides.json (155 settings + 5 tables, extracted from the 3 guide HTML files with a node one-liner — regenerate when the guides change) and POSTs question + up to 4 photos (canvas-compressed 1280px JPEG) + that JSON context + last 8 messages to /api/assistant. Vercel serverless function source: source/api/assistant.cjs (CommonJS) -> DEPLOY STEP copies it to /api/assistant.js at the repo root (root has no package.json so .js = CJS). It checks the Supabase access token (GET /auth/v1/user with the anon key from header x-supabase-key), calls Anthropic Messages API model ASSISTANT_MODEL||claude-sonnet-5-5, max_tokens 1500, returns {text}. Needs Vercel env ANTHROPIC_API_KEY (503 NO_KEY with a plain message until set). Chat history in localStorage factory-assistant-chat. Test harness: /tmp/claude-0/pgtest/apistub.cjs (runs the real function with Supabase+Anthropic stubbed on :4174) + assistant.cjs.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
