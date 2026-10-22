@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html, glove-guides.json). Also copy source/api/assistant.cjs to /api/assistant.js at the repo root (Vercel function).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V181)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V182)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -174,6 +174,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v179 Assistant (owner: "talks nonsense, not short, not from my database"): system prompt = RULE 1 answer only from the data, every setting named exactly as in the guides with (now X); RULE 2 max 10 lines in a fixed shape FAULT / DO FIRST / THEN / BEFORE / LOG AS, no intro/outro/markdown; greeting = one line. Page sends ALL guides again (filtering off via `|| true` in pickGuides; cached by the service).
   v180 Assistant (owner: "more precise, mechanical parameters for elastic start missing, shorter"): RULE 2 = locate the stage (start/wrist/elastic feed/finger change/cut-off/overlock/end) and pick settings about that stage; tech-kind Mechanical Settings about the stage are REQUIRED as a CHECK line with values (with technician); max 6 lines: FAULT / CHECK / DO FIRST / THEN / BEFORE / LOG AS.
   v181 Assistant (owner: "simply say go to pattern setting and increase the size, why so much stress"): default = 3 lines FAULT / DO (one best action: Menu → page → setting (now X) → set Y + 8-word reason) / BEFORE; his logged experience beats the guide (no contradiction remarks); up to 8 lines only when he asks why/more; tech settings only for that exact stage as CHECK.
+  v182 Assistant (owner: "when I say end it says start"): his stage words (start/end/after/finish/wrist/finger/cut...) pick the DO setting by NAME match (end → Ending position for releasing elastic yarn 240, then final release value 25, release speed 80); logged fixes stay in BEFORE only even if a different setting; DO must give a concrete number (step 1 density/laps, 2-5 positions, 10 speeds).
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
