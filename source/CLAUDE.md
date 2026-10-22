@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js at the repo root (Vercel function for the guide pages' ask box).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V185)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V186)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -194,3 +194,4 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   DB trigger zzzz_costing_calc computes unit_price_lkr, duty_per_unit(=charge), landed, profit, totals. Old duty basis/rate,
   estimate duty and lump-sum box removed. shipment_charges (per bill) is still written as item sums for CN Reports.
   sql/item-charges-costing.sql. Summary in CostingDutyPrint summarizeCosting() is shared by screen, Excel and print.
+  v186 DENSITY DIRECTION FIXED in the guides (owner: "density is the length of the glove, the answer was wrong"): on this machine density = stitch length, HIGHER number = LONGER stitch = longer/looser zone, LOWER = tighter/shorter (his values prove it: middle finger 54 longest, little 42 shortest, start rows 7/10 tightest). Every density entry in pattern/other-parameters guides rewritten (too HIGH = long/loose, too LOW = tight/short; rear 10 is 3 steps LOOSER than front 7). Ask box now also sends the page TABLE as rows ("1 | 1 | 2 | 7 | ...") + tab name; api/assistant.cjs prompt: table + settings are ONE thing, fixed density fact, general glove-machine knowledge allowed when the guide is silent (marked "(general knowledge)").

@@ -253,7 +253,7 @@ body { max-width: 960px; margin: 0 auto; padding: 24px 16px; box-sizing: border-
   <div class="ak-title">Ask about this setting</div>
   <div class="ak-msgs" id="akMsgs"></div>
   <div class="ak-row"><input class="ak-in" id="akIn" placeholder="e.g. what happens if I set it to 255? / why does it break at the end?"><button class="ak-btn" id="akBtn">Ask</button></div>
-  <div class="ak-hint" id="akHint">Answers use only this setting and the others on this page. Questions and answers are saved under this setting.</div>
+  <div class="ak-hint" id="akHint">Answers use this setting, the table of this page and the other settings together, plus general glove-machine knowledge where the guide is silent. Questions and answers are saved under this setting.</div>
 </div>
 <script>
 (function(){
@@ -279,6 +279,8 @@ body { max-width: 960px; margin: 0 auto; padding: 24px 16px; box-sizing: border-
     }).catch(function(){});
   }
   function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function pageName(){var t=document.querySelector('#gmTabs .gm-on'); return (t?t.textContent.trim():'').slice(0,300);}
+  function tableText(){var out=[]; list.querySelectorAll('table').forEach(function(tb){var rows=[]; tb.querySelectorAll('tr').forEach(function(tr){var cells=[]; tr.querySelectorAll('th,td').forEach(function(c){cells.push(c.textContent.trim().replace(/\s+/g,' '));}); if(cells.join('').trim()) rows.push(cells.join(' | '));}); if(rows.length) out.push(rows.join('\n'));}); return out.join('\n\n').slice(0,20000);}
   function titleOf(){var t=det.querySelector('.gm-d-title'); return t?t.textContent.trim():'';}
   function sync(){
     var key=titleOf();
@@ -292,12 +294,12 @@ body { max-width: 960px; margin: 0 auto; padding: 24px 16px; box-sizing: border-
   function anon(){try{return (JSON.parse(localStorage.getItem('crm-sb-config')||'{}').key)||'';}catch(e){return '';}}
   async function ask(){
     var q=inEl.value.trim(); if(!q||busy) return;
-    var setting=det.innerText.trim().slice(0,20000); var page=(list.innerText||'').replace(/\n{2,}/g,'\n').trim().slice(0,60000);
+    var setting=det.innerText.trim().slice(0,20000); var page=(list.innerText||'').replace(/\n{2,}/g,'\n').trim().slice(0,60000); var table=tableText();
     add('user',q); inEl.value=''; busy=true; btn.disabled=true; btn.textContent='…';
     try{
       var tk=token(); if(!tk) throw new Error('Sign in to the CRM first (open this page from the CRM menu).');
       var ctrl=new AbortController(); var tm=setTimeout(function(){ctrl.abort();},65000);
-      var res=await fetch('/api/assistant',{method:'POST',signal:ctrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk,'x-supabase-key':anon()},body:JSON.stringify({setting:setting,page:page,question:q,messages:history.slice(-6)})});
+      var res=await fetch('/api/assistant',{method:'POST',signal:ctrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk,'x-supabase-key':anon()},body:JSON.stringify({setting:setting,page:page,table:table,pageName:pageName(),question:q,messages:history.slice(-6)})});
       clearTimeout(tm);
       var raw=await res.text(); var data={}; try{data=JSON.parse(raw);}catch(e){throw new Error(res.status===404?'The assistant service is not deployed on this site yet.':'Unexpected answer: '+raw.slice(0,100));}
       if(!res.ok) throw new Error(data.message||data.error||('Service answered '+res.status));
