@@ -74,7 +74,8 @@ export default function FactoryAssistant() {
     const tables = (guides?.tables || []) as Record<string, unknown>[];
     const qw = new Set(words(question + ' ' + msgs.filter((m) => m.role === 'user').slice(-2).map((m) => m.text).join(' ')));
     if (!items.length) return { json: '', mode: 'no guides' };
-    if (hasPhoto || !qw.size) return { json: JSON.stringify({ settings: items, tables }), mode: 'all pages' };
+    // owner: answers must come from HIS data -> always send the whole guide book (the AI service caches it, so repeats are cheap)
+    if (hasPhoto || !qw.size || true) return { json: JSON.stringify({ settings: items, tables }), mode: 'all ' + items.length + ' settings + tables' };
     const score = (it: Record<string, unknown>) => { const t = words(JSON.stringify([it.name, it.page, it.what, it.high, it.low]).slice(0, 4000)); let n = 0; const seen = new Set<string>(); t.forEach((w) => { if (qw.has(w) && !seen.has(w)) { seen.add(w); n += (String(it.name).toLowerCase().includes(w) || String(it.page).toLowerCase().includes(w)) ? 3 : 1; } }); return n; };
     const scored = items.map((it) => ({ it, s: score(it) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
     if (scored.length < 3) return { json: JSON.stringify({ settings: items, tables }), mode: 'all pages' };
