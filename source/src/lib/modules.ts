@@ -46,7 +46,6 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'factory-pattern', label: 'Pattern Settings (glove machine guide)' },
     { id: 'factory-mechanical', label: 'Mechanical Settings (glove machine guide)' },
     { id: 'factory-other', label: 'Other Parameters (glove machine guide)' },
-    { id: 'factory-assistant', label: 'Factory Assistant (AI, uses Factory Problems + guides)' },
     { id: 'recycle-bin', label: 'Recycle Bin' },
   ]},
 ];
@@ -65,5 +64,5 @@ export const PRESETS: { label: string; modules: string[] }[] = [
   { label: 'Import (CN Portal)', modules: ['cn-dashboard', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'shipping', 'shipment-history', 'pl-input', 'packing-list', 'costing-duty', 'product-reference', 'suppliers', 'items'] },
   { label: 'BLINE Shop (CN, own books)', modules: SHOP_MODULES },
   { label: 'Warehouse only', modules: ['warehouse'] },
-  { label: 'Factory only', modules: ['factory-problems', 'factory-my-data', 'factory-pattern', 'factory-mechanical', 'factory-other', 'factory-assistant'] },
+  { label: 'Factory only', modules: ['factory-problems', 'factory-my-data', 'factory-pattern', 'factory-mechanical', 'factory-other'] },
 ];
