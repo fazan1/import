@@ -36,6 +36,7 @@ export default function FactoryAssistant() {
   const [steps, setSteps] = useState<Step[]>([]);
   const [guides, setGuides] = useState<{ items: unknown[]; tables: unknown[] } | null>(null);
   const [loadNote, setLoadNote] = useState('Loading your factory data…');
+  const [sentNote, setSentNote] = useState('');
   const endRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -55,7 +56,25 @@ export default function FactoryAssistant() {
 
   useEffect(() => { try { localStorage.setItem(STORE, JSON.stringify(msgs.slice(-40))); } catch { /* ignore */ } endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
-  function buildContext(): string {
+  // guides: send only the settings that match the question (names, pages, fault words); with a photo, or when nothing
+  // matches, send the whole guide (it is cached by the AI service, so repeats within minutes cost little)
+  const STOP = new Set(['the','a','an','and','or','of','to','in','on','at','is','it','my','me','what','why','how','do','does','can','should','i','we','this','that','for','with','when','not','be','are','was','there','from','machine','glove','gloves','problem','please','now','have','has','which','setting','settings','value','values']);
+  const words = (t: string) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
+  function pickGuides(question: string, hasPhoto: boolean): { json: string; mode: string } {
+    const items = (guides?.items || []) as Record<string, unknown>[];
+    const tables = (guides?.tables || []) as Record<string, unknown>[];
+    const qw = new Set(words(question + ' ' + msgs.filter((m) => m.role === 'user').slice(-2).map((m) => m.text).join(' ')));
+    if (!items.length) return { json: '', mode: 'no guides' };
+    if (hasPhoto || !qw.size) return { json: JSON.stringify({ settings: items, tables }), mode: 'all pages' };
+    const score = (it: Record<string, unknown>) => { const t = words(JSON.stringify([it.name, it.page, it.what, it.high, it.low]).slice(0, 4000)); let n = 0; const seen = new Set<string>(); t.forEach((w) => { if (qw.has(w) && !seen.has(w)) { seen.add(w); n += (String(it.name).toLowerCase().includes(w) || String(it.page).toLowerCase().includes(w)) ? 3 : 1; } }); return n; };
+    const scored = items.map((it) => ({ it, s: score(it) })).filter((x) => x.s > 0).sort((a, b) => b.s - a.s);
+    if (scored.length < 3) return { json: JSON.stringify({ settings: items, tables }), mode: 'all pages' };
+    const keep = scored.slice(0, 45).map((x) => x.it);
+    const pages = new Set(keep.map((x) => String(x.guide) + '|' + String(x.page)));
+    const tbl = tables.filter((t) => [...qw].some((w) => String(t.table).toLowerCase().includes(w)));
+    return { json: JSON.stringify({ settings: keep, tables: tbl }), mode: `${keep.length} matching settings from ${pages.size} pages` };
+  }
+  function buildProblems(): string {
     const byProblem = new Map<string, Step[]>();
     steps.forEach((s) => { (byProblem.get(s.problem_id) || byProblem.set(s.problem_id, []).get(s.problem_id)!).push(s); });
     const probs = problems.slice(0, 120).map((p) => ({
@@ -63,7 +82,7 @@ export default function FactoryAssistant() {
       solution: p.final_solution, result: p.result_notes, tags: p.tags,
       steps: (byProblem.get(p.id) || []).map((s) => `${s.step_no}. ${s.description}${s.outcome ? ` [${s.outcome}]` : ''}`),
     }));
-    return JSON.stringify({ today: new Date().toISOString().slice(0, 10), logged_problems: probs, machine_setting_guides: guides?.items || [], programmable_tables: guides?.tables || [] });
+    return JSON.stringify({ today: new Date().toISOString().slice(0, 10), logged_problems: probs });
   }
 
   async function addFiles(files: FileList | null) {
@@ -79,7 +98,8 @@ export default function FactoryAssistant() {
     if ((!question && !imgs.length) || busy) return;
     const mine: Msg = { role: 'user', text: question || '(photo)', images: imgs.map((i) => i.preview), at: new Date().toISOString() };
     const history = msgs.filter((m) => !m.error).slice(-8).map((m) => ({ role: m.role, text: m.text }));
-    setMsgs((m) => [...m, mine]); setQ(''); const sendImgs = imgs; setImgs([]); setBusy(true);
+    const picked = pickGuides(question, imgs.length > 0);
+    setMsgs((m) => [...m, mine]); setQ(''); const sendImgs = imgs; setImgs([]); setBusy(true); setSentNote('Sending ' + picked.mode + ' of the guides');
     try {
       const { data: sess } = await supabase.auth.getSession();
       const token = sess.session?.access_token;
@@ -88,7 +108,7 @@ export default function FactoryAssistant() {
       let res: Response;
       try {
         res = await fetch('/api/assistant', { method: 'POST', signal: ctrl.signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, 'x-supabase-key': supabaseAnonKey || '' },
-          body: JSON.stringify({ question, images: sendImgs.map((i) => ({ type: i.type, data: i.data })), messages: history, context: buildContext() }) });
+          body: JSON.stringify({ question, images: sendImgs.map((i) => ({ type: i.type, data: i.data })), messages: history, guides: picked.json, problems: buildProblems() }) });
       } finally { clearTimeout(timer); }
       const raw = await res.text();
       let data: { text?: string; message?: string; error?: string } = {};
@@ -107,7 +127,7 @@ export default function FactoryAssistant() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2"><Bot className="w-6 h-6" />Factory Assistant</h1>
           <p className="text-sm text-gray-500 mt-0.5">Ask about a glove fault or a machine screen. Attach photos. Answers use your logged Factory Problems and the machine guides.</p>
-          <p className="text-[11px] font-mono text-gray-400 mt-1">{loadNote}</p>
+          <p className="text-[11px] font-mono text-gray-400 mt-1">{loadNote}{sentNote ? ` · ${sentNote}` : ''}</p>
         </div>
         {msgs.length > 0 && <button onClick={() => { if (confirm('Clear this chat?')) setMsgs([]); }} className="text-xs text-gray-500 hover:text-red-600 flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" />Clear chat</button>}
       </div>

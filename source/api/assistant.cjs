@@ -47,7 +47,9 @@ module.exports = async (req, res) => {
   const anonKey = req.headers['x-supabase-key'] || body.anonKey || process.env.SUPABASE_ANON_KEY;
   if (!(await userIsMember(token, anonKey))) return send(res, 401, { error: 'Not signed in', message: 'Sign in to the CRM again and retry.' });
 
-  const context = String(body.context || '').slice(0, MAX_CONTEXT_CHARS);
+  // data comes in two parts: the guides (large, stable -> cached by the AI service when big) and the owner's problems (small)
+  const guides = String(body.guides || '').slice(0, MAX_CONTEXT_CHARS);
+  const problems = String(body.problems || body.context || '').slice(0, 60000);
   const history = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
   const question = String(body.question || '').slice(0, 8000);
   const images = (Array.isArray(body.images) ? body.images : []).slice(0, MAX_IMAGES)
@@ -69,7 +71,12 @@ module.exports = async (req, res) => {
 
   const content = [];
   images.forEach((im) => content.push({ type: 'image', source: { type: 'base64', media_type: im.type, data: im.data } }));
-  content.push({ type: 'text', text: (context ? 'FACTORY DATA (JSON):\n' + context + '\n\n' : '') + 'QUESTION:\n' + (question || 'What do you see in the photo and what should I do?') });
+  if (guides) {
+    const block = { type: 'text', text: 'MACHINE SETTING GUIDES (JSON, the owner\'s own guide menus):\n' + guides };
+    if (guides.length > 12000) block.cache_control = { type: 'ephemeral' };   // same guide text within 5 min = 90% cheaper
+    content.push(block);
+  }
+  content.push({ type: 'text', text: (problems ? 'LOGGED PROBLEMS (JSON):\n' + problems + '\n\n' : '') + 'QUESTION:\n' + (question || 'What do you see in the photo and what should I do?') });
 
   const messages = [];
   history.forEach((m) => { if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim()) messages.push({ role: m.role, content: m.text.slice(0, 6000) }); });
@@ -86,7 +93,8 @@ module.exports = async (req, res) => {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return send(res, 502, { error: 'AI_ERROR', message: (data && data.error && data.error.message) || ('AI service answered ' + r.status) });
     const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
-    return send(res, 200, { text, model: data.model, usage: data.usage });
+    const u = data.usage || {};
+    return send(res, 200, { text, model: data.model, usage: { input: u.input_tokens, output: u.output_tokens, cache_read: u.cache_read_input_tokens, cache_write: u.cache_creation_input_tokens } });
   } catch (e) {
     return send(res, 504, { error: 'TIMEOUT', message: e && e.name === 'AbortError' ? 'The AI took too long. Try again with a smaller photo.' : String(e && e.message || e) });
   } finally { clearTimeout(timer); }
