@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V172)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V173)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -165,6 +165,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v170 Factory menu: PATTERN SETTINGS = owner's new 12-page "complete app" (public/glove-pattern-settings.html: glove drawing with zones, 5 programmable tables, 3 mechanical + 3 pattern pages); the previous 3-page pattern guide moved to a LAST menu OTHER PARAMETERS (public/glove-other-parameters.html, FactoryOtherParameters.tsx, view/module factory-other). Mechanical Settings unchanged.
   v171 Pattern Settings page tabs show the page NAMES (Glove pattern, Density table, ...) instead of 1-12; tapping a name opens that page with its table.
   v172 Pattern Settings table pages (Density, Sub yarn, Knot, Blow, Head location): the table is shown first and the page's settings list (value / usage / when to change) is listed UNDER it, tappable like the other pages (renderTablePage returns html; renderList appends the D rows).
+  v173 Pattern Settings: pages 7-12 removed (duplicates of Mechanical Settings / Other Parameters); 6 pages remain: Glove pattern + 5 tables.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
