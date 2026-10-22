@@ -88,12 +88,16 @@ module.exports = async (req, res) => {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1500, system, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 4000, system, messages }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return send(res, 502, { error: 'AI_ERROR', message: (data && data.error && data.error.message) || ('AI service answered ' + r.status) });
     const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
     const u = data.usage || {};
+    if (!text) {
+      const types = (data.content || []).map((c) => c.type).join(',') || 'none';
+      return send(res, 502, { error: 'EMPTY', message: 'The AI returned no text (stop reason: ' + (data.stop_reason || '?') + ', content: ' + types + '). Try asking again, or shorter.', usage: u });
+    }
     return send(res, 200, { text, model: data.model, usage: { input: u.input_tokens, output: u.output_tokens, cache_read: u.cache_read_input_tokens, cache_write: u.cache_creation_input_tokens } });
   } catch (e) {
     return send(res, 504, { error: 'TIMEOUT', message: e && e.name === 'AbortError' ? 'The AI took too long. Try again with a smaller photo.' : String(e && e.message || e) });

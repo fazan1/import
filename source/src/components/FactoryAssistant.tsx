@@ -15,6 +15,15 @@ interface Step { problem_id: string; step_no: number; description: string; outco
 
 const STORE = 'factory-assistant-chat';
 
+// minimal markdown: **bold** and ### headings -> bold line; everything else stays as typed
+function renderMd(text: string) {
+  return text.split('\n').map((line, i) => {
+    const h = line.match(/^#{1,4}\s+(.*)$/);
+    const parts = (h ? h[1] : line).split(/(\*\*[^*]+\*\*)/g).map((p, k) => p.startsWith('**') && p.endsWith('**') ? <strong key={k}>{p.slice(2, -2)}</strong> : <span key={k}>{p}</span>);
+    return <div key={i} className={h ? 'font-semibold mt-2' : ''}>{parts.length ? parts : '\u00a0'}</div>;
+  });
+}
+
 async function compress(file: File): Promise<{ type: string; data: string; preview: string }> {
   const url = URL.createObjectURL(file);
   try {
@@ -149,7 +158,7 @@ export default function FactoryAssistant() {
             <div className={`max-w-[88%] rounded-xl px-3.5 py-2.5 text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-[#111] text-white' : m.error ? 'bg-amber-50 border border-amber-200 text-amber-900' : 'bg-[#f4f3f1] text-gray-900'}`}>
               {m.error && <AlertTriangle className="w-4 h-4 inline mr-1 -mt-0.5" />}
               {m.images && m.images.length > 0 && <div className="flex gap-2 mb-2 flex-wrap">{m.images.map((src, k) => <img key={k} src={src} alt="" className="h-24 rounded-md object-cover border border-white/20" />)}</div>}
-              {m.text}
+              {m.role === 'assistant' && !m.error ? renderMd(m.text) : m.text}
             </div>
           </div>
         ))}

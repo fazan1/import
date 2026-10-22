@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html, glove-guides.json). Also copy source/api/assistant.cjs to /api/assistant.js at the repo root (Vercel function).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V177)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V178)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -170,6 +170,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v175 Assistant system prompt (owner: "check with parameters and pattern setting and say you can do this and that"): answer format = fault line, YOU CAN DO numbered steps each naming Menu → page → setting: now X → try Y (guide reason), WHY, YOU HAD THIS BEFORE (from logged problems); tech-kind settings only as "ask the technician"; screen photos listed as screen X vs guide Y.
   v176 Assistant cost: page sends guides + problems as two parts; pickGuides() keyword-matches the question (+ last 2 user turns) against setting name/page/what/high/low and sends the top 45 matches (+ matching tables) — ~33 KB instead of 108 KB; with a photo or <3 matches it sends all. Function puts the guides in their own content block with cache_control ephemeral when >12 KB (repeat within 5 min = 90% cheaper) and returns usage {input, output, cache_read, cache_write}. Header line shows 'Sending N matching settings from P pages'.
   v177 Assistant: the live API refused `temperature` for claude-sonnet-5-5 (deprecated) -> removed from the request.
+  v178 Assistant: real question returned no text -> function now answers 502 EMPTY with stop_reason + content types (diagnosis), max_tokens 4000; page renders **bold** / # headings (renderMd).
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
