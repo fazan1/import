@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical settings — 10-gauge glove knitting machine</title>
+<style>
+:root {
+  --kimi-color-text-primary: #1a1a1a;
+  --kimi-color-text-secondary: #4d4d4d;
+  --kimi-color-text-tertiary: #8c8c8c;
+  --kimi-color-text-quaternary: #bfbfbf;
+  --kimi-color-surface: #ffffff;
+  --kimi-color-surface-muted: #f5f5f5;
+  --kimi-color-surface-raised: #ffffff;
+  --kimi-color-surface-strong: #ececec;
+  --kimi-color-border: #e0e0e0;
+  --kimi-color-danger: #d4380d;
+  --kimi-color-positive: #389e0d;
+  --kimi-color-warning: #d48806;
+  --kimi-color-accent: #e8552a;
+  --kimi-chart-1: #e8552a;
+  --kimi-chart-2: #d4380d;
+  --kimi-chart-3: #389e0d;
+  --kimi-chart-4: #722ed1;
+  --kimi-chart-5: #8c8c8c;
+  --t-fast: 120ms;
+  --t-normal: 200ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --kimi-color-text-primary: #e8e8e8;
+    --kimi-color-text-secondary: #b3b3b3;
+    --kimi-color-text-tertiary: #7a7a7a;
+    --kimi-color-text-quaternary: #4d4d4d;
+    --kimi-color-surface: #161616;
+    --kimi-color-surface-muted: #1f1f1f;
+    --kimi-color-surface-raised: #242424;
+    --kimi-color-surface-strong: #2e2e2e;
+    --kimi-color-border: #333333;
+    --kimi-color-danger: #ff4d2e;
+    --kimi-color-positive: #58c224;
+    --kimi-color-warning: #e6a23c;
+    --kimi-color-accent: #e8552a;
+  }
+}
+html, body { margin: 0; padding: 0; background: var(--kimi-color-surface); }
+body { max-width: 960px; margin: 0 auto; padding: 24px 16px; box-sizing: border-box; }
+</style>
+<style>
+  .gm-root { font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; color: var(--kimi-color-text-primary); }
+  .gm-root button { font: inherit; }
+  .gm-head { margin-bottom: 12px; }
+  .gm-title { font-size: 20px; font-weight: 500; letter-spacing: 0; }
+  .gm-sub { font-size: 12px; color: var(--kimi-color-text-tertiary); margin-top: 2px; }
+  .gm-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+  .gm-tab { font-size: 14px; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--kimi-color-border); background: transparent; color: var(--kimi-color-text-secondary); cursor: pointer; transition: all var(--t-fast) var(--ease-out); }
+  .gm-tab:hover { border-color: var(--kimi-color-text-secondary); }
+  .gm-tab.gm-on { background: var(--kimi-color-text-primary); color: var(--kimi-color-surface); border-color: var(--kimi-color-text-primary); }
+  .gm-list { border: 1px solid var(--kimi-color-border); border-radius: 12px; overflow: hidden; }
+  .gm-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 14px; background: transparent; border: none; border-bottom: 1px solid var(--kimi-color-border); cursor: pointer; transition: background var(--t-fast) var(--ease-out); }
+  .gm-row:last-child { border-bottom: none; }
+  .gm-row:hover { background: var(--kimi-color-surface-muted); }
+  .gm-row.gm-on { background: var(--kimi-color-surface-muted); box-shadow: inset 2px 0 0 var(--kimi-color-text-primary); }
+  .gm-name { flex: 1; font-size: 14px; min-width: 0; }
+  .gm-kind { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--kimi-color-surface-strong); color: var(--kimi-color-text-tertiary); flex: 0 0 auto; }
+  .gm-val { font-size: 14px; font-weight: 500; min-width: 88px; text-align: right; font-variant-numeric: tabular-nums; }
+  .gm-detail { margin-top: 12px; border: 1px solid var(--kimi-color-border); border-radius: 12px; padding: 16px; animation: gmin var(--t-normal) var(--ease-out); }
+  @keyframes gmin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .gm-d-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .gm-d-title { font-size: 17px; font-weight: 500; }
+  .gm-chip { font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 6px; background: var(--kimi-color-surface-strong); font-variant-numeric: tabular-nums; }
+  .gm-what { font-size: 14px; color: var(--kimi-color-text-secondary); line-height: 22px; margin-bottom: 12px; max-width: 76ch; }
+  .gm-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 640px) { .gm-cols { grid-template-columns: 1fr; } }
+  .gm-col { border: 1px solid var(--kimi-color-border); border-radius: 10px; padding: 12px; }
+  .gm-col-a { border-color: color-mix(in srgb, var(--kimi-color-danger) 40%, transparent); }
+  .gm-col-b { border-color: color-mix(in srgb, var(--kimi-color-accent) 40%, transparent); }
+  .gm-col-title { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+  .gm-col-a .gm-col-title { color: var(--kimi-color-danger); }
+  .gm-col-b .gm-col-title { color: var(--kimi-color-accent); }
+  .gm-col ul { margin: 0 0 10px; padding-left: 16px; font-size: 13px; color: var(--kimi-color-text-secondary); line-height: 20px; }
+  .gm-act { font-size: 13px; line-height: 20px; border-top: 1px solid var(--kimi-color-border); padding-top: 8px; }
+  .gm-act b { font-weight: 500; }
+  .gm-foot { margin-top: 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .gm-note { font-size: 12px; color: var(--kimi-color-text-tertiary); }
+</style>
+</head>
+<body>
+<div class="gm-root">
+  <div class="gm-head">
+    <div class="gm-title">Mechanical settings — 10-gauge glove knitting machine</div>
+    <div class="gm-sub">Tap any setting to see what it means and when to raise or lower it</div>
+  </div>
+  <div class="gm-tabs" id="gmTabs"></div>
+  <div class="gm-list" id="gmList"></div>
+  <div class="gm-detail" id="gmDetail"></div>
+  <div class="gm-foot">
+    <span class="gm-note">Values shown are the machine's current settings. Ranges given are typical guidance for this machine type — always confirm critical limits with the machine manual.</span>
+  </div>
+</div>
+
+<script>
+(function () {
+  var UP = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+  var DN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
+
+  var D = [
+  {p:1,n:'Slots number',v:'52',k:'tech',unit:'slots',what:'Number of active knitting slots the control maps for this pattern. It defines how the carriage addresses the needle bed for this glove model.',a:{t:'When this value is wrong',items:['Set lower than actual — pattern squeezed, fingers and palm misaligned','Set higher than actual — empty slots snag yarn, drop stitches, constant alarms']},aDo:'Do not tune by trial. Copy this value from the pattern card / spec sheet for this glove model and machine gauge.'},
+  {p:1,n:'Angle at which the hook blade hooks down',v:'185',k:'tech',unit:'deg',what:'Cam angle where the overlock hook blade swings down to catch the yarn. Part of the hook trajectory calibration.',a:{t:'When this value is wrong',items:['Hook misses the yarn — overlock seam does not start','Hook hits the blade or needle — damaged hooks, broken needles','Yarn chewed or frayed at the wrist edge']},aDo:'Technician calibration only. Restore the recorded value after any hook, blade or cam service — never adjust to chase a quality symptom.'},
+  {p:1,n:'Angle at which the scissors cut the yarn',v:'90',k:'tech',unit:'deg',what:'Cam angle at which the scissors close to cut the yarn. Timing must match yarn position exactly.',a:{t:'When this value is wrong',items:['Yarn not cut — tails drag into the next course','Yarn cut too early — frayed ends, uncaptured tail']},aDo:'Technician set. Check blade sharpness and clearance first — a dull blade mimics a timing fault.'},
+  {p:1,n:'Distance run by the fork motor circle',v:'32',k:'tech',unit:'distance',what:'Travel distance of the yarn-fork servo during its working cycle — how far the fork moves to present the yarn.',a:{t:'When this value is wrong',items:['Fork stops short — yarn not presented, feeding misses','Fork travels too far — yarn pulled off the feeder or stretched']},aDo:'Restore from machine records after fork motor or linkage service.'},
+  {p:1,n:'Distance run by the scissors motor circle',v:'32',k:'tech',unit:'distance',what:'Travel distance of the scissors servo during its working cycle.',a:{t:'When this value is wrong',items:['Scissors do not fully close — incomplete cut','Over-travel — mechanical shock, blade damage']},aDo:'Restore from machine records after scissors motor or linkage service.'},
+  {p:1,n:'Starting position for releasing elastic yarn',v:'262',k:'tech',unit:'position',what:'Servo position where elastic release begins. Together with the ending position it defines how much elastic is fed.',a:{t:'When this value is wrong',items:['Release starts too early or too late — wrist elastic uneven around the cuff','Together with a wrong end position: elastic too long (loose cuff) or too short (tight cuff)']},aDo:'Change only together with the ending position as a pair, and verify by measuring the elastic length in the wrist.'},
+  {p:1,n:'Ending position for releasing elastic yarn',v:'240',k:'tech',unit:'position',what:'Servo position where elastic release ends. The fed elastic length = start (262) minus end (240).',a:{t:'When this value is wrong',items:['Gap too big — too much elastic, loose wavy cuff','Gap too small — elastic overstretched, tight wrist, snapping elastic']},aDo:'Adjust in small steps with the starting position; test one glove and check wrist stretch before resuming production.'},
+  {p:1,n:'Fork alarm deviation',v:'5',k:'num',unit:'deviation',what:'How far the yarn fork is allowed to drift from its target position before the machine alarms and stops.',a:{t:'Value too HIGH',items:['Real feeding faults pass unnoticed — missed yarn runs many courses','Gradual mechanical wear silently degrades quality']},aDo:'Decrease to 3–4 if feeding faults are being missed or quality drifts between checks.',b:{t:'Value too LOW',items:['Vibration and normal play trip false alarms','Machine stops repeatedly for no real fault — lost production']},bDo:'Increase to 6–8 if false fork alarms dominate; clean and tighten the fork mechanism first.'},
+  {p:1,n:'Depth of front press needle',v:'18',k:'num',unit:'depth',what:'How deep the front presser pushes needles into the work during formation and transfer.',a:{t:'Value too HIGH',items:['Needles bent or hooks damaged','Fabric marks, presser lines on the palm']},aDo:'Decrease toward 15–16 if needles bend or the palm shows press marks; check presser alignment first.',b:{t:'Value too LOW',items:['Skipped stitches and floats — needles not properly pressed','Loops and ladders in the fabric']},bDo:'Increase toward 18–20 if stitches skip with a healthy presser; verify with a slow first run.'},
+  {p:1,n:'Depth of rear press needle',v:'18',k:'num',unit:'depth',what:'Same press depth setting for the rear bed, used at the palm and half-needle sections.',a:{t:'Value too HIGH',items:['Bent rear needles — holes appear exactly at the palm taper','Density marks on the back of the glove']},aDo:'Decrease slightly if rear needles bend or marks show; rear bed is less visible — inspect deliberately.',b:{t:'Value too LOW',items:['Rear bed drops stitches — ladders at the small palm','Half-needle sections do not form cleanly']},bDo:'Increase toward 18–20 if ladders appear at the taper with good needles.'},
+  {p:1,n:'Oiling interval',v:'150',k:'num',unit:'min',what:'Minutes between automatic lubrication cycles. The machine oils itself on this timer during production.',a:{t:'Value too HIGH (long interval)',items:['Dry needle hooks and cams — noise, heat, premature wear','More needle breakage in long continuous runs']},aDo:'Decrease toward 90–120 minutes in dusty, hot conditions or with long uninterrupted runs.',b:{t:'Value too LOW (short interval)',items:['Excess oil consumption, oil mist on yarn and floor','Oil stains on light-coloured gloves']},bDo:'Increase toward 150–180 if oil consumption is high and the environment is clean and cool.'},
+  {p:1,n:'Oiling time',v:'4',k:'num',unit:'s',what:'How many seconds the oil pump runs at each automatic oiling.',a:{t:'Value too HIGH',items:['Oil drips and pools — first gloves after oiling show stains','Wasted oil, slippery floor around the machine']},aDo:'Decrease to 3 s if staining appears; check that oil lines are not blocked causing over-feed at the pump.',b:{t:'Value too LOW',items:['Oil does not reach far ends of the needle bed — dry spots','Squeaking or rising noise a few hours after oiling']},bDo:'Increase to 4–5 s if dry spots or noise return quickly; verify oil level and line flow first.'},
+  {p:1,n:'Screen off time',v:'1',k:'num',unit:'min',what:'Minutes of no touch before the operator screen dims or sleeps. Display convenience only — does not affect knitting.',a:{t:'Value too HIGH',items:['Screen stays on — panel wears faster, distractions at night']},aDo:'Decrease to 1–3 min for panel life; any tap wakes it instantly.',b:{t:'Value too LOW',items:['Screen sleeps while the operator is watching production across the room']},bDo:'Increase to 3–5 min if the screen keeps dimming during normal monitoring.'},
+  {p:1,n:'Accumulated production',v:'46202',k:'tech',unit:'pieces',what:'Lifetime counter of gloves produced by this machine. Information only — used for maintenance scheduling and output tracking.',a:{t:'How to use it',items:['Plan needle, cam and belt replacements against this counter per the maintenance schedule','Sudden resets indicate a control battery or memory issue — record the value daily']},aDo:'Never edit. Log it at each shift for production records.'},
+  {p:1,n:'Front press needle unit speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the front presser unit — how fast the presser moves into and out of the needles.',a:{t:'Value too HIGH',items:['Presser overshoots — needle shock, bent needles','Mechanical impact noise, faster wear of the presser cam']},aDo:'Decrease toward 250 if you hear impact noise or see bent needles with correct depth.',b:{t:'Value too LOW',items:['Presser arrives late — stitches skip at high production speed','Cycle time creeps up']},bDo:'Increase toward 300–350 only if press timing lags at full speed.'},
+  {p:1,n:'Front density unit speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the front density cam — how fast stitch length changes are executed.',a:{t:'Value too HIGH',items:['Density steps arrive with a snap — visible gauge marks at transitions','Cam mechanism wear']},aDo:'Decrease toward 250 if marks appear at density change points.',b:{t:'Value too LOW',items:['Slow density response — the section ends before density settles','Wrist density does not reach target on short sections']},bDo:'Increase toward 300–350 if wrist density lags the pattern.'},
+  {p:1,n:'Rear press needle unit speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the rear presser unit — same role as the front presser on the back bed.',a:{t:'Value too HIGH',items:['Rear needle shock and bending — ladders at the palm taper follow']},aDo:'Decrease toward 250 if rear needles bend or impact noise comes from the back.',b:{t:'Value too LOW',items:['Rear press timing lags — skipped stitches at the half-needle sections']},bDo:'Increase toward 300–350 only after the rear presser mechanism is confirmed healthy.'},
+  {p:1,n:'Rear density unit speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the rear density cam, controlling back-bed stitch length changes.',a:{t:'Value too HIGH',items:['Gauge marks on the back of the glove at density transitions']},aDo:'Decrease toward 250 if back-face marks appear at the wrist or taper.',b:{t:'Value too LOW',items:['Rear density lags the pattern — uneven fabric tension, misshaped palm']},bDo:'Increase toward 300–350 if rear density does not settle within its section.'},
+  {p:1,n:'Fork motor speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the yarn fork — how fast the fork moves to present and withdraw the yarn.',a:{t:'Value too HIGH',items:['Fork overshoots — yarn thrown off or double-presented','Wear on the fork linkage']},aDo:'Decrease toward 250 if the fork overshoots or feeding becomes erratic at high speed.',b:{t:'Value too LOW',items:['Fork arrives late — yarn presented after the needles pass','Missed feeding at full production speed']},bDo:'Increase toward 300–350 if feeding misses only appear at maximum speed.'},
+  {p:1,n:'Scissors motor speed',v:'300',k:'num',unit:'speed',what:'Servo speed of the scissors unit — how fast the blades open and close.',a:{t:'Value too HIGH',items:['Cut happens with shock — yarn pushed away instead of cut, frayed ends','Blade edge chips over time']},aDo:'Decrease toward 250 if ends fray or the cut timing feels violent.',b:{t:'Value too LOW',items:['Blades close too slowly — yarn drags before cutting, tails stretched']},bDo:'Increase toward 300–350 if cuts are incomplete at high speed with sharp blades.'},
+  {p:2,n:'Main scissors speed',v:'200',k:'num',unit:'speed',what:'Running speed of the main scissors servo during the cut sequence at the wrist.',a:{t:'Value too HIGH',items:['Cut shock — yarn pulled before it is cut, frayed or stretched tails','Blade and linkage wear increases']},aDo:'Decrease toward 150–180 if ends fray or the mechanism bangs.',b:{t:'Value too LOW',items:['Cut sequence takes too long — wrist section becomes the bottleneck','Yarn can slip out of the blades before they close']},bDo:'Increase toward 200–250 once cuts are clean at current speed.'},
+  {p:2,n:'Sub scissors speed',v:'200',k:'num',unit:'speed',what:'Running speed of the sub scissors that cut the secondary (sub) yarn.',a:{t:'Value too HIGH',items:['Sub yarn cut shock — the fine sub yarn frays or slips out of position']},aDo:'Decrease toward 150–180 if the sub yarn end frays after cutting.',b:{t:'Value too LOW',items:['Sub yarn cut lags — it gets carried into the next course and tangles']},bDo:'Increase toward 200–250 if sub yarn tails appear where they should have been cut.'},
+  {p:2,n:'Cylinder speed (finger)',v:'400',k:'num',unit:'speed',what:'Rotation speed of the pattern cylinder (dial) while knitting the finger sections, where needle selection changes most often.',a:{t:'Value too HIGH',items:['Cylinder overshoots its target position — wrong needles selected','Finger sections knit with mixed selections — distorted fingers, alarms']},aDo:'Decrease toward 350 if finger sections show selection errors or cylinder position alarms.',b:{t:'Value too LOW',items:['Cylinder cannot complete its rotation within the finger section','Selection runs into the next section — pattern smears across finger roots']},bDo:'Increase toward 400–450 only if selection timing lags at high speed.'},
+  {p:2,n:'Cylinder speed (palm)',v:'300',k:'num',unit:'speed',what:'Rotation speed of the pattern cylinder while knitting the palm and wrist, where selection changes are less frequent.',a:{t:'Value too HIGH',items:['Unnecessary shock on the cylinder drive — wear without any speed benefit','Overshoot at the few palm selections that do change']},aDo:'Keep at or below 300; the palm does not need finger-section speed.',b:{t:'Value too LOW',items:['Palm selections lag — density and half-needle selections land one course late']},bDo:'Increase toward 300–350 if palm selections visibly lag the pattern.'},
+  {p:2,n:'Front rod sealing position',v:'10',k:'tech',unit:'position',what:'Stop position of the front sealing rod — where the rod rests to hold the work during the overlock seal.',a:{t:'When this value is wrong',items:['Seal forms away from the edge — skipped or floating overlock stitches','Rod presses into the needles — bent needles, marks on the wrist']},aDo:'Technician set after any rod, bearing or seal-head service. Do not adjust to chase seam quality — check rod wear and alignment first.'},
+  {p:2,n:'Rear rod sealing position',v:'4',k:'tech',unit:'position',what:'Stop position of the rear sealing rod, paired with the front rod during the seal.',a:{t:'When this value is wrong',items:['Rear support missing during seal — the wrist edge vibrates and the seam skips','Rear rod contacts needles — damage on the back of the wrist edge']},aDo:'Technician set together with the front rod. The pair must be calibrated as a set.'},
+  {p:2,n:'Fork homing distance',v:'3.5',k:'tech',unit:'distance',what:'Distance the fork servo travels toward its home sensor when finding the reference position at start-up.',a:{t:'When this value is wrong',items:['Fork cannot find home — machine refuses to start, homing alarms','Fork references against the wrong edge — all feeding positions drift']},aDo:'Restore the factory value after fork servo, belt or sensor replacement. Never use it to correct feeding symptoms.'},
+  {p:2,n:'Scissors homing distance',v:'6.5',k:'tech',unit:'distance',what:'Distance the scissors servo travels to find its home sensor at start-up.',a:{t:'When this value is wrong',items:['Scissors homing faults at power-up','All cut positions drift — cuts land early or late across the whole cycle']},aDo:'Restore the factory value after scissors servo or sensor service.'},
+  {p:2,n:'Head version',v:'2',k:'tech',unit:'version',what:'Hardware version of the knitting head installed on this machine. The control uses it to select correct motion parameters.',a:{t:'When this value is wrong',items:['Wrong version → head moves with mismatched timings — crashes, mis-knits, alarms','Usually only wrong after a head replacement or control board swap']},aDo:'Match it to the label on the physical head. If in doubt after a repair, confirm with the technician who did the swap.'},
+  {p:2,n:'Head homing distance',v:'1',k:'tech',unit:'distance',what:'Reference approach distance the knitting head uses when finding its home position.',a:{t:'When this value is wrong',items:['Head homing faults or slow homing at start-up','Head position drifts — pattern start point wanders between pieces']},aDo:'Restore the factory value after head motor, belt or home-sensor service.'},
+  {p:2,n:'Cylinder location when knitting first row of little finger with sub yarn set',v:'0',k:'tech',unit:'position',what:'Cylinder position offset used for the first little-finger row when sub yarn is active — aligns the sub-yarn selection with that row.',a:{t:'When this value is wrong',items:['Sub yarn appears one row early or late at the little finger','Reinforced row lands in the wrong place on gloves with sub yarn']},aDo:'Keep at 0 unless the pattern documentation for a sub-yarn style specifies an offset; restore from pattern file if corrupted.'},
+  {p:2,n:'Cylinder location when idling the first row',v:'51',k:'tech',unit:'position',what:'Cylinder position used during the empty idling rows at the start, before real knitting begins.',a:{t:'When this value is wrong',items:['Idling rows knit with wrong needle selection — the chain tangles or snags','Transition from idling to first real row is rough — yarn jumps']},aDo:'Normally never changed. If start-up behaviour changed after a cylinder service, restore the recorded value.'},
+  {p:2,n:'Sub scissors releasing yarn angle (v0)',v:'0',k:'tech',unit:'deg',what:'Base angle of the sub scissors when releasing the sub yarn — the starting point of its release motion.',a:{t:'When this value is wrong',items:['Sub yarn released too early or held too long — tails tangle with main yarn','Sub yarn not released at all — carried into the fabric']},aDo:'Technician calibration. Only relevant when sub yarn function is in use.'},
+  {p:2,n:'Main scissors version',v:'1',k:'tech',unit:'version',what:'Hardware version of the main scissors unit, telling the control which motion profile to use.',a:{t:'When this value is wrong',items:['Wrong motion profile — cut timing off, blades strike the hook or plate','Usually only wrong after a scissors unit replacement']},aDo:'Match it to the label on the installed scissors unit after any replacement.'},
+  {p:2,n:'Angle of the main scissors when hooked at the highest point (v1, v2)',v:'40',k:'tech',unit:'deg',what:'Servo angle of the main scissors at the top of its hooked position — the peak of the hook trajectory where it carries the yarn.',a:{t:'When this value is wrong',items:['Hook carries the yarn too low or too high — yarn slips off or never engages','Scissors strike neighbouring parts at the top of travel']},aDo:'Technician calibration after scissors servo or mechanical service. Both v1 and v2 must be set as a pair.'},
+  {p:2,n:'Angle of the main scissors when released yarn (v1, v2)',v:'8',k:'tech',unit:'deg',what:'Servo angle of the main scissors at the yarn release point — where the hook lets go of the yarn for the cut and seal.',a:{t:'When this value is wrong',items:['Yarn released too early — drops before the cut, tail hangs loose','Yarn released too late — dragged through the seal, puckered edge']},aDo:'Technician calibration, set together with the hooked angle as one trajectory.'},
+  {p:2,n:'Sub scissors version',v:'0',k:'tech',unit:'version',what:'Hardware version of the sub scissors unit. Version 0 = the standard/basic sub scissors fitted.',a:{t:'When this value is wrong',items:['Wrong motion profile for the fitted unit — sub yarn cut timing off','Only wrong after a sub scissors unit swap']},aDo:'Match to the label on the installed unit after replacement.'},
+  {p:2,n:'Angle of the sub scissors when hooked at the highest point (v1, v2)',v:'40',k:'tech',unit:'deg',what:'Servo angle of the sub scissors at the top of its hooked position, carrying the sub yarn.',a:{t:'When this value is wrong',items:['Sub yarn slips off the hook before the cut — uncut sub yarn tails','Hook strikes parts at the top of travel']},aDo:'Technician calibration after sub scissors service.'},
+  {p:2,n:'Angle of the sub scissors when released yarn (v1, v2)',v:'8',k:'tech',unit:'deg',what:'Servo angle of the sub scissors at the release point — where it lets go of the sub yarn.',a:{t:'When this value is wrong',items:['Sub yarn dropped early or dragged — tails at the wrong spot in the fabric']},aDo:'Technician calibration, set together with the hooked angle.'},
+  {p:3,n:'Broken needle detection signal start (back)',v:'285',k:'tech',unit:'position',what:'Starting position of the detection window on the rear bed — where the broken-needle sensor signal begins to be evaluated.',a:{t:'When this value is wrong',items:['Window starts too late — a broken needle in the first part of the pass is missed','Window too early — normal needle motion triggers false stops']},aDo:'Technician set. If false trips occur with detection ON, clean the sensor before touching these windows.'},
+  {p:3,n:'Broken needle detection signal end (back)',v:'90',k:'tech',unit:'position',what:'End position of the rear-bed detection window. Together with the start it brackets where broken needles are looked for.',a:{t:'When this value is wrong',items:['Window ends too early — breaks near the end of the pass are missed','Window too wide — false trips from parts entering the view']},aDo:'Technician set as a pair with the start position.'},
+  {p:3,n:'Broken needle detection signal start (front)',v:'20',k:'tech',unit:'position',what:'Starting position of the detection window on the front bed.',a:{t:'When this value is wrong',items:['Same behaviour as the rear window — missed breaks or false trips on the front bed']},aDo:'Technician set; restore after sensor or carriage service.'},
+  {p:3,n:'Broken needle detection signal end (front)',v:'192',k:'tech',unit:'position',what:'End position of the front-bed detection window.',a:{t:'When this value is wrong',items:['Front-bed breaks near the end of the pass go undetected']},aDo:'Technician set as a pair with the front start position.'},
+  {p:3,n:'Cylinder location during broken needle detection (1)',v:'50',k:'tech',unit:'position',what:'Cylinder position reference used during the first half of the broken-needle check — the sensor evaluates needles against this selection state.',a:{t:'When this value is wrong',items:['Detection compares against the wrong selection state — false broken-needle alarms','Actual broken needles masked by the wrong reference']},aDo:'Technician set after cylinder or sensor service; never a production tuning value.'},
+  {p:3,n:'Cylinder location during broken needle detection (2)',v:'51',k:'tech',unit:'position',what:'Second cylinder reference position for the second half of the broken-needle check.',a:{t:'When this value is wrong',items:['Same as above — the two reference positions must match the actual selection state during detection']},aDo:'Technician set; change only together with reference (1).'},
+  {p:3,n:'Primary and secondary switching solenoid running logic',v:'0',k:'tech',unit:'logic',what:'Control logic mode for the primary/secondary yarn switching solenoids. 0 = the default switching sequence.',a:{t:'When to change it',items:['Only when the machine documentation for a specific yarn system calls for a different solenoid sequence','A non-zero value here with standard hardware causes switching faults and missed yarn changes']},aDo:'Keep at 0 for standard setups. Restore after control board or software updates.'},
+  {p:3,n:'Sub yarn solenoid running logic',v:'0',k:'tech',unit:'logic',what:'Control logic mode for the sub yarn solenoid. 0 = default sequence for the standard sub yarn feeder.',a:{t:'When to change it',items:['Only per documentation for a non-standard sub yarn feeder','Wrong logic — sub yarn feeds at the wrong time or not at all']},aDo:'Keep at 0 unless a technician installs a different sub yarn system.'},
+  {p:3,n:'Tricolor yarn solenoid running logic',v:'0',k:'tech',unit:'logic',what:'Control logic mode for the tricolor (three-yarn) switching solenoids. 0 = default.',a:{t:'When to change it',items:['Only for machines fitted with the optional tricolor yarn system','Wrong logic — color yarns switch at wrong courses']},aDo:'Keep at 0 on standard two-yarn machines; this setting does nothing until the option is fitted.'},
+  {p:3,n:'Languages',v:'English',k:'select',what:'Display language of the operator screen.',a:{t:'Choosing the language',items:['Set to the language your operators read best — menu names must be understood under pressure','Changing language never affects machine behaviour or settings']}}
+  ];
+
+  var KIND = { num: 'number', toggle: 'on/off', select: 'option', tech: 'technician set' };
+  var tabsEl = document.getElementById('gmTabs');
+  var listEl = document.getElementById('gmList');
+  var detEl = document.getElementById('gmDetail');
+  var page = 1, sel = -1;
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function renderTabs() {
+    tabsEl.innerHTML = [1, 2, 3].map(function (p) {
+      return '<button class="gm-tab' + (p === page ? ' gm-on' : '') + '" data-p="' + p + '">Page ' + p + '</button>';
+    }).join('');
+  }
+
+  function renderList() {
+    var rows = D.map(function (m, i) { return { m: m, i: i }; }).filter(function (x) { return x.m.p === page; });
+    listEl.innerHTML = rows.map(function (x) {
+      return '<button class="gm-row' + (x.i === sel ? ' gm-on' : '') + '" data-i="' + x.i + '">' +
+        '<span class="gm-name">' + esc(x.m.n) + '</span>' +
+        '<span class="gm-kind">' + KIND[x.m.k] + '</span>' +
+        '<span class="gm-val">' + esc(x.m.v) + (x.m.unit ? ' ' + x.m.unit : '') + '</span></button>';
+    }).join('');
+  }
+
+  function renderDetail() {
+    if (sel < 0) { detEl.innerHTML = ''; return; }
+    var m = D[sel];
+    var cols;
+    if (m.k === 'toggle') {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>' +
+        '<div class="gm-col gm-col-b"><div class="gm-col-title">' + DN + ' ' + esc(m.b.t) + '</div><ul>' +
+        m.b.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul></div>';
+    } else if (m.k === 'select' || m.k === 'tech') {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' +
+        (m.aDo ? '<div class="gm-act"><b>Action:</b> ' + esc(m.aDo) + '</div>' : '') + '</div>';
+    } else {
+      cols = '<div class="gm-col gm-col-a"><div class="gm-col-title">' + UP + ' ' + esc(m.a.t) + '</div><ul>' +
+        m.a.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' +
+        '<div class="gm-act"><b>Action:</b> ' + esc(m.aDo) + '</div></div>' +
+        '<div class="gm-col gm-col-b"><div class="gm-col-title">' + DN + ' ' + esc(m.b.t) + '</div><ul>' +
+        m.b.items.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join('') + '</ul>' +
+        '<div class="gm-act"><b>Action:</b> ' + esc(m.bDo) + '</div></div>';
+    }
+    detEl.innerHTML = '<div class="gm-d-head"><span class="gm-d-title">' + esc(m.n) + '</span>' +
+      '<span class="gm-chip">' + esc(m.v) + (m.unit ? ' ' + m.unit : '') + '</span>' +
+      '<span class="gm-kind">' + KIND[m.k] + '</span></div>' +
+      '<div class="gm-what">' + esc(m.what) + '</div>' +
+      '<div class="gm-cols">' + cols + '</div>';
+  }
+
+  tabsEl.addEventListener('click', function (e) {
+    var t = e.target.closest('.gm-tab');
+    if (!t) return;
+    page = +t.getAttribute('data-p'); sel = -1;
+    renderTabs(); renderList(); renderDetail();
+  });
+
+  listEl.addEventListener('click', function (e) {
+    var r = e.target.closest('.gm-row');
+    if (!r) return;
+    sel = +r.getAttribute('data-i');
+    renderList(); renderDetail();
+    detEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+
+  renderTabs(); renderList();
+})();
+
+</script>
+</body>
+</html>

@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with 3 flat files: index.html, index-*.js, index-*.css
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V168)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V169)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -161,6 +161,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v166 owner: "delete machine setting it's wrong" -> Positions & oiling, Scissors & head, Broken needle detection pages removed. Only the 3 Pattern setting pages remain; more pages to come from the owner.
   v167 owner: "delete the whole machine setting menu" -> FactoryMachineGuide.tsx, view factory-machines and module removed (sql/factory-machine-settings.sql left in /sql; the table, if created, is harmless).
   v168 FACTORY -> PATTERN SETTINGS: the owner's own HTML guide (public/glove-pattern-settings.html, 3 pages, 45 settings with too-high / too-low / action) shown in an iframe (FactoryPatternSettings.tsx, view factory-pattern, module factory-pattern in Factory only). Kept as he sent it, accent recoloured to #e8552a. Static, no DB. Built into dist like trade-finder.html (copy to repo root on deploy).
+  v169 FACTORY -> MECHANICAL SETTINGS: second owner-supplied guide (public/glove-mechanical-settings.html = same shell as the pattern page + his 3 pages of machine/technician settings, kind 'tech' = technician set) in an iframe (FactoryMechanicalSettings.tsx, view/module factory-mechanical). Pattern Settings kept.
 - v111 (owner's final rule): TWO SIDES, compared, never copied. BULK = Shipping -> Charges per packing list: PL total
   kg/CBM/pcs (sum of its items) x rate, or Fixed (table shipment_pl_charges, key plKeyOf = pl_input_id|packing_list_no).
   Sum = bulk, billed to the agent ("Save & bill agent"); optional agent's invoice when it differs. COSTING = each item's own
