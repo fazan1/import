@@ -459,5 +459,64 @@ var PAGES = [
   detEl.innerHTML = '<div class="gm-what" style="color:var(--kimi-color-text-tertiary)">Tap a zone number or a tool button above to see the explanation.</div>';
 })();
 </script>
+<!-- ASK ABOUT THIS SETTING: small chat under the selected setting. Sends only the selected setting text + this page's
+     list to /api/assistant (Vercel function, source/api/assistant.cjs). Needs the CRM login (same origin). -->
+<style>
+  .ak-box{margin-top:12px;border:1px solid var(--kimi-color-border);border-radius:12px;padding:12px 14px;display:none}
+  .ak-box.ak-on{display:block}
+  .ak-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--kimi-color-text-tertiary);margin-bottom:8px}
+  .ak-msgs{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .ak-m{font-size:13.5px;line-height:20px;padding:8px 12px;border-radius:10px;max-width:92%;white-space:pre-wrap}
+  .ak-u{align-self:flex-end;background:var(--kimi-color-text-primary);color:var(--kimi-color-surface)}
+  .ak-a{align-self:flex-start;background:var(--kimi-color-surface-muted);color:var(--kimi-color-text-primary)}
+  .ak-e{align-self:flex-start;background:#fff7ed;border:1px solid #fdba74;color:#9a3412}
+  .ak-row{display:flex;gap:8px}
+  .ak-in{flex:1;font:inherit;font-size:14px;padding:9px 12px;border:1px solid var(--kimi-color-border);border-radius:10px;background:var(--kimi-color-surface);color:var(--kimi-color-text-primary)}
+  .ak-btn{font:inherit;font-size:14px;padding:9px 16px;border-radius:10px;border:0;background:var(--kimi-color-accent);color:#fff;cursor:pointer}
+  .ak-btn:disabled{opacity:.5;cursor:default}
+  .ak-hint{font-size:11px;color:var(--kimi-color-text-tertiary);margin-top:6px}
+</style>
+<div class="ak-box" id="akBox">
+  <div class="ak-title">Ask about this setting</div>
+  <div class="ak-msgs" id="akMsgs"></div>
+  <div class="ak-row"><input class="ak-in" id="akIn" placeholder="e.g. what happens if I set it to 255? / why does it break at the end?"><button class="ak-btn" id="akBtn">Ask</button></div>
+  <div class="ak-hint">Answers use only this setting and the others on this page. Nothing is saved.</div>
+</div>
+<script>
+(function(){
+  var box=document.getElementById('akBox'), msgsEl=document.getElementById('akMsgs'), inEl=document.getElementById('akIn'), btn=document.getElementById('akBtn');
+  var det=document.getElementById('gmDetail'), list=document.getElementById('gmList');
+  var history=[], lastKey='', busy=false;
+  function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function titleOf(){var t=det.querySelector('.gm-d-title'); return t?t.textContent.trim():'';}
+  function sync(){
+    var key=titleOf();
+    if(!key){box.classList.remove('ak-on'); return;}
+    if(key!==lastKey){lastKey=key; history=[]; msgsEl.innerHTML=''; inEl.value='';}
+    box.classList.add('ak-on');
+  }
+  new MutationObserver(sync).observe(det,{childList:true,subtree:true}); sync();
+  function add(role,text){var d=document.createElement('div'); d.className='ak-m '+(role==='user'?'ak-u':role==='error'?'ak-e':'ak-a'); d.textContent=text; msgsEl.appendChild(d); d.scrollIntoView({behavior:'smooth',block:'nearest'});}
+  function token(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i); if(/^sb-.*-auth-token$/.test(k)){var v=JSON.parse(localStorage.getItem(k)||'{}'); return v.access_token||(v.currentSession&&v.currentSession.access_token)||'';}}}catch(e){} return '';}
+  function anon(){try{return (JSON.parse(localStorage.getItem('crm-sb-config')||'{}').key)||'';}catch(e){return '';}}
+  async function ask(){
+    var q=inEl.value.trim(); if(!q||busy) return;
+    var setting=det.innerText.trim().slice(0,20000); var page=(list.innerText||'').replace(/\n{2,}/g,'\n').trim().slice(0,60000);
+    add('user',q); inEl.value=''; busy=true; btn.disabled=true; btn.textContent='…';
+    try{
+      var tk=token(); if(!tk) throw new Error('Sign in to the CRM first (open this page from the CRM menu).');
+      var ctrl=new AbortController(); var tm=setTimeout(function(){ctrl.abort();},65000);
+      var res=await fetch('/api/assistant',{method:'POST',signal:ctrl.signal,headers:{'Content-Type':'application/json','Authorization':'Bearer '+tk,'x-supabase-key':anon()},body:JSON.stringify({setting:setting,page:page,question:q,messages:history.slice(-6)})});
+      clearTimeout(tm);
+      var raw=await res.text(); var data={}; try{data=JSON.parse(raw);}catch(e){throw new Error(res.status===404?'The assistant service is not deployed on this site yet.':'Unexpected answer: '+raw.slice(0,100));}
+      if(!res.ok) throw new Error(data.message||data.error||('Service answered '+res.status));
+      add('assistant',data.text||'(no answer)'); history.push({role:'user',text:q},{role:'assistant',text:data.text||''});
+    }catch(e){ add('error', e&&e.name==='AbortError'?'The assistant took too long. Try again.':(e&&e.message||String(e))); }
+    finally{ busy=false; btn.disabled=false; btn.textContent='Ask'; }
+  }
+  btn.addEventListener('click',ask); inEl.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault(); ask();}});
+})();
+</script>
+
 </body>
 </html>
