@@ -78,32 +78,7 @@ const PAGES: Page[] = [
     ],
   },
   {
-    id: 'pattern1', group: 'Pattern setting', title: 'Pattern 1: Functions', note: 'Which features of the glove program are switched on, the size and type, and the order of cutting and sealing.',
-    params: [
-      { key: 'size_sel', label: 'Size selection', kind: 'choice', typical: 'M', what: 'Which glove size program runs (S, M, L, XL). It changes the row counts of every part.', up: 'Bigger size = more rows, more yarn.', down: 'Smaller size.', fault: 'Glove too big or small overall = wrong size selected, check this before touching densities.' },
-      { key: 'type_sel', label: 'Type selection', kind: 'choice', typical: 'General', what: 'Which glove type program runs (General = plain 5-finger; others for special styles).', up: '-', down: '-', fault: 'Wrong finger order or missing parts = wrong type.' },
-      { key: 'drop_detect', label: 'Dropping detection', kind: 'onoff', typical: 'OFF', what: 'Sensor that stops the machine when the glove drops off the needles (fabric fall).', up: 'ON = stops when the fabric drops.', down: 'OFF = keeps running with no fabric, wasting yarn and risking needles.', fault: 'Machine runs on after a glove falls = turn ON.' },
-      { key: 'sub_yarn_fn', label: 'Sub yarn function', kind: 'onoff', typical: 'OFF', what: 'Use a second (sub) yarn in the program, e.g. a second colour or reinforcing yarn.', up: 'ON = the sub yarn feeder is used where the pattern says.', down: 'OFF = single yarn only.', fault: 'Second yarn never appears = this is OFF.' },
-      { key: 'overlock_fn', label: 'Overlocking function', kind: 'onoff', typical: 'ON', what: 'The finishing step that hides the yarn ends (overlocking) after the glove is knitted.', up: 'ON = yarn ends hidden automatically.', down: 'OFF = ends left loose, trimmed by hand.', fault: 'Loose yarn ends on finished gloves = turn ON and check Pattern 3.' },
-      { key: 'knot_fn', label: 'Knotting function', kind: 'number', typical: '0', what: 'How many knots are tied at a yarn change. 0 = no knot.', up: 'More knots = stronger join, small lump.', down: '0 = no knot, relies on overlocking.', fault: 'Yarn joins opening = set 1.' },
-      { key: 'blow_fn', label: 'Blowing function', kind: 'onoff', typical: 'ON', what: 'Air blow that clears lint and yarn ends from the needles.', up: 'ON = cleaner needles.', down: 'OFF = more lint, more needle jams.', fault: 'Lint build-up, lines in the fabric = turn ON (needs air supply).' },
-      { key: 'sub_sciss_fn', label: 'Sub scissors function', kind: 'onoff', typical: 'OFF', what: 'Whether the second cutter is used at all. Only needed when a sub yarn or elastic is cut separately.', up: 'ON = sub scissors cut the sub yarn.', down: 'OFF = sub scissors never move.', fault: 'Sub yarn not cut = turn ON (and check the sub scissors version on Scissors & head).' },
-      { key: 'cancel_half_needle', label: 'Cancel half needle function', kind: 'onoff', typical: 'OFF', what: 'Turns off the half-needle step used at the small palm.', up: 'ON = half needle step skipped.', down: 'OFF = half needle used as the pattern says.', fault: 'Leave OFF unless the technician says so.' },
-      { key: 'seal_seq', label: 'Sealing sequence', kind: 'choice', typical: 'Cut first', what: 'At the finger tip: cut the yarn first then seal, or seal first then cut.', up: 'Cut first = shorter tail inside the tip.', down: 'Seal first = safer hold on thin yarn.', fault: 'Tips opening = try the other order.' },
-      { key: 'main_release_seq', label: 'Main scissors releasing sequence', kind: 'choice', typical: 'Successively', what: 'How the main scissors release the yarn: one after the other (successively) or together.', up: '-', down: '-', fault: 'Yarn tangling at release = try the other option.' },
-      { key: 'half_needle_dist', label: 'Distance of half needle on small palm', kind: 'choice', typical: 'Short distance', what: 'How far the half-needle step travels on the small palm (short / long).', up: 'Long = wider half-needle area.', down: 'Short = narrower.', fault: 'Small palm shape off = try the other.' },
-      { key: 'half_needle_fix', label: 'Half needle function of yarn fixing', kind: 'onoff', typical: 'OFF', what: 'Use the half-needle move while fixing the yarn end.', up: 'ON.', down: 'OFF.', fault: 'Leave as the working machine.' },
-      { key: 'head_speed_elastic_on', label: 'Head speed when inserting elastic yarn (on/off)', kind: 'onoff', typical: 'ON', what: 'Whether a special head speed is used while the elastic is fed.', up: 'ON = uses the value below.', down: 'OFF = normal speed while feeding elastic.', fault: 'Elastic breaking as it is fed = ON with a lower value.' },
-      { key: 'head_speed_elastic', label: 'Head speed when inserting elastic yarn', kind: 'number', typical: '130', what: 'The head speed used while elastic is fed (when the switch above is ON).', up: 'Faster, more elastic breaks.', down: 'Slower, safer.', fault: 'Elastic snapping at the wrist = lower to 110.' },
-      { key: 'laps_release_intact', label: 'Laps of releasing yarn on intact finger', kind: 'number', typical: '2', what: 'Rows over which the yarn is released at the tip of a closed finger.', up: 'More rows = softer tip.', down: 'Fewer rows = tighter tip.', fault: 'Finger tip pointed or tight = raise by 1.' },
-      { key: 'laps_release_hole', label: 'Laps of releasing yarn on hole finger', kind: 'number', typical: '3', what: 'Same for an open (fingerless) finger.', up: 'Softer open edge.', down: 'Tighter edge.', fault: 'Open finger edge curling = adjust by 1.' },
-      { key: 'rear_density_half', label: 'Rear density value of half needle', kind: 'number', typical: '11', what: 'Stitch tightness on the rear plate during the half-needle step.', up: 'Looser.', down: 'Tighter.', fault: 'Small palm back loose or tight = change by 1.' },
-      { key: 'idling_speed', label: 'Idling speed', kind: 'number', typical: '160', what: 'Speed when the machine turns without knitting.', up: 'Faster idle.', down: 'Slower.', fault: 'Leave.' },
-      { key: 'jog_speed', label: 'Jogging speed', kind: 'number', typical: '20', what: 'Speed when the operator inches the machine by hand (jog button).', up: 'Faster jog, less control.', down: 'Slower, finer control.', fault: 'Leave at 20.' },
-    ],
-  },
-  {
-    id: 'pattern3', group: 'Pattern setting', title: 'Pattern 3: Overlocking & finger tips', note: 'The yarn-end hiding (overlocking) step and extra yarn at each finger tip.',
+    id: 'pattern3', group: 'Pattern setting', title: 'Pattern: Overlocking & finger tips', note: 'The yarn-end hiding (overlocking) step and extra yarn at each finger tip.',
     params: [
       { key: 'ol_hook_laps', label: 'Hook yarn laps (overlocking)', kind: 'number', typical: '1', what: 'Rows during which the yarn is hooked at the start of overlocking.', up: 'Holds the end over more rows.', down: 'Fewer rows.', fault: 'Yarn end slipping out at the start of overlocking = raise to 2.' },
       { key: 'ol_cut_laps', label: 'Cut yarn laps (overlocking)', kind: 'number', typical: '1', what: 'Rows knitted before the yarn is cut at the end of overlocking.', up: 'Longer hidden tail.', down: 'Shorter.', fault: 'Hidden tail too short and popping out = raise to 2.' },
@@ -121,7 +96,7 @@ const PAGES: Page[] = [
     ],
   },
   {
-    id: 'speeds', group: 'Pattern setting', title: 'Pattern 2: Speeds', note: 'Speeds for each stage of the glove. Some machines show this page in Chinese: the Chinese text is under each name.',
+    id: 'speeds', group: 'Pattern setting', title: 'Pattern: Speeds', note: 'Speeds for each stage of the glove. Some machines show this page in Chinese: the Chinese text is under each name.',
     params: [
       { key: 'restart_speed', label: 'Reboot speed', zh: '重启速度', kind: 'number', typical: '120', what: 'Speed after a stop or a yarn fix.', up: 'Restarts faster.', down: 'Gentler restart.', fault: 'Dropped stitches on the first rows after a restart = lower to 100.' },
       { key: 'closing_speed', label: 'Sealing speed', zh: '封口速度', kind: 'number', typical: '120', what: 'Speed while sewing the finger tip closed.', up: 'Faster closing.', down: 'Slower, tighter closing.', fault: 'Holes at finger tips = lower to 100.' },
