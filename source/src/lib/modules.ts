@@ -43,6 +43,7 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'warehouse', label: 'Warehouse' },
     { id: 'factory-problems', label: 'Factory Problems' },
     { id: 'factory-my-data', label: 'My Data' },
+    { id: 'factory-machines', label: 'Machine Settings (glove machines)' },
     { id: 'recycle-bin', label: 'Recycle Bin' },
   ]},
 ];
@@ -61,5 +62,5 @@ export const PRESETS: { label: string; modules: string[] }[] = [
   { label: 'Import (CN Portal)', modules: ['cn-dashboard', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'shipping', 'shipment-history', 'pl-input', 'packing-list', 'costing-duty', 'product-reference', 'suppliers', 'items'] },
   { label: 'BLINE Shop (CN, own books)', modules: SHOP_MODULES },
   { label: 'Warehouse only', modules: ['warehouse'] },
-  { label: 'Factory only', modules: ['factory-problems', 'factory-my-data'] },
+  { label: 'Factory only', modules: ['factory-problems', 'factory-my-data', 'factory-machines'] },
 ];
