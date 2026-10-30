@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Handshake, RefreshCw, Trash2, X } from 'lucide-react';
+import { FileText, Handshake, Printer, RefreshCw, Trash2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
+import { companyFor } from '../lib/company';
+import { esc } from '../lib/html';
 
 // Partner payouts for DOUBLE sales invoices.
 // Owner's rule: the partner is paid only out of what the customer has already paid.
@@ -35,9 +37,27 @@ interface Payout {
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+const n = (v: number) => (Number(v) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const lkr = (n: number) => `LKR ${(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 const todayLocal = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const showDate = (d: string | null | undefined) => { if (!d) return '-'; const [y, m, day] = d.slice(0, 10).split('-'); return `${day}/${m}/${y}`; };
+const modeLabel = (m: string | null | undefined) => (m === 'bank' ? 'Bank transfer' : m === 'cheque' ? 'Cheque' : m === 'cash' ? 'Cash' : (m || '-'));
+const PRINT_CSS = `body{font-family:'IBM Plex Sans',Arial,sans-serif;color:#111;margin:0;padding:28px;font-size:13px}
+ h1{font-size:20px;margin:0} .addr{color:#555;font-size:12px;margin-top:2px}
+ .title{font-size:17px;font-weight:700;letter-spacing:2px;margin:18px 0 2px} .no{color:#555;font-size:12px}
+ table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12px} th{background:#111;color:#fff;text-align:left;padding:6px 7px;font-weight:600;font-size:11px;letter-spacing:.04em}
+ td{padding:6px 7px;border-bottom:1px solid #e5e5e5;vertical-align:top} .r{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap} th.r{text-align:right}
+ tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:0} .tiles{display:flex;gap:10px;margin-top:14px} .tile{flex:1;border:1px solid #ddd;border-radius:8px;padding:10px}
+ .tile b{display:block;font-size:16px;font-family:'IBM Plex Mono',monospace} .tile span{font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.06em}
+ .note{margin-top:12px;font-size:11px;color:#555} .foot{margin-top:36px;display:flex;justify-content:space-between;font-size:12px;color:#555}
+ .sig{border-top:1px solid #999;padding-top:6px;width:190px;text-align:center} .box{max-width:680px;margin:0 auto;border:1px solid #ccc;padding:26px 30px} .amt{font-size:24px;font-weight:700;margin-top:16px;font-family:'IBM Plex Mono',monospace}
+ .kv td:first-child{color:#555;width:38%} @media print{body{padding:0}.box{border:0}}`;
+const openPrint = (title: string, body: string, width = 900) => {
+  const w = window.open('', '_blank', `width=${width},height=900`);
+  if (!w) { alert('Could not open the print window. Please allow pop-ups for this site and try again.'); return; }
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>${esc(title)}</title><style>${PRINT_CSS}</style></head><body>${body}<script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`);
+  w.document.close();
+};
 const partnerOf = (i: DoubleInvoice) => (i.partner_name || '').trim() || '(no partner name)';
 
 export default function PartnerPayouts() {
@@ -145,6 +165,49 @@ export default function PartnerPayouts() {
     setInvoices((list) => list.map((x) => (x.id === i.id ? { ...x, partner_gets_cost: next } : x)));
   }
 
+  function printStatement(name: string) {
+    const rs = rows.filter((r) => r.partner === name).sort((a, b) => (a.inv.invoice_date || '').localeCompare(b.inv.invoice_date || ''));
+    if (rs.length === 0) { alert('No double invoices for ' + name); return; }
+    const co = companyFor();
+    const sum = (f: (r: typeof rows[number]) => number) => r2(rs.reduce((t, r) => t + f(r), 0));
+    const pays = rs.flatMap((r) => r.list).sort((a, b) => a.payout_date.localeCompare(b.payout_date));
+    const invRows = rs.map((r) => `<tr><td>${esc(r.inv.invoice_number)}</td><td>${showDate(r.inv.invoice_date)}</td><td>${esc(r.inv.customer_name || '-')}</td><td class="r">${n(r.total)}</td><td class="r">${n(r.custPaid)} <span style="color:#777">(${Math.round(r.ratio * 100)}%)</span></td><td class="r">${n(r.owed)}${r.inv.partner_gets_cost ? '*' : ''}</td><td class="r">${n(r.earned)}</td><td class="r">${n(r.paid)}</td><td class="r">${n(r.canPay)}</td><td class="r">${n(r.still)}</td></tr>`).join('');
+    const payRows = pays.length ? pays.map((p) => `<tr><td>${showDate(p.payout_date)}</td><td>${esc(p.invoice_number || '-')}</td><td>${esc(modeLabel(p.payment_mode))}</td><td>${esc(p.note || '')}</td><td class="r">${n(p.amount)}</td></tr>`).join('') : '<tr><td colspan="5" style="color:#777">No payments made yet</td></tr>';
+    const hasCost = rs.some((r) => r.inv.partner_gets_cost);
+    openPrint(`Partner statement ${name}`, `
+ <h1>${esc(co.name)}</h1><div class="addr">${esc(co.address)}${co.phone ? ' · ' + esc(co.phone) : ''}</div>
+ <div class="title">PARTNER STATEMENT</div><div class="no">${esc(name)} · as at ${showDate(todayLocal())} · ${rs.length} double invoice${rs.length === 1 ? '' : 's'}</div>
+ <div class="tiles"><div class="tile"><span>Partner share</span><b>${n(sum((r) => r.owed))}</b></div><div class="tile"><span>Collected for partner</span><b>${n(sum((r) => r.earned))}</b></div><div class="tile"><span>Paid to partner</span><b>${n(sum((r) => r.paid))}</b></div><div class="tile"><span>Can pay now</span><b>${n(sum((r) => r.canPay))}</b></div><div class="tile"><span>Still to pay</span><b>${n(sum((r) => r.still))}</b></div></div>
+ <table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th class="r">Invoice total</th><th class="r">Customer paid</th><th class="r">Partner share</th><th class="r">Collected</th><th class="r">Paid</th><th class="r">Can pay now</th><th class="r">Still to pay</th></tr></thead>
+ <tbody>${invRows}<tr class="tot"><td colspan="3">Total</td><td class="r">${n(sum((r) => r.total))}</td><td class="r">${n(sum((r) => r.custPaid))}</td><td class="r">${n(sum((r) => r.owed))}</td><td class="r">${n(sum((r) => r.earned))}</td><td class="r">${n(sum((r) => r.paid))}</td><td class="r">${n(sum((r) => r.canPay))}</td><td class="r">${n(sum((r) => r.still))}</td></tr></tbody></table>
+ <div class="note">Amounts in LKR. The partner is paid from what the customer has paid: collected = share × customer paid ÷ invoice total.${hasCost ? ' * share includes the cost the partner paid.' : ''}</div>
+ <div class="title" style="font-size:14px;letter-spacing:1px;margin-top:22px">PAYMENTS MADE TO ${esc(name.toUpperCase())}</div>
+ <table><thead><tr><th>Date</th><th>For invoice</th><th>Mode</th><th>Note</th><th class="r">Amount</th></tr></thead><tbody>${payRows}${pays.length ? `<tr class="tot"><td colspan="4">Total paid</td><td class="r">${n(sum((r) => r.paid))}</td></tr>` : ''}</tbody></table>
+ <div class="foot"><div>Printed ${new Date().toLocaleString('en-GB')}</div><div class="sig">Authorised signature</div></div>`);
+  }
+
+  function printPayoutInvoice(p: Payout, r: typeof rows[number]) {
+    const co = companyFor(p.book);
+    const no = 'PP-' + p.id.replace(/-/g, '').slice(0, 8).toUpperCase();
+    openPrint(`Partner payment ${no}`, `<div class="box">
+ <h1>${esc(co.name)}</h1><div class="addr">${esc(co.address)}${co.phone ? ' · ' + esc(co.phone) : ''}</div>
+ <div class="title">PARTNER PAYMENT INVOICE</div><div class="no">${no} · ${showDate(p.payout_date)}</div>
+ <table class="kv">
+  <tr><td>Paid to</td><td><strong>${esc(p.partner_name)}</strong></td></tr>
+  <tr><td>For sales invoice</td><td>${esc(r.inv.invoice_number)} · ${showDate(r.inv.invoice_date)} · ${esc(r.inv.customer_name || '-')}</td></tr>
+  <tr><td>Invoice total</td><td class="r" style="text-align:left">${n(r.total)}</td></tr>
+  <tr><td>Customer paid</td><td>${n(r.custPaid)} (${Math.round(r.ratio * 100)}%)</td></tr>
+  <tr><td>Partner share${r.inv.partner_gets_cost ? ' + cost' : ''}</td><td>${n(r.owed)}</td></tr>
+  <tr><td>Paid to partner before this</td><td>${n(r2(r.list.filter((x) => x.payout_date < p.payout_date || (x.payout_date === p.payout_date && x.id < p.id)).reduce((t, x) => t + (Number(x.amount) || 0), 0)))}</td></tr>
+  <tr><td>Still to pay after this</td><td>${n(Math.max(0, r2(r.owed - r.list.filter((x) => x.payout_date < p.payout_date || (x.payout_date === p.payout_date && x.id <= p.id)).reduce((t, x) => t + (Number(x.amount) || 0), 0))))}</td></tr>
+  <tr><td>Payment mode</td><td>${esc(modeLabel(p.payment_mode))}</td></tr>
+  ${p.note ? `<tr><td>Note</td><td>${esc(p.note)}</td></tr>` : ''}
+ </table>
+ <div class="amt">${lkr(p.amount)}</div>
+ <div class="foot"><div>Printed ${new Date().toLocaleString('en-GB')}</div><div class="sig">Received by (partner)</div><div class="sig">Authorised signature</div></div>
+</div>`, 720);
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -152,9 +215,12 @@ export default function PartnerPayouts() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Handshake className="w-6 h-6" /> Partner Payouts</h1>
-          <p className="text-sm text-gray-500">Double invoices: pay the partner only from what the customer has paid.</p>
+          <p className="text-sm text-gray-500">Double invoices: pay the partner only from what the customer has paid. Statement per partner; a payment invoice on every payment (printer icon).</p>
         </div>
-        <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+        <div className="flex items-center gap-2">
+          {partnerFilter && <button onClick={() => printStatement(partnerFilter)} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700"><FileText className="w-4 h-4" /> Statement — {partnerFilter}</button>}
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+        </div>
       </div>
 
       {setupNeeded && (
@@ -183,7 +249,7 @@ export default function PartnerPayouts() {
           <table className="w-full text-sm min-w-[560px]">
             <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
               <th className="text-left px-4 py-2">Partner</th><th className="text-right px-4 py-2">Share</th><th className="text-right px-4 py-2">Collected</th>
-              <th className="text-right px-4 py-2">Paid</th><th className="text-right px-4 py-2">Can pay now</th><th className="text-right px-4 py-2">Still to pay</th>
+              <th className="text-right px-4 py-2">Paid</th><th className="text-right px-4 py-2">Can pay now</th><th className="text-right px-4 py-2">Still to pay</th><th className="px-4 py-2"></th>
             </tr></thead>
             <tbody>{byPartner.map((p) => (
               <tr key={p.name} className="border-t border-gray-100">
@@ -193,6 +259,7 @@ export default function PartnerPayouts() {
                 <td className="px-4 py-2 text-right">{lkr(p.paid)}</td>
                 <td className="px-4 py-2 text-right font-semibold text-green-700">{lkr(p.canPay)}</td>
                 <td className="px-4 py-2 text-right text-gray-700">{lkr(p.still)}</td>
+                <td className="px-4 py-2 text-right"><button onClick={() => printStatement(p.name)} className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50" title="Print / PDF statement for this partner"><FileText className="w-3.5 h-3.5" /> Statement</button></td>
               </tr>
             ))}</tbody>
           </table>
@@ -268,6 +335,7 @@ export default function PartnerPayouts() {
                   <div key={p.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="text-gray-600">{showDate(p.payout_date)} · {p.payment_mode || '-'}{p.note ? ` · ${p.note}` : ''}</span>
                     <span className="flex items-center gap-2"><b>{lkr(p.amount)}</b>
+                      <button onClick={() => printPayoutInvoice(p, r)} className="p-1 text-gray-400 hover:text-gray-700" title="Print / PDF payment invoice"><Printer className="w-4 h-4" /></button>
                       <button onClick={() => deletePayout(p)} className="p-1 text-gray-400 hover:text-red-500" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button>
                     </span>
                   </div>
