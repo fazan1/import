@@ -575,6 +575,33 @@ export default function Growth() {
             </div>
           </div>
 
+          {/* ---- liquid cash: where the working capital sits ---- */}
+          {(() => {
+            const liq = latest.bank + latest.cash + latest.usdt_lkr, cap = latest.net_capital, rec = latest.receivables, goods = Math.max(0, cap - liq - rec);
+            const pct = cap > 0 ? (liq / cap) * 100 : NaN, prev = idx > 0 ? rows[idx - 1] : null, prevLiq = prev ? prev.bank + prev.cash + prev.usdt_lkr : 0;
+            return (
+              <div className={`${card} p-4 mb-4`}>
+                <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide mb-2">Liquid cash — {mlong(latest.month)}</h3>
+                {liq <= 0 && rec <= 0 ? (
+                  <p className="text-sm text-gray-500">Not filled yet. Edit the month and type where the {Rs(cap)} sits: in the bank, cash in hand, USDT and what customers owe. The box then shows how much is liquid.</p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="col-span-2 md:col-span-1 bg-gray-50 border border-gray-200 rounded-lg p-3"><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Liquid cash</p><p className="text-xl font-semibold text-green-700">{Rs(liq)}</p><p className="text-[11px] text-gray-500">{isFinite(pct) ? `${pct.toFixed(0)}% of the ${Rs(cap)} capital` : ''}{prev && prevLiq > 0 ? ` · ${liq >= prevLiq ? 'up' : 'down'} ${Rs(Math.abs(liq - prevLiq))} from ${ml(prev.month)}` : ''}</p></div>
+                    <div className="text-sm space-y-1 col-span-2 md:col-span-3">
+                      <div className="flex justify-between"><span className="text-gray-600">In the bank</span><span>{Rs(latest.bank)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">Cash in hand</span><span>{Rs(latest.cash)}</span></div>
+                      {latest.usdt_lkr > 0 && <div className="flex justify-between"><span className="text-gray-600">USDT / foreign money</span><span>{Rs(latest.usdt_lkr)}</span></div>}
+                      <div className="flex justify-between border-t border-gray-200 pt-1"><span className="text-gray-600">With customers (not liquid)</span><span>{Rs(rec)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600">In goods / with suppliers (not liquid)</span><span>{Rs(goods)}</span></div>
+                      {liq + rec > cap && cap > 0 && <p className="text-[11px] text-amber-700">Bank + cash + USDT + customers ({Rs(liq + rec)}) is more than the working capital you typed ({Rs(cap)}) — check the figures.</p>}
+                      {isFinite(pct) && pct < 10 && <p className="text-[11px] text-amber-700">Less than 10% of the capital is liquid — most of it is with customers or in goods. Collect before buying more.</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* ---- savings account ---- */}
           <div className={`${card} p-4 mb-4`}>
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
@@ -734,6 +761,12 @@ export default function Growth() {
               <div><label className="text-xs text-gray-500">Gross profit — before expenses (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.profit as number) || ''} onChange={(e) => setEdit({ ...edit, profit: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
               <div><label className="text-xs text-gray-500">Expenses (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.expenses as number) || ''} onChange={(e) => setEdit({ ...edit, expenses: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
               <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 px-3 py-2 flex justify-between"><span className="text-gray-600">Net profit (calculated)</span><b className="text-green-700">{Rs((Number(edit.profit) || 0) - (Number(edit.expenses) || 0))}</b></div>
+              <div className="col-span-2 text-[11px] text-gray-500 pt-1 border-t border-gray-100">Where the working capital sits at month-end (Rs) — bank + cash + USDT is your liquid cash; the rest is with customers or in goods.</div>
+              <div><label className="text-xs text-gray-500">In the bank (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.bank as number) || ''} onChange={(e) => setEdit({ ...edit, bank: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
+              <div><label className="text-xs text-gray-500">Cash in hand (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.cash as number) || ''} onChange={(e) => setEdit({ ...edit, cash: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
+              <div><label className="text-xs text-gray-500">USDT / foreign money, in Rs</label><input type="number" inputMode="decimal" className={input} value={(edit.usdt_lkr as number) || ''} onChange={(e) => setEdit({ ...edit, usdt_lkr: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
+              <div><label className="text-xs text-gray-500">Customers owe (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.receivables as number) || ''} onChange={(e) => setEdit({ ...edit, receivables: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
+              {(() => { const liq = (Number(edit.bank) || 0) + (Number(edit.cash) || 0) + (Number(edit.usdt_lkr) || 0); const cap = Number(edit.net_capital) || 0; const rec = Number(edit.receivables) || 0; return liq > 0 || rec > 0 ? <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 px-3 py-2 flex justify-between"><span className="text-gray-600">Liquid cash (bank + cash + USDT)</span><b>{Rs(liq)}{cap > 0 ? <span className="text-xs text-gray-500 font-normal"> · {Math.round((liq / cap) * 100)}% of capital{cap - liq - rec > 0 ? ` · ${Rs(cap - liq - rec)} in goods` : ''}</span> : null}</b></div> : null; })()}
               <div className="col-span-2 text-[11px] text-gray-500 pt-1 border-t border-gray-100">Only if money moved between you and the business this month — otherwise leave empty.</div>
               <div><label className="text-xs text-gray-500">Money put in (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.capital_added as number) || ''} onChange={(e) => setEdit({ ...edit, capital_added: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
               <div><label className="text-xs text-gray-500">Money taken out (Rs)</label><input type="number" inputMode="decimal" className={input} value={(edit.withdrawn as number) || ''} onChange={(e) => setEdit({ ...edit, withdrawn: e.target.value as unknown as number })} disabled={!!edit.closed} /></div>
