@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js at the repo root (Vercel function for the guide pages' ask box).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V191)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V192)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -201,3 +201,4 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v190 (owner) Capital month form: ONE box 'Liquid cash — bank + cash + USDT together' (saved in growth_months.bank, cash/usdt_lkr set 0; display still sums the three so older split rows stay right). Box and Cash report show a single Liquid cash line.
   OWNER RULE (5 Nov 2026): the Capital page (Growth.tsx, money exchange) is a SEPARATE business — never link or auto-fill it from the SL Portal / CN Portal / CEO Network. Everything there is typed by the owner.
   v191 (owner: 'put all in one report') Capital: the separate Cash report button is gone; the Print report now carries LIQUID CASH tiles (liquid / with customers / in goods / working capital) and PRIORITIES TO TAKE FORWARD (cashPriorities()) between the plan and 'What the numbers say'.
+  v192 Capital 'Copy summary' button: summaryText() = WhatsApp-style plain text (*bold* headings: month + headline, Money, Liquid cash, Plan, Priorities, Decision) copied to the clipboard (navigator.clipboard, execCommand fallback) with an alert.

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, Plus, Lock, Unlock, Pencil, Printer, Download, X, Trash2, Check as CheckIcon, Lightbulb, Settings2 } from 'lucide-react';
+import { TrendingUp, Plus, Lock, Unlock, Pencil, Printer, Download, X, Trash2, Check as CheckIcon, Lightbulb, Settings2, Copy } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { esc } from '../lib/html';
@@ -466,6 +466,38 @@ export default function Growth() {
     if (prev && prevLiq > 0 && liq < prevLiq * 0.7) out.push({ tone: 'warn', text: `Liquid cash fell ${Rs(prevLiq - liq)} since ${ml(prev.month)}. Check where it went: stock bought, customers slower, or taken out.` });
     return out;
   }
+  /* ---- summary message: plain text for WhatsApp / email, copied on click ---- */
+  function summaryText(): string {
+    if (!latest || !d || !v) return '';
+    const liq = latest.bank + latest.cash + latest.usdt_lkr, rec = latest.receivables, cap = latest.net_capital, goods = Math.max(0, cap - liq - rec);
+    const L: string[] = [];
+    L.push(`*CAPITAL — ${mlong(latest.month).toUpperCase()}*`);
+    L.push(v.headline);
+    L.push('');
+    L.push('*Money*');
+    L.push(`Working capital: ${Rs(cap)}`);
+    L.push(`Net profit: ${Rs(d.net)} (gross ${Rs(latest.profit)} − expenses ${Rs(latest.expenses)})`);
+    L.push(`Return: ${p1(d.roc)}`);
+    L.push('');
+    L.push('*Liquid cash*');
+    L.push(`Liquid cash now: ${Rs(liq)}${cap > 0 ? ` (${Math.round((liq / cap) * 100)}% of capital)` : ''}`);
+    L.push(`With customers: ${Rs(rec)}`);
+    L.push(`In goods / with suppliers: ${Rs(goods)}`);
+    if (savBal > 0) L.push(`Savings: ${Rs(savBal)}`);
+    L.push('');
+    L.push('*Plan*');
+    v.plan.forEach((p) => L.push(`${p.label}: ${p.value}${p.note && p.note !== '—' ? ` (${p.note})` : ''}`));
+    const pri = cashPriorities();
+    if (pri.length) { L.push(''); L.push('*Priorities*'); pri.forEach((p, i) => L.push(`${i + 1}. ${p.text}`)); }
+    if (latest.note) { L.push(''); L.push(`*Decision:* ${latest.note}`); }
+    return L.join('\n');
+  }
+  async function copySummary() {
+    const t = summaryText(); if (!t) return;
+    try { await navigator.clipboard.writeText(t); alert('Summary copied — paste it into WhatsApp or email.'); }
+    catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); alert(ok ? 'Summary copied — paste it into WhatsApp or email.' : 'Could not copy. Long-press the text in the Print report instead.'); }
+  }
+
   if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
 
   const Tile = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) => (
@@ -508,6 +540,7 @@ export default function Growth() {
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setCfgOpen(true)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1" title="Giving and target settings"><Settings2 className="w-4 h-4" />Charity {cfg.fixed ? `${cfg.max}% fixed` : `0–${cfg.max}%`} · target up to +{cfg.stretch}%</button>
           <button onClick={print} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Printer className="w-4 h-4" />Print</button>
+          <button onClick={copySummary} disabled={!latest} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1 disabled:opacity-40" title="Copy a short summary to paste into WhatsApp"><Copy className="w-4 h-4" />Copy summary</button>
           <button onClick={exportExcel} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Download className="w-4 h-4" />Excel</button>
           <button onClick={() => setEdit(newMonth())} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm flex items-center gap-1"><Plus className="w-4 h-4" />Add month</button>
         </div>
