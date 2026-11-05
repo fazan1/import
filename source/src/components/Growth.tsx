@@ -417,7 +417,7 @@ export default function Growth() {
   function print() {
     if (!latest || !d || !v) return;
     const w = window.open('', '_blank'); if (!w) { alert('Allow pop-ups to print'); return; }
-    w.document.write(`<html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Capital — ${mlong(latest.month)}</title><style>
+    w.document.write(`<html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Capital report — ${mlong(latest.month)}</title><style>
       body{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;padding:28px;color:#111;max-width:900px}h1{font-size:18px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}h3{font-size:13px;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.08em}
       .grade{display:inline-block;padding:3px 10px;border:2px solid #111;font-weight:700;margin-bottom:8px}.head{font-size:14px;margin:0 0 10px}
       table{width:100%;border-collapse:collapse;font-size:11px}th,td{border-bottom:1px solid #ddd;padding:5px 7px;text-align:right}th:first-child,td:first-child{text-align:left}
@@ -426,6 +426,9 @@ export default function Growth() {
       <h1>Capital — money exchange</h1><h2>${mlong(latest.month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
       <div class="grade">${v.grade} MONTH</div><p class="head">${esc(v.headline)}</p>
       <h3>This month's plan</h3><div class="plan">${v.plan.map((p) => `<div>${esc(p.label)}<b>${esc(p.value)}</b><small>${esc(p.note)}</small></div>`).join('')}</div>
+      ${(() => { const liq = latest.bank + latest.cash + latest.usdt_lkr, rec = latest.receivables, cap = latest.net_capital, goods = Math.max(0, cap - liq - rec); const pri = cashPriorities();
+        return `<h3>Liquid cash</h3><div class="plan"><div>Liquid cash now<b style="color:#16a34a">${Rs(liq)}</b><small>${cap > 0 ? `${Math.round((liq / cap) * 100)}% of the capital` : ''}</small></div><div>With customers<b>${Rs(rec)}</b><small>not liquid</small></div><div>In goods / with suppliers<b>${Rs(goods)}</b><small>not liquid</small></div><div>Working capital<b>${Rs(cap)}</b><small>total</small></div></div>
+        <h3>Priorities to take forward</h3><ol style="padding-left:22px;margin:0">${pri.map((p) => `<li class="l ${esc(p.tone)}" style="margin:6px 0">${esc(p.text)}</li>`).join('')}</ol>`; })()}
       <h3>What the numbers say</h3>${v.lines.map((l) => `<p class="l ${esc(l.tone)}">${esc(l.text)}</p>`).join('')}
       <h3>All months</h3><table><thead><tr><th>Month</th><th>Capital</th><th>Gross</th><th>Expenses</th><th>Net</th><th>Return</th><th>Put in</th><th>Taken out</th></tr></thead><tbody>
       ${rows.map((r, i) => { const x = derive(rows, i, cfg); return `<tr><td>${ml(r.month)}</td><td>${n0(r.net_capital)}</td><td>${n0(r.profit)}</td><td>${n0(r.expenses)}</td><td>${n0(x.net)}</td><td>${p1(x.roc)}</td><td>${r.capital_added ? n0(r.capital_added) : ''}</td><td>${r.withdrawn ? n0(r.withdrawn) : ''}</td></tr>`; }).join('')}
@@ -463,31 +466,6 @@ export default function Growth() {
     if (prev && prevLiq > 0 && liq < prevLiq * 0.7) out.push({ tone: 'warn', text: `Liquid cash fell ${Rs(prevLiq - liq)} since ${ml(prev.month)}. Check where it went: stock bought, customers slower, or taken out.` });
     return out;
   }
-  function printCashReport() {
-    if (!latest || !d || !v || !P) return;
-    const w = window.open('', '_blank', 'width=820,height=900'); if (!w) { alert('Allow pop-ups to print'); return; }
-    const liq = latest.bank + latest.cash + latest.usdt_lkr, rec = latest.receivables, cap = latest.net_capital, goods = Math.max(0, cap - liq - rec);
-    const pri = cashPriorities(); const col = { good: '#16a34a', warn: '#d97706', bad: '#dc2626', info: '#555' } as Record<Tone, string>;
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Cash report — ${mlong(latest.month)}</title><style>
-      body{font-family:'IBM Plex Sans',Arial,sans-serif;padding:28px;color:#111;max-width:760px;margin:0 auto;font-size:13px}h1{font-size:20px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}
-      h3{font-size:11px;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-family:'IBM Plex Mono',monospace}
-      .big{font-size:30px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a}.sub{color:#555;font-size:12px}
-      table{width:100%;border-collapse:collapse;font-size:13px}td{padding:7px 0;border-bottom:1px solid #e5e5e5}td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap}tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:0}
-      ol{padding-left:22px;margin:0}li{margin:7px 0;padding-left:6px;line-height:1.45}
-      .foot{margin-top:30px;font-size:11px;color:#777;display:flex;justify-content:space-between}@media print{body{padding:0}}</style></head><body>
-      <h1>${esc(companyFor().name)} — Cash report</h1><h2>${mlong(latest.month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
-      <div class="big">${Rs(liq)}</div><div class="sub">liquid cash now — ${cap > 0 ? `${Math.round((liq / cap) * 100)}% of the ${Rs(cap)} working capital` : 'working capital not typed'}</div>
-      <h3>Where the capital sits</h3><table>
-      <tr class="tot"><td>Liquid cash (bank, cash, USDT)</td><td>${n0(liq)}</td></tr>
-      <tr><td>With customers (not liquid)</td><td>${n0(rec)}</td></tr><tr><td>In goods / with suppliers (not liquid)</td><td>${n0(goods)}</td></tr>
-      <tr class="tot"><td>Working capital</td><td>${n0(cap)}</td></tr></table>
-      <h3>Priorities to take forward</h3><ol>${pri.map((p) => `<li style="border-left:3px solid ${col[p.tone]};padding-left:10px">${esc(p.text)}</li>`).join('')}</ol>
-      <h3>This month</h3><table><tr><td>Net profit</td><td>${n0(d.net)}</td></tr><tr><td>Return on capital</td><td>${p1(d.roc)}</td></tr><tr><td>Month grade</td><td>${esc(v.grade)}</td></tr>${savBal > 0 ? `<tr><td>Savings balance</td><td>${n0(savBal)}</td></tr>` : ''}</table>
-      <div class="foot"><div>Amounts in LKR. Figures typed at month-end on the Capital page.</div><div>${esc(v.headline)}</div></div>
-      <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`);
-    w.document.close();
-  }
-
   if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
 
   const Tile = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) => (
@@ -530,7 +508,6 @@ export default function Growth() {
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setCfgOpen(true)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1" title="Giving and target settings"><Settings2 className="w-4 h-4" />Charity {cfg.fixed ? `${cfg.max}% fixed` : `0–${cfg.max}%`} · target up to +{cfg.stretch}%</button>
           <button onClick={print} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Printer className="w-4 h-4" />Print</button>
-          <button onClick={printCashReport} disabled={!latest} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1 disabled:opacity-40" title="Liquid cash + priorities, to forward"><Printer className="w-4 h-4" />Cash report</button>
           <button onClick={exportExcel} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Download className="w-4 h-4" />Excel</button>
           <button onClick={() => setEdit(newMonth())} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm flex items-center gap-1"><Plus className="w-4 h-4" />Add month</button>
         </div>
