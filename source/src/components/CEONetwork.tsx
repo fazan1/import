@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { esc } from '../lib/html';
 import { companyFor } from '../lib/company';
-import { Plus, Trash2, Calendar, Printer, TrendingUp, Wallet, Building2, Scale, Banknote, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Sparkles, Landmark } from 'lucide-react';
+import { Plus, Trash2, Calendar, Printer, TrendingUp, Wallet, Building2, Scale, Banknote, TriangleAlert as AlertTriangle, CircleCheck as CheckCircle, CircleAlert as AlertCircle, Sparkles, Landmark, Copy } from 'lucide-react';
 import FinancialTargets from './FinancialTargets';
 
 /* CEO Network (v121) — one record per month of the whole business.
@@ -196,6 +196,8 @@ export default function CEONetwork() {
       </div>
 
       {needsSql && <div className="text-sm bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-2.5">Run <b>ceo-network-upgrade.sql</b> in Supabase once (MAIN project) to turn on “We owe”, margin %, expenses and net profit.</div>}
+
+      {latest && <GlanceBox cur={latest} prev={records[1] || null} />}
 
       {latest && <SummaryCards record={latest} />}
 
@@ -479,6 +481,58 @@ const calculatedColumns = [
   { label: 'Cust. days', fn: (r: FinancialRecord) => calculateReceivableDays(r), format: (v: number) => v.toFixed(0), color: 'text-amber-700 bg-amber-50/60' },
   { label: 'GP %', fn: (r: FinancialRecord) => calculateGPPercent(r), format: (v: number) => `${v.toFixed(1)}%`, color: 'text-green-700 bg-green-50/60' },
 ];
+
+/** Short list for the brothers (At a glance box + Copy summary): the whole month in 8 lines. */
+function glanceLines(cur: FinancialRecord, prev: FinancialRecord | null) {
+  const assets = calculateTotalAssets(cur), owes = calculateTotalLiabilities(cur), cap = assets - owes, cash = calculateLiquidCash(cur);
+  const gp = grossProfitOf(cur), np = netProfitOf(cur), est = gpIsEstimate(cur);
+  const d = (f: (r: FinancialRecord) => number) => (prev ? f(cur) - f(prev) : null);
+  return [
+    { label: 'We own', value: assets, change: d(calculateTotalAssets) },
+    { label: 'We owe', value: owes, change: d(calculateTotalLiabilities), tone: 'owe' },
+    { label: 'Net capital (own − owe)', value: cap, change: d(calculateNetBusinessCapital), strong: true },
+    { label: 'Ready cash (bank + cash + cheques)', value: cash, change: d(calculateLiquidCash), tone: 'cash' },
+    { label: 'Sales this month', value: cur.monthly_sales || 0, change: d((r) => r.monthly_sales || 0) },
+    { label: est ? 'Gross profit (est. at margin %)' : 'Gross profit', value: gp, change: d(grossProfitOf) },
+    { label: 'Expenses', value: cur.monthly_expenses || 0, change: d((r) => r.monthly_expenses || 0), tone: 'owe' },
+    { label: 'Net profit', value: np, change: d(netProfitOf), strong: true },
+  ];
+}
+function glanceText(cur: FinancialRecord, prev: FinancialRecord | null) {
+  const title = new Date(cur.date + 'T00:00:00').toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  const sign = (c: number | null) => c === null || c === 0 ? '' : ` (${c > 0 ? '+' : '−'}${formatNumber(Math.abs(c))}${prev ? ` vs ${monthName(prev.date)}` : ''})`;
+  const L = [`*${companyFor().name.toUpperCase()} — ${title.toUpperCase()}*`, ''];
+  glanceLines(cur, prev).forEach((x) => L.push(`${x.label}: Rs ${formatNumber(x.value)}${sign(x.change)}`));
+  return L.join('\n');
+}
+async function copyGlance(cur: FinancialRecord, prev: FinancialRecord | null) {
+  const t = glanceText(cur, prev);
+  try { await navigator.clipboard.writeText(t); alert('Summary copied — paste it into the WhatsApp group.'); }
+  catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); const ok = document.execCommand('copy'); ta.remove(); alert(ok ? 'Summary copied — paste it into the WhatsApp group.' : 'Could not copy on this browser.'); }
+}
+function GlanceBox({ cur, prev }: { cur: FinancialRecord; prev: FinancialRecord | null }) {
+  const title = new Date(cur.date + 'T00:00:00').toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-4">
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide">At a glance — {title}</h3>
+        <button onClick={() => copyGlance(cur, prev)} className="flex items-center gap-1.5 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50" title="Copy this list to paste into WhatsApp"><Copy className="w-3.5 h-3.5" /> Copy summary</button>
+      </div>
+      <div className="text-sm space-y-1 max-w-xl">
+        {glanceLines(cur, prev).map((x) => (
+          <div key={x.label} className={`flex justify-between gap-3 ${x.strong ? 'border-t border-gray-200 pt-1 font-semibold' : ''}`}>
+            <span className={x.strong ? 'text-gray-900' : 'text-gray-600'}>{x.label}</span>
+            <span className={`whitespace-nowrap ${x.tone === 'owe' ? 'text-rose-700' : x.tone === 'cash' ? 'text-green-700' : 'text-gray-900'}`}>
+              Rs {formatNumber(x.value)}
+              {x.change !== null && x.change !== 0 && <span className={`ml-2 text-[11px] font-normal ${x.change > 0 ? 'text-green-700' : 'text-rose-700'}`}>{x.change > 0 ? '▲' : '▼'} {formatNumber(Math.abs(x.change))}</span>}
+            </span>
+          </div>
+        ))}
+        {prev && <p className="text-[11px] text-gray-500 pt-1">▲ ▼ = change since {shortDate(prev.date)}</p>}
+      </div>
+    </div>
+  );
+}
 
 /** Month report: one A4 page the owner can print / save as PDF and forward (WhatsApp group). */
 function printMonthReport(cur: FinancialRecord, prev: FinancialRecord | null, labels: Record<string, string>) {
