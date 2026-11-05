@@ -47,7 +47,7 @@ const balanceAt = (month: string) => SAV.list.filter((e) => e.entry_date.slice(0
 /* ---------- charity record (capital_charity) ---------- */
 interface Gift { id: string; entry_date: string; for_month: string; amount: number; given_to: string | null; source: 'business' | 'savings'; note: string | null }
 // given[month] = given from that month's earnings; fromBiz[month] = paid out of the business during that month; fromSav = out of savings
-let CH: { given: Record<string, number>; fromBiz: Record<string, number>; list: Gift[]; ready: boolean } = { given: {}, fromBiz: {}, list: [], ready: false };
+let CH: { given: Record<string, number>; fromBiz: Record<string, number>; raw: Record<string, number>; advance: number; list: Gift[]; ready: boolean } = { given: {}, fromBiz: {}, raw: {}, advance: 0, list: [], ready: false };
 const PURPOSES = [['business', 'Back into the business'], ['property', 'Property / investment'], ['zakat', 'Zakat / charity'], ['personal', 'Personal'], ['other', 'Other']] as const;
 const loadCfg = (): Cfg => { try { const c = JSON.parse(localStorage.getItem(CFG_KEY) || ''); if (isFinite(c.max) && isFinite(c.rotate)) return { max: c.max, rotate: c.rotate, stretch: isFinite(c.stretch) ? c.stretch : 5, fixed: !!c.fixed }; } catch { /* */ } return { max: 2.5, rotate: 0, stretch: 5, fixed: false }; };
 
@@ -361,8 +361,18 @@ export default function Growth() {
   const isLatest = idx === rows.length - 1;
   SAV = { dep: {}, back: {}, list: savings, ready: !savMissing };
   savings.forEach((e) => { const m = e.entry_date.slice(0, 7); if (e.kind === 'deposit') SAV.dep[m] = (SAV.dep[m] || 0) + e.amount; else if (e.purpose === 'business') SAV.back[m] = (SAV.back[m] || 0) + e.amount; });
-  CH = { given: {}, fromBiz: {}, list: gifts, ready: !giftMissing };
-  gifts.forEach((g) => { CH.given[g.for_month] = (CH.given[g.for_month] || 0) + g.amount; if (g.source === 'business') { const m = g.entry_date.slice(0, 7); CH.fromBiz[m] = (CH.fromBiz[m] || 0) + g.amount; } });
+  CH = { given: {}, fromBiz: {}, raw: {}, advance: 0, list: gifts, ready: !giftMissing };
+  gifts.forEach((g) => { CH.raw[g.for_month] = (CH.raw[g.for_month] || 0) + g.amount; if (g.source === 'business') { const m = g.entry_date.slice(0, 7); CH.fromBiz[m] = (CH.fromBiz[m] || 0) + g.amount; } });
+  // Owner rule (Nov 2026): a gift bigger than its month's due spills over to the oldest month still owing; what is left after
+  // every month is covered is "given in advance" and is used up by the coming months' dues. CH.given = what counts per month.
+  {
+    const dues = rows.map((r, i) => ({ m: r.month, due: Math.max(0, planOf(rows, i, cfg).give) }));
+    let spare = 0;
+    dues.forEach((x) => { const g = CH.raw[x.m] || 0; const use = Math.min(g, x.due); CH.given[x.m] = use; spare += g - use; });
+    Object.keys(CH.raw).forEach((m) => { if (!dues.some((x) => x.m === m)) spare += CH.raw[m]; });   // gifts for a month that no longer exists
+    dues.forEach((x) => { if (spare <= 0) return; const need = x.due - (CH.given[x.m] || 0); if (need > 0) { const use = Math.min(need, spare); CH.given[x.m] = (CH.given[x.m] || 0) + use; spare -= use; } });
+    CH.advance = Math.max(0, spare);
+  }
   const savBal = savings.reduce((t, e) => t + (e.kind === 'deposit' ? e.amount : -e.amount), 0) - gifts.filter((g) => g.source === 'savings').reduce((t, g) => t + g.amount, 0);
   const d = latest ? derive(rows, idx, cfg) : null;
   const P = latest ? planOf(rows, idx, cfg) : null;
@@ -729,8 +739,8 @@ export default function Growth() {
               return (<>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                   <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Due {year}</p><p className="text-lg font-semibold text-gray-900">{Rs(sum(inYear, 'due'))}</p></div>
-                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Given {year}</p><p className="text-lg font-semibold text-violet-700">{Rs(sum(inYear, 'given'))}</p></div>
-                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Still to give</p><p className={`text-lg font-semibold ${owed > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{owed > 0.5 ? Rs(owed) : 'All given ✓'}</p></div>
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Given {year}</p><p className="text-lg font-semibold text-violet-700">{Rs(inYear.reduce((t, x) => t + (CH.raw[x.r.month] || 0), 0))}</p></div>
+                  <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">{owed > 0.5 ? 'Still to give' : CH.advance > 0.5 ? 'Given in advance' : 'Still to give'}</p><p className={`text-lg font-semibold ${owed > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{owed > 0.5 ? Rs(owed) : CH.advance > 0.5 ? Rs(CH.advance) : 'All given ✓'}</p>{owed <= 0.5 && CH.advance > 0.5 && <p className="text-[11px] text-gray-500">covers the coming months first</p>}</div>
                   <div><p className="text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">Given since the start</p><p className="text-lg font-semibold text-gray-900">{Rs(allGiven)}</p></div>
                 </div>
                 <table className="w-full text-sm mb-3">
@@ -742,7 +752,7 @@ export default function Growth() {
                         <td className={`py-1.5 text-right ${net <= 0 ? 'text-gray-400' : ''}`}>{n0(net)}</td>
                         <td className="py-1.5 text-right text-gray-500">{net > 0 ? `${planOf(rows, i, cfg).pct.toFixed(1)}%` : '—'}</td>
                         <td className="py-1.5 text-right">{net > 0 ? n0(dv) : <span className="text-gray-400">no profit</span>}</td>
-                        <td className="py-1.5 text-right text-violet-700">{given ? n0(given) : ''}</td>
+                        <td className="py-1.5 text-right text-violet-700">{given ? n0(given) : ''}{(CH.raw[r.month] || 0) > given + 0.5 && <span className="block text-[10px] text-gray-400">recorded {n0(CH.raw[r.month])} — extra moved to other months</span>}</td>
                         <td className={`py-1.5 text-right ${left > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{net > 0 ? (left > 0.5 ? n0(left) : '✓') : ''}</td>
                       </tr>); })}
                   </tbody>
