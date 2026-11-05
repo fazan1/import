@@ -3,6 +3,7 @@ import { TrendingUp, Plus, Lock, Unlock, Pencil, Printer, Download, X, Trash2, C
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { esc } from '../lib/html';
+import { companyFor } from '../lib/company';
 
 /* =====================================================================
    CAPITAL — the money-exchange business, one row a month.
@@ -432,6 +433,62 @@ export default function Growth() {
     w.document.close(); w.print();
   }
 
+  /* ---- cash report: liquid cash + the priorities, for the meeting / WhatsApp ---- */
+  function cashPriorities(): { tone: Tone; text: string }[] {
+    if (!latest || !d || !P) return [];
+    const liq = latest.bank + latest.cash + latest.usdt_lkr, rec = latest.receivables, cap = latest.net_capital, E = latest.expenses;
+    const out: { tone: Tone; text: string }[] = [];
+    if (liq <= 0 && rec <= 0) { out.push({ tone: 'info', text: 'Type bank, cash in hand, USDT and customers owe in the month form first — then the priorities can be worked out.' }); return out; }
+    const given = CH.ready ? (CH.given[latest.month] || 0) : 0, charityDue = Math.max(0, P.give - given);
+    const cushion = E > 0 ? 2 * E : 0, months = E > 0 ? liq / E : NaN;
+    if (rec > liq) out.push({ tone: 'warn', text: `Collect from customers first. ${Rs(rec)} is with customers — more than the ${Rs(liq)} you hold. Chase the oldest invoices this week.` });
+    else if (rec > 0) out.push({ tone: 'info', text: `Keep collecting: ${Rs(rec)} is still with customers.` });
+    if (isFinite(months) && months < 1) out.push({ tone: 'bad', text: `Danger: cash covers only ${months.toFixed(1)} months of expenses (${Rs(E)} a month). No new buying until money comes in.` });
+    else if (isFinite(months) && months < 2) out.push({ tone: 'warn', text: `Keep two months of expenses (${Rs(cushion)}) liquid at all times — you have ${months.toFixed(1)} months.` });
+    else if (isFinite(months)) out.push({ tone: 'good', text: `Cash covers ${months.toFixed(1)} months of expenses — the cushion is safe.` });
+    if (charityDue > 0) out.push({ tone: 'info', text: `Give charity ${Rs(charityDue)} from this month's profit${liq < charityDue + cushion ? ' as soon as customer money comes in' : ''}.` });
+    if (P.save + P.idle > 0) {
+      const moved = SAV.dep[latest.month] || 0, toMove = Math.max(0, P.save + P.idle - moved);
+      if (toMove > 0) out.push({ tone: 'info', text: `Move ${Rs(toMove)} to savings${P.idle > 0 ? ` (${Rs(P.save)} profit + ${Rs(P.idle)} idle capital)` : ''}${liq < toMove + cushion + charityDue ? ' — once collections bring the cash in, not from the cushion' : ''}.` });
+      else out.push({ tone: 'good', text: `Savings for the month already moved (${Rs(moved)}).` });
+    } else if (P.mode === 'hold') out.push({ tone: 'warn', text: 'Quiet month: hold the profit in the business. Nothing to savings, nothing new invested.' });
+    else if (P.mode === 'loss') out.push({ tone: 'bad', text: 'No profit this month. Give nothing, move nothing, invest nothing.' });
+    const free = liq - cushion - charityDue - Math.max(0, P.save + P.idle - (SAV.dep[latest.month] || 0));
+    if (free > 0) out.push({ tone: 'good', text: `${Rs(free)} is free for the next purchase after the cushion, charity and savings.` });
+    else if (liq > 0) out.push({ tone: 'warn', text: 'No free cash for new buying this month — the cushion, charity and savings use it all. Buy from collections.' });
+    const pct = cap > 0 ? (liq / cap) * 100 : NaN;
+    if (isFinite(pct) && pct < 10) out.push({ tone: 'warn', text: `Only ${pct.toFixed(0)}% of the capital is liquid — the rest is with customers or in goods. Turn goods into sales before buying more.` });
+    if (isFinite(pct) && pct > 50 && d.net > 0) out.push({ tone: 'info', text: `${pct.toFixed(0)}% of the capital is sitting in cash. Money not working — put it into the next shipment or to savings, do not leave it idle.` });
+    const prev = idx > 0 ? rows[idx - 1] : null; const prevLiq = prev ? prev.bank + prev.cash + prev.usdt_lkr : 0;
+    if (prev && prevLiq > 0 && liq < prevLiq * 0.7) out.push({ tone: 'warn', text: `Liquid cash fell ${Rs(prevLiq - liq)} since ${ml(prev.month)}. Check where it went: stock bought, customers slower, or taken out.` });
+    return out;
+  }
+  function printCashReport() {
+    if (!latest || !d || !v || !P) return;
+    const w = window.open('', '_blank', 'width=820,height=900'); if (!w) { alert('Allow pop-ups to print'); return; }
+    const liq = latest.bank + latest.cash + latest.usdt_lkr, rec = latest.receivables, cap = latest.net_capital, goods = Math.max(0, cap - liq - rec);
+    const pri = cashPriorities(); const col = { good: '#16a34a', warn: '#d97706', bad: '#dc2626', info: '#555' } as Record<Tone, string>;
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>Cash report — ${mlong(latest.month)}</title><style>
+      body{font-family:'IBM Plex Sans',Arial,sans-serif;padding:28px;color:#111;max-width:760px;margin:0 auto;font-size:13px}h1{font-size:20px;margin:0}h2{font-size:12px;color:#666;font-weight:400;margin:2px 0 16px}
+      h3{font-size:11px;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.12em;color:#555;font-family:'IBM Plex Mono',monospace}
+      .big{font-size:30px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:#16a34a}.sub{color:#555;font-size:12px}
+      table{width:100%;border-collapse:collapse;font-size:13px}td{padding:7px 0;border-bottom:1px solid #e5e5e5}td:last-child{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap}tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:0}
+      ol{padding-left:22px;margin:0}li{margin:7px 0;padding-left:6px;line-height:1.45}
+      .foot{margin-top:30px;font-size:11px;color:#777;display:flex;justify-content:space-between}@media print{body{padding:0}}</style></head><body>
+      <h1>${esc(companyFor().name)} — Cash report</h1><h2>${mlong(latest.month)} · printed ${new Date().toLocaleDateString('en-GB')}</h2>
+      <div class="big">${Rs(liq)}</div><div class="sub">liquid cash now — ${cap > 0 ? `${Math.round((liq / cap) * 100)}% of the ${Rs(cap)} working capital` : 'working capital not typed'}</div>
+      <h3>Where the capital sits</h3><table>
+      <tr><td>In the bank</td><td>${n0(latest.bank)}</td></tr><tr><td>Cash in hand</td><td>${n0(latest.cash)}</td></tr>${latest.usdt_lkr > 0 ? `<tr><td>USDT / foreign money</td><td>${n0(latest.usdt_lkr)}</td></tr>` : ''}
+      <tr class="tot"><td>Liquid cash</td><td>${n0(liq)}</td></tr>
+      <tr><td>With customers (not liquid)</td><td>${n0(rec)}</td></tr><tr><td>In goods / with suppliers (not liquid)</td><td>${n0(goods)}</td></tr>
+      <tr class="tot"><td>Working capital</td><td>${n0(cap)}</td></tr></table>
+      <h3>Priorities to take forward</h3><ol>${pri.map((p) => `<li style="border-left:3px solid ${col[p.tone]};padding-left:10px">${esc(p.text)}</li>`).join('')}</ol>
+      <h3>This month</h3><table><tr><td>Net profit</td><td>${n0(d.net)}</td></tr><tr><td>Return on capital</td><td>${p1(d.roc)}</td></tr><tr><td>Month grade</td><td>${esc(v.grade)}</td></tr>${savBal > 0 ? `<tr><td>Savings balance</td><td>${n0(savBal)}</td></tr>` : ''}</table>
+      <div class="foot"><div>Amounts in LKR. Figures typed at month-end on the Capital page.</div><div>${esc(v.headline)}</div></div>
+      <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`);
+    w.document.close();
+  }
+
   if (loading) return <div className="p-6 text-gray-500">Loading…</div>;
 
   const Tile = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) => (
@@ -474,6 +531,7 @@ export default function Growth() {
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setCfgOpen(true)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1" title="Giving and target settings"><Settings2 className="w-4 h-4" />Charity {cfg.fixed ? `${cfg.max}% fixed` : `0–${cfg.max}%`} · target up to +{cfg.stretch}%</button>
           <button onClick={print} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Printer className="w-4 h-4" />Print</button>
+          <button onClick={printCashReport} disabled={!latest} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1 disabled:opacity-40" title="Liquid cash + priorities, to forward"><Printer className="w-4 h-4" />Cash report</button>
           <button onClick={exportExcel} className="px-3 py-2 border border-gray-300 rounded-lg text-sm flex items-center gap-1"><Download className="w-4 h-4" />Excel</button>
           <button onClick={() => setEdit(newMonth())} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm flex items-center gap-1"><Plus className="w-4 h-4" />Add month</button>
         </div>
