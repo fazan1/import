@@ -88,12 +88,13 @@ export default function BackupRestore() {
     });
   }, []);
 
-  async function exportAll() {
+  async function exportAll(format: 'json' | 'xlsx' = 'json') {
     setExporting(true);
     setLog([]);
     try {
       const wb = XLSX.utils.book_new();
-      let total = 0;
+      const dump: Record<string, Row[]> = {};
+      let total = 0, cut = 0;
       const unreadable: string[] = [];
       for (const table of TABLES) {
         const rows: Row[] = [];
@@ -115,15 +116,21 @@ export default function BackupRestore() {
         }
         if (missing) { if (!unreadable.includes(table)) setLog((l) => [...l, `${table}: not in this database — skipped`]); continue; }
         // json/array columns become text so they survive the spreadsheet round-trip
-        const flat = rows.map((r) => {
-          const o: Row = {};
-          for (const [k, v] of Object.entries(r)) {
-            o[k] = v !== null && typeof v === 'object' ? JSON.stringify(v) : v;
-          }
-          return o;
-        });
-        const ws = XLSX.utils.json_to_sheet(flat.length ? flat : [{}]);
-        XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(table));
+        dump[table] = rows;
+        if (format === 'xlsx') {
+          // Excel cannot hold more than 32,767 characters in one cell: long text is cut in the spreadsheet (the JSON file keeps it whole)
+          const flat = rows.map((r) => {
+            const o: Row = {};
+            for (const [k, v] of Object.entries(r)) {
+              let t = v !== null && typeof v === 'object' ? JSON.stringify(v) : v;
+              if (typeof t === 'string' && t.length > 32000) { t = t.slice(0, 32000) + '…[cut]'; cut++; }
+              o[k] = t;
+            }
+            return o;
+          });
+          const ws = XLSX.utils.json_to_sheet(flat.length ? flat : [{}]);
+          XLSX.utils.book_append_sheet(wb, ws, sheetNameFor(table));
+        }
         total += rows.length;
         // show how many rows of each book went into the file
         let perBook = '';
@@ -135,7 +142,13 @@ export default function BackupRestore() {
         setLog((l) => [...l, `${table}: ${rows.length} rows${perBook}`]);
       }
       const stamp = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `backup-all-books-${stamp}.xlsx`);
+      if (format === 'xlsx') {
+        XLSX.writeFile(wb, `backup-all-books-${stamp}.xlsx`);
+        if (cut) setLog((l) => [...l, `${cut} long text cells were cut to fit Excel — use "Export all data" (JSON) for a complete backup.`]);
+      } else {
+        const blob = new Blob([JSON.stringify({ taken_at: new Date().toISOString(), tables: dump })], { type: 'application/json' });
+        const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `backup-all-books-${stamp}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      }
       setLog((l) => [...l, `Done — ${total} rows exported.${unreadable.length ? ` NOT included (no read access): ${unreadable.join(', ')} — run backup-read-access.sql once and export again.` : ''}`]);
     } catch (e) {
       setLog((l) => [...l, `Export failed: ${(e as Error).message}`]);
@@ -253,18 +266,28 @@ export default function BackupRestore() {
         <div className="flex-1">
           <h3 className="text-lg font-semibold text-blue-900 mb-2">Backup &amp; Restore</h3>
           <p className="text-sm text-teal-700 mb-4">
-            Export every table of every book to one Excel file (each record keeps its own book), or load a backup
+            Export every table of every book to one backup file (.json — each record keeps its own book), or load a backup
             into this database. Importing only adds rows that don't already exist, and every row goes back into its
             own book, so it is safe to run more than once.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
-              onClick={exportAll}
+              onClick={() => exportAll('json')}
               disabled={busy}
               className="flex items-center space-x-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50"
+              title="Complete backup file (.json) — the one to keep and to restore from"
             >
               <Download className="w-4 h-4" />
               <span>{exporting ? 'Exporting…' : 'Export all data'}</span>
+            </button>
+            <button
+              onClick={() => exportAll('xlsx')}
+              disabled={busy}
+              className="flex items-center space-x-2 px-4 py-2 bg-white border border-teal-300 hover:bg-teal-100 text-teal-800 rounded-lg transition-colors font-medium disabled:opacity-50"
+              title="Spreadsheet for reading — long text is cut at Excel's 32,767-character limit"
+            >
+              <Download className="w-4 h-4" />
+              <span>Excel (for reading)</span>
             </button>
             <button
               onClick={() => fileRef.current?.click()}
