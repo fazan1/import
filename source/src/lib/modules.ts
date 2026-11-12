@@ -38,6 +38,7 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'reports', label: 'Reports' },
     { id: 'hunt', label: 'Hunt' },
     { id: 'expenses', label: 'Expenses (personal pool)' },
+    { id: 'manual', label: 'User Manual' },
     { id: 'growth', label: 'Growth (RMB business)' },
     { id: 'trade-finder', label: 'Trade Finder (leads)' },
     { id: 'warehouse', label: 'Warehouse' },

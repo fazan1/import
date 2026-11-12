@@ -187,6 +187,7 @@ export default function PLInput() {
 
     if (error) {
       console.error('Error loading purchase bills:', error);
+      alert('Could not load the purchase bills for import: ' + error);
       return;
     }
 
@@ -222,7 +223,7 @@ export default function PLInput() {
 
     // Next number after the HIGHEST existing PL number in THIS batch (counting them gave a duplicate number after a delete)
     const existingInBatch = records
-      .filter((r) => !r.packing_list_no.startsWith('M') && r.batch_number && batchesAreSame(r.batch_number, targetBatch))
+      .filter((r) => !r.packing_list_no.startsWith('M') && (targetBatch ? (!!r.batch_number && batchesAreSame(r.batch_number, targetBatch)) : !r.batch_number))
       .reduce((max, r) => { const n = parseInt(r.packing_list_no, 10); return isNaN(n) ? max : Math.max(max, n); }, 0);
 
     const inserts = billsToAdd.map((bill, idx) => ({
@@ -299,7 +300,11 @@ export default function PLInput() {
     }
 
     closeAddForm();
-    loadAllRecords();
+    await loadAllRecords();
+    // show the batch the bills went into — before, the list stayed on the previous batch and the import looked lost
+    setActiveBatch(targetBatch ? targetBatch : '__unassigned__');
+    setSearchTerm(''); setStatusFilter(''); setDateFilter(''); setSupplierFilter('');
+    alert(`${billsToAdd.length} bill${billsToAdd.length === 1 ? '' : 's'} imported into ${targetBatch ? 'Batch ' + targetBatch : 'Unassigned (no batch number)'}.`);
   }
 
   function closeAddForm() {
@@ -511,8 +516,8 @@ export default function PLInput() {
     const nonNumericGroups = new Map<string, BillBatchGroup>();
 
     availableBills.forEach((bill) => {
-      if (!bill.batch_number) return;
-      const n = normalizeBatchNum(bill.batch_number);
+      // a bill with no batch number is still importable: it goes in a "No batch number" group (Unassigned tab)
+      const n = bill.batch_number ? normalizeBatchNum(bill.batch_number) : NaN;
 
       if (!isNaN(n)) {
         if (!groupMap.has(n)) {
@@ -537,7 +542,7 @@ export default function PLInput() {
           group.supplierNames.push(bill.supplier_name);
         }
       } else {
-        const key = bill.batch_number;
+        const key = bill.batch_number || '';
         if (!nonNumericGroups.has(key)) {
           nonNumericGroups.set(key, {
             canonicalBatch: key,
@@ -563,6 +568,8 @@ export default function PLInput() {
       const nA = normalizeBatchNum(a.canonicalBatch);
       const nB = normalizeBatchNum(b.canonicalBatch);
       if (!isNaN(nA) && !isNaN(nB)) return nB - nA;
+      if (!a.canonicalBatch) return 1;
+      if (!b.canonicalBatch) return -1;
       return b.canonicalBatch.localeCompare(a.canonicalBatch);
     });
   })();
@@ -910,10 +917,10 @@ export default function PLInput() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-slate-900 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                              {group.canonicalBatch.replace(/\D/g, '') || group.canonicalBatch.slice(0, 2)}
+                              {group.canonicalBatch.replace(/\D/g, '') || group.canonicalBatch.slice(0, 2) || '—'}
                             </div>
                             <div>
-                              <p className="font-semibold text-gray-900">Batch {group.canonicalBatch}</p>
+                              <p className="font-semibold text-gray-900">{group.canonicalBatch ? `Batch ${group.canonicalBatch}` : 'No batch number'}</p>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 {group.supplierNames.slice(0, 2).join(', ')}
                                 {group.supplierNames.length > 2 && ` +${group.supplierNames.length - 2} more`}
@@ -952,7 +959,7 @@ export default function PLInput() {
                       onClick={() => { setAddFormStep('batch'); setSelectedBillIds(new Set()); }}
                       className="text-sm text-teal-700 hover:underline flex items-center gap-1"
                     >
-                      ← Batch {addFormSelectedBatch.canonicalBatch}
+                      ← {addFormSelectedBatch.canonicalBatch ? `Batch ${addFormSelectedBatch.canonicalBatch}` : 'No batch number'}
                     </button>
                     <span className="text-gray-400">·</span>
                     <span className="text-sm text-gray-500">{addFormSelectedBatch.bills.length} bills</span>
