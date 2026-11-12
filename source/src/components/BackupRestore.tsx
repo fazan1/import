@@ -94,6 +94,7 @@ export default function BackupRestore() {
     try {
       const wb = XLSX.utils.book_new();
       let total = 0;
+      const unreadable: string[] = [];
       for (const table of TABLES) {
         const rows: Row[] = [];
         // EVERY book is saved (not only the one you are in); each row keeps its own "book" column,
@@ -106,12 +107,13 @@ export default function BackupRestore() {
           const { data, error } = await q.range(from, from + 999);
           if (error && ordered && /column .*id/i.test(error.message)) { ordered = false; from -= 1000; continue; }
           if (error && isMissingTable(error.message)) { missing = true; break; }
+          if (error && /permission denied/i.test(error.message)) { setLog((l) => [...l, `${table}: this login cannot read it — skipped (run backup-read-access.sql once)`]); missing = true; unreadable.push(table); break; }
           if (error) throw new Error(`${table}: ${error.message}`);
           if (!data || data.length === 0) break;
           rows.push(...(data as Row[]));
           if (data.length < 1000) break;
         }
-        if (missing) { setLog((l) => [...l, `${table}: not in this database — skipped`]); continue; }
+        if (missing) { if (!unreadable.includes(table)) setLog((l) => [...l, `${table}: not in this database — skipped`]); continue; }
         // json/array columns become text so they survive the spreadsheet round-trip
         const flat = rows.map((r) => {
           const o: Row = {};
@@ -134,7 +136,7 @@ export default function BackupRestore() {
       }
       const stamp = new Date().toISOString().slice(0, 10);
       XLSX.writeFile(wb, `backup-all-books-${stamp}.xlsx`);
-      setLog((l) => [...l, `Done — ${total} rows exported.`]);
+      setLog((l) => [...l, `Done — ${total} rows exported.${unreadable.length ? ` NOT included (no read access): ${unreadable.join(', ')} — run backup-read-access.sql once and export again.` : ''}`]);
     } catch (e) {
       setLog((l) => [...l, `Export failed: ${(e as Error).message}`]);
     } finally {
