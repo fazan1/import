@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Download, Upload, HardDriveDownload } from 'lucide-react';
 import { supabase, fromAllBooksForBackup } from '../lib/supabase';
@@ -18,7 +18,17 @@ const TABLES = [
   'growth_months', 'capital_savings',
   'ep_categories', 'ep_deposits', 'ep_expenses', 'ep_tallies', 'ep_moves',
   'wh_locations', 'wh_products', 'wh_stock', 'wh_notes', 'wh_note_lines',
+  // added in v196 (were missing from the backup): restored client-side with upsert (EXTRA_RESTORE), not by bulk_import
+  'capital_charity', 'capital_settings', 'shipment_item_charges', 'shipment_pl_charges', 'sl_partner_payouts',
+  'factory_setting_chats', 'trade_businesses', 'trade_contacts', 'trade_saved_searches', 'trade_contacts_archive',
+  'stock_items', 'stock_import_history', 'stock_import_details', 'import_calculations_archive',
+  // export only (written by the database itself)
+  'change_log', 'backup_log',
 ];
+const EXTRA_RESTORE = new Set(['capital_charity', 'capital_settings', 'shipment_item_charges', 'shipment_pl_charges', 'sl_partner_payouts',
+  'factory_setting_chats', 'trade_businesses', 'trade_contacts', 'trade_saved_searches', 'trade_contacts_archive',
+  'stock_items', 'stock_import_history', 'stock_import_details', 'import_calculations_archive']);
+const EXPORT_ONLY = new Set(['change_log', 'backup_log']);
 
 // A table that does not exist in this database is skipped (not every site has every page).
 const isMissingTable = (msg: string) => /does not exist|could not find the table|schema cache/i.test(msg);
@@ -70,6 +80,13 @@ export default function BackupRestore() {
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [log, setLog] = useState<string[]>([]);
+  const [lastAuto, setLastAuto] = useState<{ taken_at: string; tables: number; rows: number; bytes: number; ok: boolean; note: string | null; where: string | null } | null | 'none' | 'nosetup'>(null);
+  useEffect(() => {
+    fromAllBooksForBackup('backup_log').select('*').order('taken_at', { ascending: false }).limit(1).then(({ data, error }: { data: typeof lastAuto extends infer T ? T[] : never; error: { message: string } | null }) => {
+      if (error) { setLastAuto('nosetup'); return; }
+      setLastAuto(data && data.length ? (data[0] as Exclude<typeof lastAuto, null | string>) : 'none');
+    });
+  }, []);
 
   async function exportAll() {
     setExporting(true);
@@ -130,14 +147,26 @@ export default function BackupRestore() {
     setLog([`Reading ${file.name}…`]);
     try {
       const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
       const payload: Record<string, Row[]> = {};
       const skipped: string[] = [];
+      const isJson = /\.json$/i.test(file.name);
+      const wb = isJson ? null : XLSX.read(buf, { type: 'array', cellDates: true });
+      if (isJson) {
+        // the nightly file from /api/backup: { taken_at, tables: { name: rows[] } }
+        const doc = JSON.parse(new TextDecoder().decode(buf)) as { taken_at?: string; tables?: Record<string, Row[]> };
+        const tabs = doc.tables || (doc as unknown as Record<string, Row[]>);
+        for (const [table, rows] of Object.entries(tabs)) {
+          if (!TABLES.includes(table) || EXPORT_ONLY.has(table) || table === 'app_users') { skipped.push(table); continue; }
+          if (Array.isArray(rows) && rows.length) payload[table] = rows as Row[];
+        }
+        if (doc.taken_at) setLog((l) => [...l, `Backup taken ${new Date(doc.taken_at!).toLocaleString('en-GB')}`]);
+      }
 
-      for (const sheet of wb.SheetNames) {
+      for (const sheet of wb ? wb.SheetNames : []) {
         const table = tableForSheet(sheet);
         if (!table) { skipped.push(sheet); continue; }
-        const raw = XLSX.utils.sheet_to_json<Row>(wb.Sheets[sheet], { defval: null, raw: true });
+        if (EXPORT_ONLY.has(table)) { skipped.push(sheet); continue; }
+        const raw = XLSX.utils.sheet_to_json<Row>(wb!.Sheets[sheet], { defval: null, raw: true });
         const rows = raw
           .map((r) => {
             const o: Row = {};
@@ -171,6 +200,23 @@ export default function BackupRestore() {
       if (!tableCount) throw new Error('No recognised tables found in this file.');
       setLog((l) => [...l, `Importing ${tableCount} tables…`]);
 
+      // the newer tables are restored here with upsert (rows that exist are left as they are); the rest go through bulk_import
+      const extra: Record<string, Row[]> = {};
+      for (const t of Object.keys(payload)) if (EXTRA_RESTORE.has(t)) { extra[t] = payload[t]; delete payload[t]; }
+      let extraAdded = 0;
+      for (const [table, rows] of Object.entries(extra)) {
+        let added = 0;
+        for (let i = 0; i < rows.length; i += 500) {
+          const chunk = rows.slice(i, i + 500);
+          const { data: up, error: upErr } = await fromAllBooksForBackup(table).upsert(chunk, { onConflict: 'id', ignoreDuplicates: true }).select('id');
+          if (upErr) { setLog((l) => [...l, `${table}: ${upErr.message}`]); break; }
+          added += (up || []).length;
+        }
+        extraAdded += added;
+        setLog((l) => [...l, `${table}: ${added} new rows (${rows.length} in file)`]);
+      }
+      if (!Object.keys(payload).length) { setLog((l) => [...l, `Done — ${extraAdded} rows added. Rows that already existed were left unchanged.`]); return; }
+
       const { data, error } = await supabase.rpc('bulk_import', { p_data: payload });
       if (error) {
         if (/collection-only|closed/i.test(error.message)) throw new Error(error.message + '\nNothing was imported. To restore OLD documents, the OLD book must be open for the import (ask for the SQL line).');
@@ -178,7 +224,7 @@ export default function BackupRestore() {
       }
 
       const result = (data ?? {}) as Record<string, number>;
-      let inserted = 0;
+      let inserted = extraAdded;
       for (const table of TABLES) {
         if (table in result) {
           inserted += result[table];
@@ -224,18 +270,27 @@ export default function BackupRestore() {
               className="flex items-center space-x-2 px-4 py-2 bg-white border border-teal-300 hover:bg-teal-100 text-teal-800 rounded-lg transition-colors font-medium disabled:opacity-50"
             >
               <Upload className="w-4 h-4" />
-              <span>{importing ? 'Importing…' : 'Import data (.xlsx)'}</span>
+              <span>{importing ? 'Importing…' : 'Import data (.xlsx or .json)'}</span>
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.json"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) importFile(f);
               }}
             />
+          </div>
+          <div className="mt-4 text-xs text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2">
+            <b>Automatic nightly backup</b> (copied to your private GitHub repository every night at 03:00 Sri Lanka time):{' '}
+            {lastAuto === null ? 'checking…'
+              : lastAuto === 'nosetup' ? <span className="text-amber-700">not switched on yet — run backup-log.sql and set the Vercel keys (see User Manual → Backup).</span>
+              : lastAuto === 'none' ? <span className="text-amber-700">no run recorded yet — check the Vercel keys and the cron.</span>
+              : lastAuto.ok ? <span className="text-green-700">OK — {new Date(lastAuto.taken_at).toLocaleString('en-GB')}, {lastAuto.tables} tables, {lastAuto.rows.toLocaleString()} rows, {(lastAuto.bytes / 1048576).toFixed(1)} MB → {lastAuto.where}</span>
+              : <span className="text-red-700">FAILED {new Date(lastAuto.taken_at).toLocaleString('en-GB')}: {lastAuto.note}</span>}
+            {lastAuto && typeof lastAuto === 'object' && lastAuto.ok && (Date.now() - new Date(lastAuto.taken_at).getTime()) > 2 * 86400000 && <span className="text-red-700"> — more than 2 days old, check Vercel.</span>}
           </div>
           {log.length > 0 && (
             <pre className="mt-4 bg-white border border-blue-200 rounded-lg p-3 text-xs text-gray-700 max-h-64 overflow-auto whitespace-pre-wrap">

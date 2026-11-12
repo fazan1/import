@@ -130,6 +130,19 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'backup', title: 'Backup — keeping the data safe', when: 'Automatic every night + manual any time',
+    steps: [
+      'Automatic: every night at 03:00 Sri Lanka time the site copies EVERY table of the database into your private GitHub repository "import-backups" (backups/YYYY-MM-DD.json and latest.json). Settings → Backup shows the last run: date, tables, rows, size. Red = failed or older than 2 days → check Vercel.',
+      'One-time switch-on: create the private GitHub repo, make a GitHub token (repo scope), copy the Supabase service_role key, then add them in Vercel → Settings → Environment Variables (the four names are listed on the Settings → Backup page). Run backup-log.sql once in Supabase. Redeploy.',
+      'Test it: open the site address followed by /api/backup?key= and your cron secret in the browser — it answers ok:true with the row count, and the file appears in GitHub.',
+      'Laptop copy: install GitHub Desktop, clone import-backups to the laptop, and let a nightly scheduled "git pull" keep it up to date. Then the data is in three places: Supabase, GitHub, your laptop.',
+      'Manual: Settings → Backup → "Export all data" = one Excel file of every table, every book. Do it before any big change (SQL, bulk import, clearing a list).',
+      'Restore: Settings → Backup → "Import data" accepts the Excel file or a nightly .json file. Only rows that do not exist are added; every row goes back into its own book. Safe to run twice.',
+      'If Supabase itself is lost: make a new Supabase project, run the SQL files from the repo (source/sql) to create the tables, point Vercel at the new project, then Import latest.json. Ask for the exact list when the day comes.',
+    ],
+    notes: ['Supabase daily backups with point-in-time restore exist only on the paid plan (Pro). The GitHub copy is free and independent of Supabase.'],
+  },
+  {
     id: 'admin', title: 'Settings, users, backup', when: 'Admin only',
     steps: [
       'Settings → Users — make logins, choose modules per user, set the book lock. No public sign-up.',

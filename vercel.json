@@ -1,5 +1,14 @@
 {
   "rewrites": [
-    { "source": "/api/trade-search", "destination": "https://tycoon-vercel.vercel.app/api/trade-search" }
+    {
+      "source": "/api/trade-search",
+      "destination": "https://tycoon-vercel.vercel.app/api/trade-search"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/backup",
+      "schedule": "30 21 * * *"
+    }
   ]
 }
