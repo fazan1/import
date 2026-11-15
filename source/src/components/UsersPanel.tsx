@@ -4,7 +4,7 @@ import { Users, Plus, KeyRound, Shield, X, Check, Trash2 } from 'lucide-react';
 import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase';
 import { MODULE_GROUPS, ALL_MODULE_IDS, PRESETS } from '../lib/modules';
 import type { AppUser } from '../lib/modules';
-import { BOOK_BRO } from '../lib/book';
+import { BOOK_BRO, BOOK_NG } from '../lib/book';
 
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-sm';
 
@@ -198,6 +198,7 @@ function BookPick({ user, onChange }: { user: AppUser; onChange: (u: AppUser) =>
       <select className={input} value={user.book ?? ''} onChange={(e) => onChange({ ...user, book: e.target.value || null })}>
         <option value="">Your books (OLD / LCL 2026) — switch allowed</option>
         <option value={BOOK_BRO}>{BOOK_BRO} only — separate, cannot see your books</option>
+        <option value={BOOK_NG}>NG (Nigeria) only — the partner's login, sees only the NG pages</option>
       </select>
       <p className="text-[11px] text-amber-800 mt-1">{user.book ? `Locked: this login sees and saves only in ${user.book}. Your records stay invisible to it. Masters (items, suppliers, customers) are shared — it can add new ones but not edit or delete yours.` : 'This login works in your books.'}</p>
     </div>
