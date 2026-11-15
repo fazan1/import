@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Receipt, Plus, X, RefreshCw, Trash2, Pencil, Printer } from 'lucide-react';
 import { ngPrint } from '../lib/ngPrint';
+import { kgPerUnit } from '../lib/ngLanded';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -11,6 +12,7 @@ import { moveToRecycleBin } from '../lib/recycleBin';
 
 interface NgExpense { id: string; entry_date: string; category: string; description: string | null; amount: number; currency: 'NGN' | 'RMB'; rate: number | null; reference: string | null; note: string | null; created_at: string; item_id?: string | null; per_unit?: number | null; units?: number | null }
 interface NgIn { item_id: string; kind: string; quantity: number; cost_rmb: number | null; reference: string | null }
+interface NgItemW { id: string; unit: string; pcs_per_ton: number | null }
 interface NgPurchaseRef { number: string; total_rmb: number; order_date: string; status: string; supplier_id: string | null }
 
 export const NG_CATEGORIES = ['Customs duty', 'Shipping / freight', 'Clearing agent', 'Port / terminal', 'Transport', 'Rent', 'Salary', 'Bank charges', 'Partner payout', 'Owner withdrawal', 'Other'];
@@ -31,6 +33,7 @@ export default function NigeriaExpenses() {
   const [rows, setRows] = useState<NgExpense[]>([]);
   const [ins, setIns] = useState<NgIn[]>([]);
   const [bills, setBills] = useState<NgPurchaseRef[]>([]);
+  const [itemsW, setItemsW] = useState<NgItemW[]>([]);
   const [supNames, setSupNames] = useState<Record<string, string>>({});
   const [defRate, setDefRate] = useState<number>(0);
   const [rateBox, setRateBox] = useState('');
@@ -44,13 +47,15 @@ export default function NigeriaExpenses() {
 
   async function load() {
     setLoading(true);
-    const [ex, st, se, pu, su] = await Promise.all([
+    const [ex, st, se, pu, su, iw] = await Promise.all([
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgIn>(() => supabase.from('ng_stock').select('item_id, kind, quantity, cost_rmb, reference').eq('kind', 'in')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
       fetchAllPages<NgPurchaseRef>(() => supabase.from('ng_purchases').select('number, total_rmb, order_date, status, supplier_id').order('order_date', { ascending: false })),
       fetchAllPages<{ id: string; name: string }>(() => supabase.from('ng_suppliers').select('id, name')),
+      fetchAllPages<NgItemW>(() => supabase.from('ng_items').select('id, unit, pcs_per_ton')),
     ]);
+    setItemsW((iw.data || []).map((x) => ({ ...x, pcs_per_ton: x.pcs_per_ton == null ? null : Number(x.pcs_per_ton) })));
     setBills((pu.data || []).map((b) => ({ ...b, total_rmb: Number(b.total_rmb) || 0 })));
     setSupNames(Object.fromEntries((su.data || []).map((x) => [x.id, x.name])));
     if (ex.error) { if (/ng_expenses|does not exist|schema cache/i.test(ex.error)) setSetupNeeded(true); else alert('Could not load expenses: ' + ex.error); }
@@ -77,9 +82,10 @@ export default function NigeriaExpenses() {
   const refs = useMemo(() => Array.from(new Set([...bills.map((b) => b.number), ...ins.map((i) => i.reference || ''), ...rows.map((r) => r.reference || '')].filter(Boolean))).sort(), [ins, rows, bills]);
   const shipments = refs.map((ref) => {
     const goods = ins.filter((i) => i.reference === ref); const goodsRmb = goods.reduce((t, i) => t + (i.cost_rmb || 0), 0); const pcs = goods.reduce((t, i) => t + i.quantity, 0);
+    const kg = goods.reduce((t, i) => { const w = itemsW.find((x) => x.id === i.item_id); return t + i.quantity * (w ? kgPerUnit(w) : 0); }, 0);
     const ex = sum(rows.filter((r) => r.reference === ref));
     const bill = bills.find((b) => b.number === ref); const base = goodsRmb || bill?.total_rmb || 0;
-    return { ref, who: bill ? supNames[bill.supplier_id || ''] || '' : '', goodsRmb: base, inStock: goodsRmb > 0, pcs, exRmb: ex.rmb, exNgn: ex.ngn, landed: base + ex.rmb, uplift: base > 0 ? (ex.rmb / base) * 100 : NaN, perPcNgn: pcs > 0 ? ex.ngn / pcs : NaN, perPcRmb: pcs > 0 ? ex.rmb / pcs : NaN };
+    return { ref, who: bill ? supNames[bill.supplier_id || ''] || '' : '', goodsRmb: base, inStock: goodsRmb > 0, pcs, exRmb: ex.rmb, exNgn: ex.ngn, landed: base + ex.rmb, uplift: base > 0 ? (ex.rmb / base) * 100 : NaN, perPcNgn: pcs > 0 ? ex.ngn / pcs : NaN, perPcRmb: pcs > 0 ? ex.rmb / pcs : NaN, kg, perKgNgn: kg > 0 ? ex.ngn / kg : NaN, perKgRmb: kg > 0 ? ex.rmb / kg : NaN };
   });
 
   function openNew() { setForm({ entry_date: today(), category: 'Customs duty', description: '', amount_s: '', currency: 'NGN', rate_s: defRate ? String(defRate) : '', reference: refs[0] || '', note: '' }); }
@@ -111,9 +117,9 @@ export default function NigeriaExpenses() {
       total: ['Total', '', '', '', '', n2(mTot.ngn), n2(mTot.rmb)],
     }]);
     else ngPrint('Expenses NG — landed cost by shipment', `default rate ₦${defRate || '—'} / RMB`, [{
-      head: ['Shipment', 'Supplier', 'Pieces in', 'Goods (RMB)', 'Duty & expenses (₦)', '= RMB', 'Landed (RMB)', 'Duty ₦ / piece'], right: [2, 3, 4, 5, 6, 7],
-      rows: shipments.map((s) => [s.ref + (s.inStock ? '' : ' (not in stock yet)'), s.who, s.pcs ? n2(s.pcs) : '', n2(s.goodsRmb), n2(s.exNgn), n2(s.exRmb), n2(s.landed), isFinite(s.perPcNgn) ? s.perPcNgn.toFixed(2) : '']),
-    }], "Duty per piece = the shipment's duty & expenses ÷ its pieces. Landed cost of a piece = China cost + duty per piece.");
+      head: ['Shipment', 'Supplier', 'Pieces in', 'Weight kg', 'Goods (RMB)', 'Duty & expenses (₦)', '= RMB', 'Landed (RMB)', 'Duty ₦ / kg'], right: [2, 3, 4, 5, 6, 7, 8],
+      rows: shipments.map((s) => [s.ref + (s.inStock ? '' : ' (not in stock yet)'), s.who, s.pcs ? n2(s.pcs) : '', s.kg ? n2(s.kg) : '', n2(s.goodsRmb), n2(s.exNgn), n2(s.exRmb), n2(s.landed), isFinite(s.perKgNgn) ? s.perKgNgn.toFixed(2) : '']),
+    }], "Duty per kg = the shipment's duty & expenses ÷ its weight; each piece carries its weight × duty per kg. Landed cost of a piece = China cost + that duty.");
   }
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
@@ -123,7 +129,7 @@ export default function NigeriaExpenses() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Receipt className="w-6 h-6 text-[#e8552a]" /> Nigeria — Expenses & duty NG</h1>
-          <p className="text-sm text-gray-500">Duty, freight, clearing and running costs in Naira or RMB. Costs with a shipment reference are divided equally over every piece of that shipment.</p>
+          <p className="text-sm text-gray-500">Duty, freight, clearing and running costs in Naira or RMB. Costs with a shipment reference are spread over that shipment's goods by weight.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -178,9 +184,9 @@ export default function NigeriaExpenses() {
       {tab === 'ship' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
-            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Shipment</th><th className="text-right px-4 py-2">Pieces in</th><th className="text-right px-4 py-2">Goods (RMB)</th><th className="text-right px-4 py-2">Duty & expenses (₦)</th><th className="text-right px-4 py-2">= RMB</th><th className="text-right px-4 py-2">Landed (RMB)</th><th className="text-right px-4 py-2">Duty per piece</th></tr></thead>
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Shipment</th><th className="text-right px-4 py-2">Pieces in</th><th className="text-right px-4 py-2">Goods (RMB)</th><th className="text-right px-4 py-2">Duty & expenses (₦)</th><th className="text-right px-4 py-2">= RMB</th><th className="text-right px-4 py-2">Landed (RMB)</th><th className="text-right px-4 py-2">Weight</th><th className="text-right px-4 py-2">Duty per kg</th></tr></thead>
             <tbody>
-              {shipments.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No shipment references yet. Put stock in with a reference (PI-001) and give expenses the same reference.</td></tr>}
+              {shipments.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No shipment references yet. Put stock in with a reference (PI-001) and give expenses the same reference.</td></tr>}
               {shipments.map((s) => (
                 <tr key={s.ref} className="border-t border-gray-100">
                   <td className="px-4 py-2 font-medium">{s.ref}{s.who ? <span className="block text-xs text-gray-400">{s.who}</span> : null}{!s.inStock && <span className="block text-[11px] text-amber-700">not received into stock yet</span>}</td>
@@ -189,12 +195,13 @@ export default function NigeriaExpenses() {
                   <td className="px-4 py-2 text-right font-mono">{n2(s.exNgn)}</td>
                   <td className="px-4 py-2 text-right font-mono">{n2(s.exRmb)}</td>
                   <td className="px-4 py-2 text-right font-mono font-semibold">{n2(s.landed)}</td>
-                  <td className="px-4 py-2 text-right font-mono">{isFinite(s.perPcNgn) ? `₦${s.perPcNgn.toFixed(2)}` : '—'}{isFinite(s.perPcRmb) ? <span className="block text-[11px] text-gray-400">{s.perPcRmb.toFixed(4)} RMB</span> : null}</td>
+                  <td className="px-4 py-2 text-right font-mono">{s.kg ? `${n2(s.kg)} kg` : '—'}</td>
+                  <td className="px-4 py-2 text-right font-mono">{isFinite(s.perKgNgn) ? `₦${s.perKgNgn.toFixed(2)}` : '—'}{isFinite(s.perKgRmb) ? <span className="block text-[11px] text-gray-400">{s.perKgRmb.toFixed(4)} RMB</span> : null}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="px-4 py-3 text-xs text-gray-500">Duty per piece = the shipment's duty & expenses ÷ its pieces — every piece carries the same amount. Landed cost of a piece = its China cost + duty per piece. Sales profit, Stock and Overview use it.</p>
+          <p className="px-4 py-3 text-xs text-gray-500">Duty per kg = the shipment's duty & expenses ÷ its weight. Each piece carries its own weight × duty per kg (weight = 1000 kg ÷ pieces per ton). Landed cost of a piece = China cost + that duty. Sales profit, Stock and Overview use it.</p>
         </div>
       )}
 

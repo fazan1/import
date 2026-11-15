@@ -10,7 +10,7 @@ import { landedCosts } from '../lib/ngLanded';
    customer, note). Profit = sale ₦ − quantity × landed cost × rate, where landed cost = item China cost × (1 + shipment uplift)
    (uplift = expenses with a reference ÷ goods RMB of that reference; items are matched to the shipment of their last IN). */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; sell_naira: number | null; is_active: boolean }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; sell_naira: number | null; is_active: boolean }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null; note: string | null; created_at: string }
 interface NgExpense { amount: number; currency: string; rate: number | null; reference: string | null; item_id?: string | null }
 
@@ -36,13 +36,13 @@ export default function NigeriaSales() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, se] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, sell_naira, is_active').order('name').order('finish').order('specification')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, sell_naira, is_active').order('name').order('finish').order('specification')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference, item_id')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
     ]);
     if (it.error) alert('Could not load Items NG: ' + it.error);
-    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, sell_naira: r.sell_naira == null ? null : Number(r.sell_naira) })));
+    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton), sell_naira: r.sell_naira == null ? null : Number(r.sell_naira) })));
     setMoves((mv.data || []).map((m) => ({ ...m, quantity: Number(m.quantity) || 0, cost_rmb: m.cost_rmb == null ? null : Number(m.cost_rmb), sale_naira: m.sale_naira == null ? null : Number(m.sale_naira), rate: m.rate == null ? null : Number(m.rate) })));
     setExpenses((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
     setDefRate(Number((se.data?.value as { naira_per_rmb?: number } | undefined)?.naira_per_rmb) || 0);
@@ -120,7 +120,7 @@ export default function NigeriaSales() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><ShoppingCart className="w-6 h-6 text-[#e8552a]" /> Nigeria — Sales NG</h1>
-          <p className="text-sm text-gray-500">What the partner sold. Each sale comes off stock; profit = sale − landed cost (China cost + the shipment's duty per piece) at the rate.</p>
+          <p className="text-sm text-gray-500">What the partner sold. Each sale comes off stock; profit = sale − landed cost (China cost + the shipment's duty by weight) at the rate.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -178,7 +178,7 @@ export default function NigeriaSales() {
               <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 space-y-0.5">
                 {fl && fItem ? (() => { const r = isFinite(fRate) && fRate > 0 ? fRate : (defRate || 0); const china = (fl.cost - fl.perPiece) * r, dutyN = fl.perPiece * r, landedN = fl.cost * r; return (<>
                   <div className="flex justify-between"><span className="text-gray-600">Product cost (China) per {fItem.unit}</span><span className="font-mono">₦{n2(china)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">+ duty & clearing per {fItem.unit}{fl.ref ? ` (${fl.ref})` : ''}</span><span className="font-mono">₦{n2(dutyN)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">+ duty & clearing per {fItem.unit}{fl.ref ? ` (${fl.ref}${fl.kgPerUnit ? `, ${(fl.kgPerUnit * 1000).toFixed(0)} g × ₦${(fl.perKg * r).toFixed(0)}/kg` : ''})` : ''}</span><span className="font-mono">₦{n2(dutyN)}</span></div>
                   <div className="flex justify-between border-t border-gray-200 pt-0.5 font-semibold"><span>= cost per {fItem.unit}</span><span className="font-mono">₦{n2(landedN)} <span className="text-xs text-gray-500 font-normal">({fl.cost.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB)</span></span></div>
                   {isFinite(fCost) && <div className="flex justify-between pt-1"><span className="text-gray-600">Cost of this sale ({n2(fQty)} × ₦{n2(landedN)})</span><span className="font-mono">₦{n0(fCost)}</span></div>}
                   {isFinite(fCost) && isFinite(fTotal) && <div className="flex justify-between font-semibold"><span>Profit of this sale</span><span className={`font-mono ${fTotal - fCost >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n0(fTotal - fCost)}{fTotal ? <span className="text-xs text-gray-500 font-normal"> ({(((fTotal - fCost) / fTotal) * 100).toFixed(0)}% of sale)</span> : null}</span></div>}

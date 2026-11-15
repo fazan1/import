@@ -9,7 +9,7 @@ import { ngPrint } from '../lib/ngPrint';
 /* NIGERIA — Overview NG: the whole picture on one page. Money in goods (orders / paid / outstanding), duty & expenses,
    stock left at landed cost, sales, cost of sales, profit — all time and by month. Same landed-cost rule as Sales NG. */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; is_active: boolean }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; is_active: boolean }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null }
 interface NgExpense { entry_date: string; category: string; amount: number; currency: string; rate: number | null; reference: string | null; item_id?: string | null }
 interface NgPurchase { id: string; number: string; status: string; total_rmb: number; order_date: string }
@@ -34,7 +34,7 @@ export default function NigeriaOverview() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, pu, pa, se, sp] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, is_active').order('name')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('id, item_id, kind, entry_date, quantity, cost_rmb, sale_naira, rate, reference').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference, item_id')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('id, number, status, total_rmb, order_date')),
@@ -42,7 +42,7 @@ export default function NigeriaOverview() {
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
       supabase.from('ng_settings').select('value').eq('key', 'partner').maybeSingle(),
     ]);
-    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0 })));
+    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton) })));
     setMoves((mv.data || []).map((m) => ({ ...m, quantity: Number(m.quantity) || 0, cost_rmb: m.cost_rmb == null ? null : Number(m.cost_rmb), sale_naira: m.sale_naira == null ? null : Number(m.sale_naira), rate: m.rate == null ? null : Number(m.rate) })));
     setExpenses((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
     setPurchases((pu.data || []).map((p) => ({ ...p, total_rmb: Number(p.total_rmb) || 0 })));

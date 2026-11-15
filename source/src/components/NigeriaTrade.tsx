@@ -127,7 +127,7 @@ export default function NigeriaTrade() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Globe className="w-6 h-6 text-[#e8552a]" /> Nigeria — Items NG</h1>
-          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + the shipment's duty per piece{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
+          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + the shipment's duty by weight{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -176,7 +176,7 @@ export default function NigeriaTrade() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-500">Landed = China cost per piece + duty per piece, where duty per piece = the shipment's duty & expenses ÷ all its pieces (every piece carries the same duty).</p>
+      <p className="text-xs text-gray-500">Landed = China cost per piece + duty on that piece. Duty is spread BY WEIGHT: the shipment's duty & expenses ÷ its kg, × the weight of each piece (1000 kg ÷ pieces per ton).</p>
 
       {edit && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setEdit(null)}>
