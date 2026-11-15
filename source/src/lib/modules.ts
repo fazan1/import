@@ -60,6 +60,8 @@ export interface AppUser { user_id: string; email: string; name: string | null; 
 
 // The screens of the shop book — the shop login gets these, and an admin who switches to the shop book sees only these.
 // The shop sees its own prices and costs, so Costing & Duty (landed cost) is part of its book too.
+/** NG book: only the Nigeria screens exist (plus Settings for the admin). */
+export const NG_MODULES = ['ng-items', 'ng-stock'];
 export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'investor', 'pl-input', 'packing-list', 'costing-duty', 'shipping', 'shipment-history', 'cn-reports', 'items', 'suppliers', 'clearing-agents'];
 
 // Presets to make setup fast
@@ -70,5 +72,5 @@ export const PRESETS: { label: string; modules: string[] }[] = [
   { label: 'BLINE Shop (CN, own books)', modules: SHOP_MODULES },
   { label: 'Warehouse only', modules: ['warehouse'] },
   { label: 'Factory only', modules: ['factory-problems', 'factory-my-data', 'factory-pattern', 'factory-mechanical', 'factory-other'] },
-  { label: 'NG only (Nigeria partner)', modules: ['ng-items', 'ng-stock'] },
+  { label: 'NG only (Nigeria partner)', modules: NG_MODULES },
 ];

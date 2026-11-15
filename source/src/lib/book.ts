@@ -5,7 +5,8 @@ export const BOOK_OLD = 'OLD';
 export const BOOK_NEW = 'LCL 2026';
 export const BOOK_ALL = '__all__';
 export const BOOK_BRO = 'BLINE SHOP';
-export const BOOKS = [BOOK_NEW, BOOK_OLD, BOOK_BRO] as const;
+export const BOOK_NG = 'NG';   // Nigeria business: its own screens (ng_* tables), reached from the book switch like the shop
+export const BOOKS = [BOOK_NEW, BOOK_OLD, BOOK_BRO, BOOK_NG] as const;
 /** Books that share the original investor (OLD + LCL 2026). Any other book has its own investor. */
 export const MAIN_BOOKS = [BOOK_OLD, BOOK_NEW];
 
@@ -41,13 +42,14 @@ const KEY = 'crm-book';
 let current: string = (() => {
   try {
     if (sessionStorage.getItem(KEY) === BOOK_BRO) return BOOK_BRO;
+    if (sessionStorage.getItem(KEY) === BOOK_NG) return BOOK_NG;
     const v = localStorage.getItem(KEY); if (v === BOOK_OLD || v === BOOK_NEW || v === BOOK_ALL) return v;
   } catch { /* ignore */ }
   return BOOK_NEW;
 })();
 function remember(b: string) {
   try {
-    if (b === BOOK_BRO) sessionStorage.setItem(KEY, b);
+    if (b === BOOK_BRO || b === BOOK_NG) sessionStorage.setItem(KEY, b);
     else { sessionStorage.removeItem(KEY); localStorage.setItem(KEY, b); }
   } catch { /* ignore */ }
 }

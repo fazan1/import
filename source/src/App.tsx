@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, Globe, LayoutDashboard, Users, FileText, Settings as SettingsIcon, LogOut, Building2, ClipboardList, Shield, Network, Calculator, Receipt, Boxes, FileStack, ClipboardCheck, ListChecks, FileSpreadsheet, ShoppingCart, CreditCard, DollarSign, Ship, Trash2, ShoppingBag, Wrench, FolderOpen, Container, BarChart3, Crosshair, Warehouse as WarehouseIcon, Landmark, Wallet, TrendingUp, BookOpen as BookIcon, Lock, Handshake, Search as SearchIcon } from 'lucide-react';
 import { useAuth } from './contexts/AuthContext';
-import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, getBook, setBook, lockBook, unlockBook, setBookModes, bookMode } from './lib/book';
+import { BOOK_ALL, BOOK_NEW, BOOK_OLD, BOOK_BRO, BOOK_NG, getBook, setBook, lockBook, unlockBook, setBookModes, bookMode } from './lib/book';
 import type { BookMode } from './lib/book';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
@@ -57,7 +57,7 @@ import Reports from './components/Reports';
 import CnReports from './components/CnReports';
 import CnHome from './components/CnHome';
 import ClearingAgents from './components/ClearingAgents';
-import { SHOP_MODULES } from './lib/modules';
+import { NG_MODULES, SHOP_MODULES } from './lib/modules';
 
 const SETTINGS_PIN_HASH = 'd665119136130460b3e98647a4a280654685bf8eb0b300062a201879e7cb2074'; // SHA-256 of the Settings password
 const HUNT_URL = 'https://claude.ai/artifact/WrDS1pCKmJ8Sv8YST4SvPc';
@@ -163,6 +163,7 @@ function App() {
   // in the shop book only the shop's screens exist — land on its Home
   useEffect(() => {
     if (book === BOOK_BRO && currentView !== 'settings' && !SHOP_MODULES.includes(currentView)) setCurrentView('cn-home');
+    if (book === BOOK_NG && currentView !== 'settings' && !NG_MODULES.includes(currentView)) setCurrentView('ng-items');
   }, [book, currentView]); // eslint-disable-line react-hooks/exhaustive-deps
   const [factoryProblemId, setFactoryProblemId] = useState<string | null>(null);
   const [preselectedOrderId, setPreselectedOrderId] = useState<string | null>(null);
@@ -239,6 +240,7 @@ function App() {
     }
     if (!canView({ id: currentView })) return <div className="p-6 text-gray-500">You don't have access to this screen.</div>;
     if (currentView === 'ceo' && book !== BOOK_NEW) return <div className="p-6 text-gray-500">CEO Network is part of the {BOOK_NEW} book. <button onClick={() => changeBook(BOOK_NEW)} className="text-teal-700 underline">Switch to {BOOK_NEW}</button></div>;
+    if (book === BOOK_NG && currentView !== 'settings' && !NG_MODULES.includes(currentView)) return <div className="p-6 text-gray-500">This screen is not part of NG. <button onClick={() => setCurrentView('ng-items')} className="text-teal-700 underline">Go to Items NG</button></div>;
     if (book === BOOK_BRO && currentView !== 'settings' && !SHOP_MODULES.includes(currentView)) return <div className="p-6 text-gray-500">This screen is not part of the BLINE SHOP book. <button onClick={() => setCurrentView('cn-home')} className="text-teal-700 underline">Go to the shop's Home</button></div>;
     if (inToolsGroup(currentView) && !toolsUnlocked) return <div className="p-6 text-gray-500">Tools is locked. <button onClick={() => askToolsPin(currentView)} className="text-teal-700 underline">Enter password</button></div>;
     if (currentView === 'settings' && !settingsUnlocked) return <div className="p-6 text-gray-500">Settings is locked. <button onClick={openSettings} className="text-teal-700 underline">Enter password</button></div>;
@@ -444,7 +446,7 @@ function App() {
     { key: 'ng', label: 'NG', items: [{ id: 'ng-items' as View, label: 'Items NG', icon: Globe }, { id: 'ng-stock' as View, label: 'Stock NG', icon: Boxes }] },
     { key: 'tools', label: 'Tools', items: [{ id: 'growth' as View, label: 'Capital', icon: TrendingUp }, { id: 'expenses' as View, label: 'Expenses', icon: Wallet }, { id: 'manual' as View, label: 'User Manual', icon: BookOpen }, { id: 'trade-finder' as View, label: 'Trade Finder', icon: SearchIcon }, mainMenuItems[1], mainMenuItems[2], mainMenuItems[3], bottomMenuItems[1], bottomMenuItems[8]] },
   ].filter((g) => APP_MODE !== 'shop' || ['home', 'masters', 'cn', 'reports'].includes(g.key))
-   .map((g) => ({ ...g, items: g.items.filter(canView).filter((i) => book !== BOOK_BRO || SHOP_MODULES.includes(i.id)).filter((i) => i.id !== 'ceo' || book === BOOK_NEW).filter((i) => i.id !== 'cn-home' || book === BOOK_BRO).filter((i) => APP_MODE !== 'shop' || (g.key === 'cn' || ['main-dashboard', 'suppliers', 'items', 'reports'].includes(i.id))) })).filter((g) => g.items.length > 0);
+   .map((g) => ({ ...g, items: g.items.filter(canView).filter((i) => book !== BOOK_BRO || SHOP_MODULES.includes(i.id)).filter((i) => (book === BOOK_NG) === NG_MODULES.includes(i.id) || i.id === 'settings').filter((i) => i.id !== 'ceo' || book === BOOK_NEW).filter((i) => i.id !== 'cn-home' || book === BOOK_BRO).filter((i) => APP_MODE !== 'shop' || (g.key === 'cn' || ['main-dashboard', 'suppliers', 'items', 'reports'].includes(i.id))) })).filter((g) => g.items.length > 0);
   const activeGroup = groups.find((g) => g.items.some((i) => i.id === currentView)) ?? groups[0];
   const inToolsGroup = (id: View) => groups.find((g) => g.key === 'tools')?.items.some((i) => i.id === id) ?? false;
   const goItem = (id: View) => { setMoreOpen(false); if (id === 'hunt') window.open(HUNT_URL, '_blank', 'noopener'); else if (id === 'settings') openSettings(); else if (inToolsGroup(id) && !toolsUnlocked) askToolsPin(id); else setCurrentView(id); };
@@ -455,7 +457,8 @@ function App() {
     const was = book;
     setBook(b); setBookState(b);
     if (b === BOOK_BRO) setCurrentView('cn-home');                       // the shop's own home
-    else if (was === BOOK_BRO) setCurrentView('main-dashboard');          // back to your full dashboard
+    else if (b === BOOK_NG) setCurrentView('ng-items');                   // Nigeria: its own screens
+    else if (was === BOOK_BRO || was === BOOK_NG) setCurrentView('main-dashboard');          // back to your full dashboard
   }
 
   const tabBtn = (on: boolean) => `px-3 py-2.5 text-[12px] font-semibold uppercase tracking-[0.06em] whitespace-nowrap border-b-2 transition-colors ${on ? 'text-neutral-900 border-[#e8552a]' : 'text-neutral-700 border-transparent hover:text-neutral-900'}`;
@@ -465,7 +468,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V202</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V203</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -476,7 +479,7 @@ function App() {
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setBookOpen(false)} />
                 <div className="absolute left-0 top-[30px] z-50 w-52 bg-[#0a0a0a] border border-neutral-700 shadow-xl">
-                  {[{ v: BOOK_NEW, t: BOOK_NEW, d: 'New business from the changeover' }, { v: BOOK_OLD, t: BOOK_OLD + ' BOOKS', d: 'Everything up to the changeover' }, { v: BOOK_ALL, t: 'ALL BOOKS', d: 'Old + LCL 2026 together, for checking' }, { v: BOOK_BRO, t: BOOK_BRO, d: 'Shop transactions only — kept apart' }].map((o) => (
+                  {[{ v: BOOK_NEW, t: BOOK_NEW, d: 'New business from the changeover' }, { v: BOOK_OLD, t: BOOK_OLD + ' BOOKS', d: 'Everything up to the changeover' }, { v: BOOK_ALL, t: 'ALL BOOKS', d: 'Old + LCL 2026 together, for checking' }, { v: BOOK_BRO, t: BOOK_BRO, d: 'Shop transactions only — kept apart' }, { v: BOOK_NG, t: 'NG — NIGERIA', d: 'Nigeria business: items, stock, sales in Naira' }].map((o) => (
                     <button key={o.v} onClick={() => { changeBook(o.v); setBookOpen(false); }}
                       className={`w-full text-left px-3 py-2 border-b border-neutral-800 last:border-0 hover:bg-neutral-900 ${o.v === book ? 'text-[#e8552a]' : 'text-neutral-300'}`}>
                       <div className="font-mono text-[11px] tracking-[0.1em] uppercase">{o.t}</div>
@@ -494,7 +497,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v202</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v203</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
@@ -528,7 +531,7 @@ function App() {
         <main className="flex-1 min-w-0 p-3 sm:p-6 bg-gray-50 overflow-x-hidden pb-20 lg:pb-6">
           {book !== BOOK_NEW && !bookLocked && (
             <div className="max-w-[1600px] mx-auto mb-3 border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 flex items-center justify-between gap-3">
-              <span>{book === BOOK_ALL ? <><b>All books</b> — old and new together, for reading only. To add anything, switch to one book.</> : book === BOOK_BRO ? <><b>{BOOK_BRO}</b> — the shop's own books, separate from your import books. Anything you add or correct here stays in the shop book.</> : bookMode(BOOK_OLD) === 'closed' ? <><b>{BOOK_OLD} books — closed</b>. Reference only: nothing can be added or changed.</> : bookMode(BOOK_OLD) === 'collection' ? <><b>{BOOK_OLD} books — collection only</b>. Record customer receipts and supplier payments here. New POs, bills, shipments, orders and invoices go in {BOOK_NEW}.</> : <><b>{BOOK_OLD} books</b> — the business up to the changeover. Collect and settle here; anything you add is saved into the old books.</>}</span>
+              <span>{book === BOOK_ALL ? <><b>All books</b> — old and new together, for reading only. To add anything, switch to one book.</> : book === BOOK_BRO ? <><b>{BOOK_BRO}</b> — the shop's own books, separate from your import books. Anything you add or correct here stays in the shop book.</> : book === BOOK_NG ? <><b>NG — Nigeria</b> — the Nigeria business: its own items, stock and sales, nothing shared with Sri Lanka.</> : bookMode(BOOK_OLD) === 'closed' ? <><b>{BOOK_OLD} books — closed</b>. Reference only: nothing can be added or changed.</> : bookMode(BOOK_OLD) === 'collection' ? <><b>{BOOK_OLD} books — collection only</b>. Record customer receipts and supplier payments here. New POs, bills, shipments, orders and invoices go in {BOOK_NEW}.</> : <><b>{BOOK_OLD} books</b> — the business up to the changeover. Collect and settle here; anything you add is saved into the old books.</>}</span>
               <button onClick={() => changeBook(BOOK_NEW)} className="shrink-0 border border-amber-600 text-amber-900 px-2 py-1 text-[11px] font-semibold hover:bg-amber-100">Back to {BOOK_NEW}</button>
             </div>
           )}
