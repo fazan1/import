@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Boxes, Plus, X, RefreshCw, Trash2, PackagePlus, SlidersHorizontal, Printer } from 'lucide-react';
 import { ngPrint } from '../lib/ngPrint';
+import { landedCosts, pendingRefs } from '../lib/ngLanded';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -9,7 +10,8 @@ import { moveToRecycleBin } from '../lib/recycleBin';
    Quantities are in the item's unit (pcs / kg / bag / ton). A proforma is per ton: "Load a proforma" takes tons per
    item and converts to the unit (pcs_per_ton, 1000 kg, 40 bags of 25 kg). Cost of an IN = quantity × item cost (editable). */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; is_active: boolean }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; sell_naira?: number | null; is_active: boolean }
+interface NgExp { amount: number; currency: string; rate: number | null; reference: string | null }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null; note: string | null; created_at: string }
 
 const KG_PER_BAG = 25;
@@ -24,6 +26,9 @@ export const unitsPerTon = (i: NgItem) => (i.unit === 'ton' ? 1 : i.unit === 'kg
 export default function NigeriaStock() {
   const [items, setItems] = useState<NgItem[]>([]);
   const [moves, setMoves] = useState<NgMove[]>([]);
+  const [exps, setExps] = useState<NgExp[]>([]);
+  const [rate, setRate] = useState(0);
+  const [pend, setPend] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [tab, setTab] = useState<'stock' | 'moves'>('stock');
@@ -34,13 +39,19 @@ export default function NigeriaStock() {
 
   async function load() {
     setLoading(true);
-    const [it, mv] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name').order('finish').order('specification')),
+    const [it, mv, ex, se, pu] = await Promise.all([
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, sell_naira, is_active').order('name').order('finish').order('specification')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
+      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
+      supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
+      fetchAllPages<{ number: string; received_at: string | null; status: string }>(() => supabase.from('ng_purchases').select('number, received_at, status')),
     ]);
+    setExps((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
+    setRate(Number((se.data?.value as { naira_per_rmb?: number } | undefined)?.naira_per_rmb) || 0);
+    setPend(pendingRefs(pu.data || []));
     if (it.error) { if (/ng_items|does not exist|schema cache/i.test(it.error)) setSetupNeeded(true); else alert('Could not load Items NG: ' + it.error); }
     else setSetupNeeded(false);
-    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton) })));
+    setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton), sell_naira: r.sell_naira == null ? null : Number(r.sell_naira) })));
     if (mv.error && !it.error) alert('Could not load stock movements: ' + mv.error);
     setMoves((mv.data || []).map((m) => ({ ...m, quantity: Number(m.quantity) || 0, cost_rmb: m.cost_rmb == null ? null : Number(m.cost_rmb), sale_naira: m.sale_naira == null ? null : Number(m.sale_naira), rate: m.rate == null ? null : Number(m.rate) })));
     setLoading(false);
@@ -58,8 +69,12 @@ export default function NigeriaStock() {
     return m;
   }, [moves]);
   const itemOf = (id: string) => items.find((i) => i.id === id);
-  const rows = items.filter((i) => i.is_active || byItem[i.id]).map((i) => { const s = byItem[i.id] || { qty: 0, inQty: 0, inCost: 0, outQty: 0, adjQty: 0 }; const avg = s.inQty > 0 ? s.inCost / s.inQty : i.cost_rmb; return { i, ...s, avg, value: s.qty * avg }; });
+  const landed = useMemo(() => landedCosts(items, moves, exps, rate, pend), [items, moves, exps, rate, pend]);
+  const rows = items.filter((i) => i.is_active || byItem[i.id]).map((i) => { const s = byItem[i.id] || { qty: 0, inQty: 0, inCost: 0, outQty: 0, adjQty: 0 }; const avg = s.inQty > 0 ? s.inCost / s.inQty : i.cost_rmb; const lc = landed[i.id]?.cost ?? avg; const q = Math.max(0, s.qty); return { i, ...s, avg, value: s.qty * avg, landedRmb: lc, landedNgn: lc * rate, costNgn: q * lc * rate, sellNgn: i.sell_naira ? q * i.sell_naira : NaN, pending: !!landed[i.id]?.pending }; });
   const totValue = rows.reduce((t, r) => t + r.value, 0);
+  const totCostNgn = rows.reduce((t, r) => t + (isFinite(r.costNgn) ? r.costNgn : 0), 0);
+  const totSellNgn = rows.reduce((t, r) => t + (isFinite(r.sellNgn) ? r.sellNgn : 0), 0);
+  const noPrice = rows.filter((r) => r.qty > 0 && !r.i.sell_naira).length;
 
   function openIn(kind: 'in' | 'adjust') { setForm({ kind, item_id: items[0]?.id || '', entry_date: today(), tons: '', qty: '', cost: '', reference: '', note: '' }); }
   const fItem = form ? itemOf(form.item_id) : undefined;
@@ -106,10 +121,10 @@ export default function NigeriaStock() {
 
   function printPage() {
     if (tab === 'stock') ngPrint('Stock NG — on hand', `${rows.length} items · value at average cost in RMB`, [{
-      head: ['Item', 'Unit', 'In', 'Sold', 'Adjust', 'On hand', 'Avg cost (RMB)', 'Value (RMB)'], right: [2, 3, 4, 5, 6, 7],
-      rows: rows.map((r) => [label(r.i), r.i.unit, n2(r.inQty), n2(r.outQty), r.adjQty ? n2(r.adjQty) : '', n2(r.qty), r.avg.toLocaleString('en-US', { maximumFractionDigits: 4 }), n2(r.value)]),
-      total: ['Stock value at cost', '', '', '', '', '', '', n2(totValue)],
-    }]);
+      head: ['Item', 'Unit', 'On hand', 'Cost (RMB)', 'Landed ₦ / unit', 'Value at cost ₦', 'Sell ₦ / unit', 'Value at selling ₦'], right: [2, 3, 4, 5, 6, 7],
+      rows: rows.map((r) => [label(r.i), r.i.unit, n2(r.qty), r.avg.toLocaleString('en-US', { maximumFractionDigits: 4 }), rate ? n2(r.landedNgn) : '', rate ? n2(r.costNgn) : '', r.i.sell_naira ? n2(r.i.sell_naira) : '', isFinite(r.sellNgn) ? n2(r.sellNgn) : '']),
+      total: ['Total', '', '', `${n2(totValue)} RMB`, '', n2(totCostNgn), '', n2(totSellNgn)],
+    }], `Profit in the stock if all sold at the selling price: ₦${n2(totSellNgn - totCostNgn)}`);
     else ngPrint('Stock NG — movements', `${moves.length} movements, newest first`, [{
       head: ['Date', 'Type', 'Item', 'Quantity', 'Cost RMB', 'Sale ₦', 'Reference / note'], right: [3, 4, 5],
       rows: moves.map((m) => { const it = itemOf(m.item_id); return [showDate(m.entry_date), m.kind === 'in' ? 'In' : m.kind === 'out' ? 'Sold' : 'Adjust', it ? label(it) : m.item_id, `${n2(m.quantity)} ${it?.unit || ''}`, m.cost_rmb != null ? n2(m.cost_rmb) : '', m.sale_naira != null ? n2(m.sale_naira) : '', [m.reference, m.note].filter(Boolean).join(' · ')]; }),
@@ -137,6 +152,13 @@ export default function NigeriaStock() {
       {setupNeeded && <div className="p-4 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900">One-time setup needed: run <b>nigeria-setup.sql</b> in Supabase (MAIN project), then Refresh.</div>}
       {!setupNeeded && items.length === 0 && <div className="p-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">No items yet — add them in Items NG first.</div>}
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at China cost</div><div className="text-lg font-semibold font-mono">{n2(totValue)} RMB</div><div className="text-xs text-gray-500">{rate ? `₦${n2(totValue * rate)}` : 'save the rate in Expenses NG'}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at landed cost</div><div className="text-lg font-semibold font-mono">₦{n2(totCostNgn)}</div><div className="text-xs text-gray-500">China cost + duty by weight</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at selling price</div><div className="text-lg font-semibold font-mono">₦{n2(totSellNgn)}</div><div className="text-xs text-gray-500">{noPrice ? `${noPrice} item${noPrice === 1 ? '' : 's'} without a selling price` : 'all items priced'}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Profit in the stock</div><div className={`text-lg font-semibold font-mono ${totSellNgn - totCostNgn >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n2(totSellNgn - totCostNgn)}</div><div className="text-xs text-gray-500">if all sold at the selling price</div></div>
+      </div>
+
       <div className="flex gap-2">
         <button onClick={() => setTab('stock')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'stock' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Stock on hand</button>
         <button onClick={() => setTab('moves')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'moves' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Movements ({moves.length})</button>
@@ -144,10 +166,10 @@ export default function NigeriaStock() {
 
       {tab === 'stock' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-[1040px]">
             <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
               <th className="text-left px-4 py-2">Item</th><th className="text-right px-4 py-2">In</th><th className="text-right px-4 py-2">Sold</th><th className="text-right px-4 py-2">Adjust</th>
-              <th className="text-right px-4 py-2">On hand</th><th className="text-right px-4 py-2">Avg cost (RMB)</th><th className="text-right px-4 py-2">Value (RMB)</th>
+              <th className="text-right px-4 py-2">On hand</th><th className="text-right px-4 py-2">Cost (RMB)</th><th className="text-right px-4 py-2">Landed ₦ / unit</th><th className="text-right px-4 py-2">Value at cost ₦</th><th className="text-right px-4 py-2">Sell ₦ / unit</th><th className="text-right px-4 py-2">Value at selling ₦</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -158,10 +180,13 @@ export default function NigeriaStock() {
                   <td className="px-4 py-2 text-right font-mono">{r.adjQty ? n2(r.adjQty) : ''}</td>
                   <td className={`px-4 py-2 text-right font-mono font-semibold ${r.qty < 0 ? 'text-red-600' : ''}`}>{n2(r.qty)}</td>
                   <td className="px-4 py-2 text-right font-mono">{r.avg.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td>
-                  <td className="px-4 py-2 text-right font-mono">{n2(r.value)}</td>
+                  <td className="px-4 py-2 text-right font-mono">{rate ? n2(r.landedNgn) : '—'}{r.pending ? <span className="block text-[10px] text-amber-700">duty not yet</span> : null}</td>
+                  <td className="px-4 py-2 text-right font-mono">{rate ? n2(r.costNgn) : '—'}</td>
+                  <td className="px-4 py-2 text-right font-mono">{r.i.sell_naira ? n2(r.i.sell_naira) : <span className="text-gray-400">—</span>}</td>
+                  <td className="px-4 py-2 text-right font-mono">{isFinite(r.sellNgn) ? n2(r.sellNgn) : ''}</td>
                 </tr>
               ))}
-              {rows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={6}>Stock value at cost</td><td className="px-4 py-2 text-right font-mono">{n2(totValue)} RMB</td></tr>}
+              {rows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={5}>Total</td><td className="px-4 py-2 text-right font-mono">{n2(totValue)} RMB</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totCostNgn)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totSellNgn)}</td></tr>}
             </tbody>
           </table>
         </div>
