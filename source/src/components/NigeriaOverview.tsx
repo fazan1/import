@@ -3,12 +3,13 @@ import { LayoutDashboard, RefreshCw, Copy, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { expenseBoth } from './NigeriaExpenses';
+import { landedCosts } from '../lib/ngLanded';
 import { ngPrint } from '../lib/ngPrint';
 
 /* NIGERIA — Overview NG: the whole picture on one page. Money in goods (orders / paid / outstanding), duty & expenses,
    stock left at landed cost, sales, cost of sales, profit — all time and by month. Same landed-cost rule as Sales NG. */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; is_active: boolean }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; is_active: boolean; duty_factor?: number | null }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null }
 interface NgExpense { entry_date: string; category: string; amount: number; currency: string; rate: number | null; reference: string | null }
 interface NgPurchase { id: string; number: string; status: string; total_rmb: number; order_date: string }
@@ -33,7 +34,7 @@ export default function NigeriaOverview() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, pu, pa, se, sp] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, is_active').order('name')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, is_active, duty_factor').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('id, item_id, kind, entry_date, quantity, cost_rmb, sale_naira, rate, reference').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('id, number, status, total_rmb, order_date')),
@@ -58,8 +59,7 @@ export default function NigeriaOverview() {
     moves.filter((m) => m.kind === 'in' && m.reference).forEach((m) => { goodsByRef[m.reference!] = (goodsByRef[m.reference!] || 0) + (m.cost_rmb || 0); });
     let exShipRmb = 0, exGenRmb = 0, exShipNgn = 0, exGenNgn = 0;
     expenses.forEach((e) => { const b = expenseBoth(e, rate); const r = isFinite(b.rmb) ? b.rmb : 0, n = isFinite(b.ngn) ? b.ngn : 0; if (e.reference) { exByRef[e.reference] = (exByRef[e.reference] || 0) + r; exShipRmb += r; exShipNgn += n; } else { exGenRmb += r; exGenNgn += n; } });
-    const landed: Record<string, number> = {};
-    items.forEach((i) => { const lastIn = moves.find((m) => m.item_id === i.id && m.kind === 'in'); const ref = lastIn?.reference; const up = ref && goodsByRef[ref] > 0 ? (exByRef[ref] || 0) / goodsByRef[ref] : 0; landed[i.id] = i.cost_rmb * (1 + up); });
+    const L = landedCosts(items, moves, expenses, rate); const landed: Record<string, number> = {}; items.forEach((i) => { landed[i.id] = L[i.id]?.cost ?? i.cost_rmb; });
     const onHand: Record<string, number> = {}; moves.forEach((m) => { onHand[m.item_id] = (onHand[m.item_id] || 0) + (m.kind === 'out' ? -m.quantity : m.quantity); });
     const goodsIn = moves.filter((m) => m.kind === 'in').reduce((t, m) => t + (m.cost_rmb || 0), 0);
     const stockChina = items.reduce((t, i) => t + Math.max(0, onHand[i.id] || 0) * i.cost_rmb, 0);

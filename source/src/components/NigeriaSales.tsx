@@ -4,13 +4,13 @@ import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
-import { expenseBoth } from './NigeriaExpenses';
+import { landedCosts } from '../lib/ngLanded';
 
 /* NIGERIA — step 4: Sales NG. The partner sells; each sale is an ng_stock OUT row (quantity, sale_naira, rate, reference =
    customer, note). Profit = sale ₦ − quantity × landed cost × rate, where landed cost = item China cost × (1 + shipment uplift)
    (uplift = expenses with a reference ÷ goods RMB of that reference; items are matched to the shipment of their last IN). */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; sell_naira: number | null; is_active: boolean }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; sell_naira: number | null; is_active: boolean; duty_factor?: number | null }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null; note: string | null; created_at: string }
 interface NgExpense { amount: number; currency: string; rate: number | null; reference: string | null }
 
@@ -36,7 +36,7 @@ export default function NigeriaSales() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, se] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, sell_naira, is_active').order('name').order('finish').order('specification')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, sell_naira, is_active, duty_factor').order('name').order('finish').order('specification')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
@@ -50,19 +50,7 @@ export default function NigeriaSales() {
   }
   useEffect(() => { load(); }, []);
 
-  /* landed cost per item: China cost × (1 + uplift of the shipment of its last IN) */
-  const landed = useMemo(() => {
-    const goodsByRef: Record<string, number> = {}, exByRef: Record<string, number> = {};
-    moves.filter((m) => m.kind === 'in' && m.reference).forEach((m) => { goodsByRef[m.reference!] = (goodsByRef[m.reference!] || 0) + (m.cost_rmb || 0); });
-    expenses.filter((e) => e.reference).forEach((e) => { const b = expenseBoth(e, defRate); if (isFinite(b.rmb)) exByRef[e.reference!] = (exByRef[e.reference!] || 0) + b.rmb; });
-    const out: Record<string, { cost: number; uplift: number; ref: string | null }> = {};
-    items.forEach((i) => {
-      const lastIn = moves.find((m) => m.item_id === i.id && m.kind === 'in'); // moves are newest first
-      const ref = lastIn?.reference || null; const uplift = ref && goodsByRef[ref] > 0 ? (exByRef[ref] || 0) / goodsByRef[ref] : 0;
-      out[i.id] = { cost: i.cost_rmb * (1 + uplift), uplift, ref };
-    });
-    return out;
-  }, [items, moves, expenses, defRate]);
+  const landed = useMemo(() => landedCosts(items, moves, expenses, defRate), [items, moves, expenses, defRate]);
   const onHand = useMemo(() => { const m: Record<string, number> = {}; moves.forEach((x) => { m[x.item_id] = (m[x.item_id] || 0) + (x.kind === 'out' ? -x.quantity : x.quantity); }); return m; }, [moves]);
   const itemOf = (id: string) => items.find((i) => i.id === id);
 
@@ -187,7 +175,7 @@ export default function NigeriaSales() {
               <div><label className="text-xs text-gray-500">Total sold (₦)</label><input type="number" inputMode="decimal" className={input} value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value, price: isFinite(fQty) && fQty > 0 && e.target.value ? String(Math.round((parseFloat(e.target.value) / fQty) * 100) / 100) : form.price })} /></div>
               <div><label className="text-xs text-gray-500">Rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></div>
               <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                {fl ? <>Landed cost {fl.cost.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB per {fItem?.unit}{fl.uplift ? ` (China cost + ${(fl.uplift * 100).toFixed(1)}% ${fl.ref})` : ' (no duty / expenses on its shipment yet)'}{isFinite(fCost) ? <> · cost of this sale <b>₦{n0(fCost)}</b> · profit <b className={fTotal - fCost >= 0 ? 'text-green-700' : 'text-red-600'}>₦{n0(fTotal - fCost)}</b></> : null}</> : 'Pick an item'}
+                {fl ? <>Landed cost {fl.cost.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB per {fItem?.unit}{fl.up ? ` (China cost + ${(fl.up * 100).toFixed(1)}% ${fl.ref}${fl.factor !== 1 ? `, duty factor ×${fl.factor}` : ''})` : ' (no duty / expenses on its shipment yet)'}{isFinite(fCost) ? <> · cost of this sale <b>₦{n0(fCost)}</b> · profit <b className={fTotal - fCost >= 0 ? 'text-green-700' : 'text-red-600'}>₦{n0(fTotal - fCost)}</b></> : null}</> : 'Pick an item'}
               </div>
               <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>

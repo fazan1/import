@@ -3,6 +3,7 @@ import { Globe, Plus, Pencil, X, RefreshCw, Trash2, Printer } from 'lucide-react
 import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
+import { landedCosts } from '../lib/ngLanded';
 
 /* NIGERIA business — step 1: Items NG (own items, nothing shared with the Sri Lanka Items master).
    Goods are bought in China per TON (price per ton RMB, pieces per ton) and sold in Nigeria per unit (pcs / kg / bag / ton).
@@ -10,9 +11,10 @@ import { fetchAllPages } from '../lib/fetchAll';
 
 interface NgItem {
   id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null;
-  cost_rmb: number; sell_naira: number | null; is_active: boolean; note: string | null;
+  cost_rmb: number; sell_naira: number | null; is_active: boolean; note: string | null; duty_factor?: number | null;
 }
-interface NgStock { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; quantity: number }
+interface NgStock { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; quantity: number; cost_rmb: number | null; reference: string | null }
+interface NgExp { amount: number; currency: string; rate: number | null; reference: string | null }
 
 const UNITS = ['pcs', 'kg', 'bag', 'ton'] as const;
 const KG_PER_BAG = 25;
@@ -33,6 +35,8 @@ export function costPerUnit(pricePerTon: number, unit: string, pcsPerTon: number
 export default function NigeriaTrade() {
   const [items, setItems] = useState<NgItem[]>([]);
   const [stock, setStock] = useState<NgStock[]>([]);
+  const [exps, setExps] = useState<NgExp[]>([]);
+  const [rate, setRate] = useState(0);
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -43,15 +47,19 @@ export default function NigeriaTrade() {
 
   async function load() {
     setLoading(true);
-    const [it, st] = await Promise.all([
+    const [it, st, ex, se] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('*').order('name').order('specification')),
-      fetchAllPages<NgStock>(() => supabase.from('ng_stock').select('id, item_id, kind, quantity').order('entry_date')),
+      fetchAllPages<NgStock>(() => supabase.from('ng_stock').select('id, item_id, kind, quantity, cost_rmb, reference').order('entry_date', { ascending: false })),
+      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
+      supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
     ]);
+    setExps((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
+    setRate(Number((se.data?.value as { naira_per_rmb?: number } | undefined)?.naira_per_rmb) || 0);
     if (it.error) {
       if (/ng_items|does not exist|schema cache/i.test(it.error)) setSetupNeeded(true); else alert('Could not load Items NG: ' + it.error);
       setItems([]);
     } else { setSetupNeeded(false); setItems(it.data.map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton), sell_naira: r.sell_naira == null ? null : Number(r.sell_naira) }))); }
-    setStock(st.error ? [] : st.data.map((r) => ({ ...r, quantity: Number(r.quantity) || 0 })));
+    setStock(st.error ? [] : st.data.map((r) => ({ ...r, quantity: Number(r.quantity) || 0, cost_rmb: r.cost_rmb == null ? null : Number(r.cost_rmb) })));
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -61,6 +69,9 @@ export default function NigeriaTrade() {
     stock.forEach((s) => { m[s.item_id] = (m[s.item_id] || 0) + (s.kind === 'out' ? -s.quantity : s.quantity); });
     return m;
   }, [stock]);
+
+  // landed cost per item = China cost × (1 + duty & expenses of its shipment ÷ goods of that shipment); shipment = the item's last IN
+  const landed = useMemo(() => landedCosts(items, stock, exps, rate), [items, stock, exps, rate]);
 
   const shown = items.filter((i) => (showInactive || i.is_active) && (!q || [i.name, i.specification, i.finish].join(' ').toLowerCase().includes(q.toLowerCase())));
 
@@ -80,7 +91,7 @@ export default function NigeriaTrade() {
     const dup = items.find((i) => i.id !== edit.id && i.name.trim().toLowerCase() === name.toLowerCase() && (i.specification || '').trim().toLowerCase() === (edit.specification || '').trim().toLowerCase() && (i.finish || '').trim().toLowerCase() === (edit.finish || '').trim().toLowerCase());
     if (dup) { alert(`"${name} ${edit.specification || ''} ${edit.finish || ''}" already exists in Items NG.`); return; }
     savingRef.current = true; setSaving(true);
-    const row = { name, specification: (edit.specification || '').trim() || null, finish: (edit.finish || '').trim().toUpperCase() || null, unit: edit.unit || 'pcs', pcs_per_ton: edit.pcs_per_ton || null, cost_rmb: Math.round(cost * 10000) / 10000, sell_naira: edit.sell_naira || null, is_active: edit.is_active !== false, note: (edit.note || '').trim() || null, updated_at: new Date().toISOString() };
+    const row = { name, specification: (edit.specification || '').trim() || null, finish: (edit.finish || '').trim().toUpperCase() || null, unit: edit.unit || 'pcs', pcs_per_ton: edit.pcs_per_ton || null, cost_rmb: Math.round(cost * 10000) / 10000, sell_naira: edit.sell_naira || null, is_active: edit.is_active !== false, note: (edit.note || '').trim() || null, duty_factor: Number(edit.duty_factor) > 0 ? Number(edit.duty_factor) : 1, updated_at: new Date().toISOString() };
     const { error } = edit.id ? await supabase.from('ng_items').update(row).eq('id', edit.id) : await supabase.from('ng_items').insert(row);
     savingRef.current = false; setSaving(false);
     if (error) { alert('Could not save: ' + error.message); return; }
@@ -104,8 +115,8 @@ export default function NigeriaTrade() {
 
   function printList() {
     ngPrint('Items NG', `${shown.length} items · cost per unit in RMB · stock in each item's unit`, [{
-      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'Cost / unit (RMB)', 'Selling price (₦)', 'Stock'], right: [4, 5, 6, 7],
-      rows: shown.map((i) => [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), n2(i.sell_naira), `${n2(onHand[i.id] || 0)} ${i.unit}`]),
+      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'China cost (RMB)', 'Landed / unit (RMB)', 'Landed ₦', 'Selling price (₦)', 'Margin', 'Stock'], right: [4, 5, 6, 7, 8, 9, 10],
+      rows: shown.map((i) => { const lc = landed[i.id]?.cost ?? i.cost_rmb; return [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), n4(lc), rate ? n2(lc * rate) : '', n2(i.sell_naira), i.sell_naira && rate ? `${(((i.sell_naira - lc * rate) / i.sell_naira) * 100).toFixed(0)}%` : '', `${n2(onHand[i.id] || 0)} ${i.unit}`]; }),
     }]);
   }
 
@@ -116,7 +127,7 @@ export default function NigeriaTrade() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Globe className="w-6 h-6 text-[#e8552a]" /> Nigeria — Items NG</h1>
-          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Separate from the Sri Lanka Items.</p>
+          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + its shipment's duty & expenses{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -134,14 +145,14 @@ export default function NigeriaTrade() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm min-w-[760px]">
+        <table className="w-full text-sm min-w-[980px]">
           <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
             <th className="text-left px-4 py-2">Product</th><th className="text-left px-4 py-2">Specification</th><th className="text-left px-4 py-2">Finish</th>
-            <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">Cost / unit (RMB)</th>
-            <th className="text-right px-4 py-2">Selling price (₦)</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
+            <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">China cost (RMB)</th><th className="text-right px-4 py-2">Landed / unit (RMB)</th><th className="text-right px-4 py-2">Landed ₦</th>
+            <th className="text-right px-4 py-2">Selling price (₦)</th><th className="text-right px-4 py-2">Margin</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
           </tr></thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
             {shown.map((i) => (
               <tr key={i.id} className={`border-t border-gray-100 ${i.is_active ? '' : 'opacity-50'}`}>
                 <td className="px-4 py-2 font-medium">{i.name}</td>
@@ -150,7 +161,10 @@ export default function NigeriaTrade() {
                 <td className="px-4 py-2">{i.unit}</td>
                 <td className="px-4 py-2 text-right">{n2(i.pcs_per_ton)}</td>
                 <td className="px-4 py-2 text-right font-mono">{n4(i.cost_rmb)}</td>
+                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.up ? <span className="block text-[10px] text-gray-400">+{(landed[i.id].up * 100).toFixed(1)}%{landed[i.id].factor !== 1 ? ` · ×${landed[i.id].factor}` : ''}</span> : null}</td>
+                <td className="px-4 py-2 text-right font-mono">{rate ? n2((landed[i.id]?.cost ?? i.cost_rmb) * rate) : '—'}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(i.sell_naira)}</td>
+                <td className={`px-4 py-2 text-right font-mono ${i.sell_naira && rate && i.sell_naira < (landed[i.id]?.cost ?? i.cost_rmb) * rate ? 'text-red-600' : 'text-gray-700'}`}>{i.sell_naira && rate ? `${(((i.sell_naira - (landed[i.id]?.cost ?? i.cost_rmb) * rate) / i.sell_naira) * 100).toFixed(0)}%` : ''}</td>
                 <td className={`px-4 py-2 text-right font-mono ${(onHand[i.id] || 0) < 0 ? 'text-red-600' : ''}`}>{n2(onHand[i.id] || 0)} <span className="text-xs text-gray-400">{i.unit}</span></td>
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <button onClick={() => openEdit(i)} className="p-1 text-gray-400 hover:text-gray-800" title="Edit"><Pencil className="w-4 h-4" /></button>
@@ -162,7 +176,7 @@ export default function NigeriaTrade() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-500">Next steps (not built yet): Stock in from the proforma, Sales by the partner, Overview with profit in RMB and Naira.</p>
+      <p className="text-xs text-gray-500">Landed = China cost + the item's share of its shipment's duty & expenses. The share is by value × duty factor (set per item in Edit); the shipment's total duty is always fully spread.</p>
 
       {edit && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setEdit(null)}>
@@ -177,7 +191,8 @@ export default function NigeriaTrade() {
               <div><label className="text-xs text-gray-500">Selling price (₦ per {edit.unit || 'pcs'})</label><input type="number" inputMode="decimal" className={input} value={edit.sell_naira ?? ''} onChange={(e) => setEdit({ ...edit, sell_naira: e.target.value === '' ? null : Number(e.target.value) })} /></div>
               <div><label className="text-xs text-gray-500">Price per ton (RMB) — from the proforma</label><input type="number" inputMode="decimal" className={input} value={edit.price_per_ton || ''} onChange={(e) => setEdit({ ...edit, price_per_ton: e.target.value })} placeholder="5270" /></div>
               <div><label className="text-xs text-gray-500">Cost per {edit.unit || 'pcs'} (RMB)</label><input type="number" inputMode="decimal" className={input} value={derivedCost != null ? String(Math.round(derivedCost * 10000) / 10000) : (edit.cost_rmb || '')} onChange={(e) => setEdit({ ...edit, cost_rmb: Number(e.target.value) || 0, price_per_ton: '' })} /><p className="text-[11px] text-gray-500 mt-1">{derivedCost != null ? 'worked out from the ton price' : 'or type it directly'}</p></div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
+              <div><label className="text-xs text-gray-500">Duty factor</label><input type="number" inputMode="decimal" step="0.1" className={input} value={edit.duty_factor ?? 1} onChange={(e) => setEdit({ ...edit, duty_factor: Number(e.target.value) })} /><p className="text-[11px] text-gray-500 mt-1">1 = normal share of the shipment's duty · 1.5 = carries more (small items) · 0.7 = carries less (big items)</p></div>
+              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
