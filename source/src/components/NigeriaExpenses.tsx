@@ -13,7 +13,7 @@ interface NgExpense { id: string; entry_date: string; category: string; descript
 interface NgIn { item_id: string; kind: string; quantity: number; cost_rmb: number | null; reference: string | null }
 interface NgPurchaseRef { number: string; total_rmb: number; order_date: string; status: string; supplier_id: string | null }
 
-export const NG_CATEGORIES = ['Customs duty', 'Shipping / freight', 'Clearing agent', 'Port / terminal', 'Transport', 'Rent', 'Salary', 'Bank charges', 'Other'];
+export const NG_CATEGORIES = ['Customs duty', 'Shipping / freight', 'Clearing agent', 'Port / terminal', 'Transport', 'Rent', 'Salary', 'Bank charges', 'Partner payout', 'Other'];
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500';
 const n2 = (v: number | null | undefined) => (v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }));
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };

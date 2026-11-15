@@ -130,6 +130,22 @@ const SECTIONS: Section[] = [
     ],
   },
   {
+    id: 'ng', title: 'NG — Nigeria business', when: 'Own book in the switcher: items, orders, stock, sales, expenses, overview',
+    steps: [
+      'Open it: click the book name in the header (LCL 2026) and pick "NG — NIGERIA". Only the NG pages show. "Back to LCL 2026" returns.',
+      'Items NG — one row per product: product, specification, finish, unit (pcs), pieces per ton, price per ton or cost per piece in RMB, selling price in Naira. Separate from the Sri Lanka Items.',
+      'Purchases NG — New supplier for the factory; New order / PI with lines from Items NG (type tons → pieces, price per piece). Print = the proforma / PO page.',
+      'Pay the factory: Pay on the order card, amount in RMB, how paid, and what it cost you in LKR / NGN / USD. Tiles show Ordered / Paid / Outstanding; Payments tab lists them.',
+      'When the goods land: Receive into stock on the order card. Check each line\'s Received quantity (change it if pieces are missing), arrival date, Put into stock. Once per order.',
+      'Expenses NG — save the default rate (Naira per RMB) first. Duty, clearing, transport: pick the bill / shipment so the cost is spread over those goods (landed cost). Rent, salary, bank: General. Partner payouts: type "Partner payout", General.',
+      'Sales NG — New sale: item, quantity, selling price per piece (pre-filled), rate. Stock goes down; profit = sale − landed cost. Copy summary = WhatsApp text for the partner.',
+      'Stock NG — on hand per item and value at cost; Adjust with a minus quantity when pieces are missing (reason in Note); Stock in for extra goods; Movements shows every line.',
+      'Overview NG — the whole picture: ordered / paid / outstanding to China, duty, stock at landed cost, sales, gross profit, general expenses, net; profit by shipment; partner share % → due / paid / balance; by month. Print / PDF and Copy summary.',
+      'Month-end for NG: all sales typed, expenses typed, partner payout recorded, Overview → Copy summary to the group.',
+    ],
+    notes: ['Landed cost of an item = its China cost × (1 + duty & expenses of its shipment ÷ goods of that shipment). Sales profit and stock value use it.', 'Never press "Receive into stock" twice for the same goods; a received order shows "Received" and is locked.'],
+  },
+  {
     id: 'backup', title: 'Backup — keeping the data safe', when: 'Automatic every night + manual any time',
     steps: [
       'Automatic: every night at 03:00 Sri Lanka time the site copies EVERY table of the database into your private GitHub repository "import-backups" (backups/YYYY-MM-DD.json and latest.json). Settings → Backup shows the last run: date, tables, rows, size. Red = failed or older than 2 days → check Vercel.',
