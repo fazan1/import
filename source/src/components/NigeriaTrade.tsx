@@ -11,10 +11,10 @@ import { landedCosts } from '../lib/ngLanded';
 
 interface NgItem {
   id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null;
-  cost_rmb: number; sell_naira: number | null; is_active: boolean; note: string | null; duty_factor?: number | null;
+  cost_rmb: number; sell_naira: number | null; is_active: boolean; note: string | null;
 }
 interface NgStock { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; quantity: number; cost_rmb: number | null; reference: string | null }
-interface NgExp { amount: number; currency: string; rate: number | null; reference: string | null }
+interface NgExp { amount: number; currency: string; rate: number | null; reference: string | null; item_id?: string | null }
 
 const UNITS = ['pcs', 'kg', 'bag', 'ton'] as const;
 const KG_PER_BAG = 25;
@@ -50,7 +50,7 @@ export default function NigeriaTrade() {
     const [it, st, ex, se] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('*').order('name').order('specification')),
       fetchAllPages<NgStock>(() => supabase.from('ng_stock').select('id, item_id, kind, quantity, cost_rmb, reference').order('entry_date', { ascending: false })),
-      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
+      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference, item_id')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
     ]);
     setExps((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
@@ -91,7 +91,7 @@ export default function NigeriaTrade() {
     const dup = items.find((i) => i.id !== edit.id && i.name.trim().toLowerCase() === name.toLowerCase() && (i.specification || '').trim().toLowerCase() === (edit.specification || '').trim().toLowerCase() && (i.finish || '').trim().toLowerCase() === (edit.finish || '').trim().toLowerCase());
     if (dup) { alert(`"${name} ${edit.specification || ''} ${edit.finish || ''}" already exists in Items NG.`); return; }
     savingRef.current = true; setSaving(true);
-    const row = { name, specification: (edit.specification || '').trim() || null, finish: (edit.finish || '').trim().toUpperCase() || null, unit: edit.unit || 'pcs', pcs_per_ton: edit.pcs_per_ton || null, cost_rmb: Math.round(cost * 10000) / 10000, sell_naira: edit.sell_naira || null, is_active: edit.is_active !== false, note: (edit.note || '').trim() || null, duty_factor: Number(edit.duty_factor) > 0 ? Number(edit.duty_factor) : 1, updated_at: new Date().toISOString() };
+    const row = { name, specification: (edit.specification || '').trim() || null, finish: (edit.finish || '').trim().toUpperCase() || null, unit: edit.unit || 'pcs', pcs_per_ton: edit.pcs_per_ton || null, cost_rmb: Math.round(cost * 10000) / 10000, sell_naira: edit.sell_naira || null, is_active: edit.is_active !== false, note: (edit.note || '').trim() || null, updated_at: new Date().toISOString() };
     const { error } = edit.id ? await supabase.from('ng_items').update(row).eq('id', edit.id) : await supabase.from('ng_items').insert(row);
     savingRef.current = false; setSaving(false);
     if (error) { alert('Could not save: ' + error.message); return; }
@@ -127,7 +127,7 @@ export default function NigeriaTrade() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Globe className="w-6 h-6 text-[#e8552a]" /> Nigeria — Items NG</h1>
-          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + its shipment's duty & expenses{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
+          <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + the shipment's duty per piece{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -161,7 +161,7 @@ export default function NigeriaTrade() {
                 <td className="px-4 py-2">{i.unit}</td>
                 <td className="px-4 py-2 text-right">{n2(i.pcs_per_ton)}</td>
                 <td className="px-4 py-2 text-right font-mono">{n4(i.cost_rmb)}</td>
-                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.up ? <span className="block text-[10px] text-gray-400">+{(landed[i.id].up * 100).toFixed(1)}%{landed[i.id].factor !== 1 ? ` · ×${landed[i.id].factor}` : ''}</span> : null}</td>
+                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.perPiece ? <span className="block text-[10px] text-gray-400">+{landed[i.id].perPiece.toFixed(4)} duty</span> : null}</td>
                 <td className="px-4 py-2 text-right font-mono">{rate ? n2((landed[i.id]?.cost ?? i.cost_rmb) * rate) : '—'}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(i.sell_naira)}</td>
                 <td className={`px-4 py-2 text-right font-mono ${i.sell_naira && rate && i.sell_naira < (landed[i.id]?.cost ?? i.cost_rmb) * rate ? 'text-red-600' : 'text-gray-700'}`}>{i.sell_naira && rate ? `${(((i.sell_naira - (landed[i.id]?.cost ?? i.cost_rmb) * rate) / i.sell_naira) * 100).toFixed(0)}%` : ''}</td>
@@ -176,7 +176,7 @@ export default function NigeriaTrade() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-500">Landed = China cost + the item's share of its shipment's duty & expenses. The share is by value × duty factor (set per item in Edit); the shipment's total duty is always fully spread.</p>
+      <p className="text-xs text-gray-500">Landed = China cost per piece + duty per piece, where duty per piece = the shipment's duty & expenses ÷ all its pieces (every piece carries the same duty).</p>
 
       {edit && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setEdit(null)}>
@@ -191,8 +191,7 @@ export default function NigeriaTrade() {
               <div><label className="text-xs text-gray-500">Selling price (₦ per {edit.unit || 'pcs'})</label><input type="number" inputMode="decimal" className={input} value={edit.sell_naira ?? ''} onChange={(e) => setEdit({ ...edit, sell_naira: e.target.value === '' ? null : Number(e.target.value) })} /></div>
               <div><label className="text-xs text-gray-500">Price per ton (RMB) — from the proforma</label><input type="number" inputMode="decimal" className={input} value={edit.price_per_ton || ''} onChange={(e) => setEdit({ ...edit, price_per_ton: e.target.value })} placeholder="5270" /></div>
               <div><label className="text-xs text-gray-500">Cost per {edit.unit || 'pcs'} (RMB)</label><input type="number" inputMode="decimal" className={input} value={derivedCost != null ? String(Math.round(derivedCost * 10000) / 10000) : (edit.cost_rmb || '')} onChange={(e) => setEdit({ ...edit, cost_rmb: Number(e.target.value) || 0, price_per_ton: '' })} /><p className="text-[11px] text-gray-500 mt-1">{derivedCost != null ? 'worked out from the ton price' : 'or type it directly'}</p></div>
-              <div><label className="text-xs text-gray-500">Duty factor</label><input type="number" inputMode="decimal" step="0.1" className={input} value={edit.duty_factor ?? 1} onChange={(e) => setEdit({ ...edit, duty_factor: Number(e.target.value) })} /><p className="text-[11px] text-gray-500 mt-1">1 = normal share of the shipment's duty · 1.5 = carries more (small items) · 0.7 = carries less (big items)</p></div>
-              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>

@@ -9,9 +9,9 @@ import { ngPrint } from '../lib/ngPrint';
 /* NIGERIA — Overview NG: the whole picture on one page. Money in goods (orders / paid / outstanding), duty & expenses,
    stock left at landed cost, sales, cost of sales, profit — all time and by month. Same landed-cost rule as Sales NG. */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; is_active: boolean; duty_factor?: number | null }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; is_active: boolean }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null }
-interface NgExpense { entry_date: string; category: string; amount: number; currency: string; rate: number | null; reference: string | null }
+interface NgExpense { entry_date: string; category: string; amount: number; currency: string; rate: number | null; reference: string | null; item_id?: string | null }
 interface NgPurchase { id: string; number: string; status: string; total_rmb: number; order_date: string }
 interface NgPayment { purchase_id: string | null; amount_rmb: number; pay_date: string; paid_amount: number | null; paid_currency: string | null }
 
@@ -34,9 +34,9 @@ export default function NigeriaOverview() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, pu, pa, se, sp] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, is_active, duty_factor').order('name')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, is_active').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('id, item_id, kind, entry_date, quantity, cost_rmb, sale_naira, rate, reference').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
-      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference')),
+      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference, item_id')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('id, number, status, total_rmb, order_date')),
       fetchAllPages<NgPayment>(() => supabase.from('ng_payments').select('purchase_id, amount_rmb, pay_date, paid_amount, paid_currency')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
@@ -71,7 +71,7 @@ export default function NigeriaOverview() {
     const tot = sales.reduce((t, s) => { const x = saleOf(s); return { ngn: t.ngn + x.ngn, cost: t.cost + (isFinite(x.cost) ? x.cost : 0), profit: t.profit + (isFinite(x.profit) ? x.profit : 0), rmb: t.rmb + (isFinite(x.rmb) ? x.rmb : 0) }; }, { ngn: 0, cost: 0, profit: 0, rmb: 0 });
     const months: Record<string, { sales: number; cost: number; profit: number; gen: number; qty: number }> = {};
     sales.forEach((s) => { const k = s.entry_date.slice(0, 7); const r = (months[k] ||= { sales: 0, cost: 0, profit: 0, gen: 0, qty: 0 }); const x = saleOf(s); r.sales += x.ngn; r.cost += isFinite(x.cost) ? x.cost : 0; r.profit += isFinite(x.profit) ? x.profit : 0; r.qty += s.quantity; });
-    expenses.filter((e) => !e.reference && e.category !== 'Partner payout').forEach((e) => { const k = e.entry_date.slice(0, 7); const r = (months[k] ||= { sales: 0, cost: 0, profit: 0, gen: 0, qty: 0 }); const b = expenseBoth(e, rate); r.gen += isFinite(b.ngn) ? b.ngn : 0; });
+    expenses.filter((e) => !e.reference && e.category !== 'Partner payout' && e.category !== 'Owner withdrawal').forEach((e) => { const k = e.entry_date.slice(0, 7); const r = (months[k] ||= { sales: 0, cost: 0, profit: 0, gen: 0, qty: 0 }); const b = expenseBoth(e, rate); r.gen += isFinite(b.ngn) ? b.ngn : 0; });
     const stockRows = items.filter((i) => (onHand[i.id] || 0) !== 0).map((i) => ({ i, qty: onHand[i.id] || 0, landed: landed[i.id], value: (onHand[i.id] || 0) * landed[i.id] }));
     // profit per shipment: a sale belongs to the shipment of the item's last IN (same rule as the landed cost)
     const shipOf: Record<string, string> = {}; items.forEach((i) => { const li = moves.find((m) => m.item_id === i.id && m.kind === 'in'); shipOf[i.id] = li?.reference || '(no shipment)'; });
@@ -82,10 +82,13 @@ export default function NigeriaOverview() {
     stockRows.forEach((sr) => { const k = shipOf[sr.i.id]; const r2 = (ships[k] ||= { goods: 0, ex: 0, pcsIn: 0, pcsSold: 0, sales: 0, cost: 0, profit: 0, left: 0 }); r2.left += sr.value; });
     const shipRows = Object.entries(ships).sort((a, b) => a[0].localeCompare(b[0]));
     // partner: share of GROSS profit; payouts = expenses in category 'Partner payout' (general)
-    const payouts = expenses.filter((e) => e.category === 'Partner payout').reduce((t, e) => { const b = expenseBoth(e, rate); return t + (isFinite(b.ngn) ? b.ngn : 0); }, 0);
+    const sumCat = (c: string) => expenses.filter((e) => e.category === c).reduce((t, e) => { const b = expenseBoth(e, rate); return t + (isFinite(b.ngn) ? b.ngn : 0); }, 0);
+    const payouts = sumCat('Partner payout'), ownerOut = sumCat('Owner withdrawal');
     const partnerDue = tot.profit * (share / 100);
-    const exGenNoPayout = exGenNgn - payouts;
-    return { rate, goodsIn, stockChina, stockLanded, ordered, paid, outstanding: Math.max(0, ordered - paid), exShipRmb, exShipNgn, exGenRmb, exGenNgn: exGenNoPayout, tot, months: Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])), stockRows, salesCount: sales.length, net: tot.profit - exGenNoPayout, shipRows, payouts, partnerDue, partnerBalance: partnerDue - payouts };
+    const exGenNoPayout = exGenNgn - payouts - ownerOut;
+    const distributable = tot.profit - exGenNoPayout;           // profit made so far, after running costs
+    const partnerShare = distributable * (share / 100), ownerShare = distributable - partnerShare;
+    return { rate, goodsIn, stockChina, stockLanded, ordered, paid, outstanding: Math.max(0, ordered - paid), exShipRmb, exShipNgn, exGenRmb, exGenNgn: exGenNoPayout, tot, months: Object.entries(months).sort((a, b) => b[0].localeCompare(a[0])), stockRows, salesCount: sales.length, net: tot.profit - exGenNoPayout, shipRows, payouts, partnerDue, partnerBalance: partnerDue - payouts, ownerOut, distributable, partnerShare, ownerShare, inStockProfit: stockRows.reduce((t, sr) => t + sr.value, 0) };
   }, [items, moves, expenses, purchases, payments, defRate, share]);
 
   const lines = () => {
@@ -115,8 +118,11 @@ export default function NigeriaOverview() {
       '*By shipment*',
       ...D.shipRows.map(([k, sh]) => `${k}: goods ${n0(sh.goods)} RMB + duty ${n0(sh.ex)} RMB · sold ${n0(sh.pcsSold)} of ${n0(sh.pcsIn)} pcs for ₦${n0(sh.sales)} · profit so far ₦${n0(sh.profit)} · left in stock ${n0(sh.left)} RMB`),
       '',
-      '*Partner*',
-      share ? `Share ${share}% of gross profit: due ₦${n0(D.partnerDue)} · paid out ₦${n0(D.payouts)} · balance ₦${n0(D.partnerBalance)}` : 'Partner share % not set yet',
+      '*Profit portfolio*',
+      `Profit made so far (after running costs): ₦${n0(D.distributable)} = ${n0(r ? D.distributable / r : NaN)} RMB`,
+      share ? `Partner ${share}%: share ₦${n0(D.partnerShare)} · pulled out ₦${n0(D.payouts)} · can pull out ₦${n0(D.partnerShare - D.payouts)}` : 'Partner share % not set yet',
+      share ? `Owner ${100 - share}%: share ₦${n0(D.ownerShare)} · pulled out ₦${n0(D.ownerOut)} · can pull out ₦${n0(D.ownerShare - D.ownerOut)}` : '',
+      `Still in stock (landed): ${n0(D.stockLanded)} RMB — profit on it comes when sold`,
     ];
   };
   async function saveShare() {
@@ -131,7 +137,7 @@ export default function NigeriaOverview() {
       { title: 'Money', head: ['', 'Amount'], right: [1], rows: [['Ordered from China (RMB)', n2(D.ordered)], ['Paid to China (RMB)', n2(D.paid)], ['Outstanding to China (RMB)', n2(D.outstanding)], ['Goods received into stock (RMB)', n2(D.goodsIn)], ['Duty & clearing on shipments (₦)', n2(D.exShipNgn)], ['Stock in Nigeria at landed cost (RMB)', n2(D.stockLanded)], ['Sold (₦)', n2(D.tot.ngn)], ['Cost of goods sold, landed (₦)', n2(D.tot.cost)], ['Gross profit (₦)', n2(D.tot.profit)], ['General expenses (₦)', n2(D.exGenNgn)], ['Net (₦)', n2(D.net)]] },
       { title: 'By month', head: ['Month', 'Pcs sold', 'Sold ₦', 'Cost ₦', 'Profit ₦', 'General expenses ₦', 'Net ₦'], right: [1, 2, 3, 4, 5, 6], rows: D.months.map(([k, m]) => [monthName(k), n0(m.qty), n0(m.sales), n0(m.cost), n0(m.profit), n0(m.gen), n0(m.profit - m.gen)]) },
       { title: 'By shipment', head: ['Shipment', 'Goods RMB', 'Duty & clearing RMB', 'Pcs in', 'Pcs sold', 'Sold ₦', 'Cost ₦', 'Profit so far ₦', 'Left in stock RMB'], right: [1, 2, 3, 4, 5, 6, 7, 8], rows: D.shipRows.map(([k, sh]) => [k, n0(sh.goods), n0(sh.ex), n0(sh.pcsIn), n0(sh.pcsSold), n0(sh.sales), n0(sh.cost), n0(sh.profit), n0(sh.left)]) },
-      { title: 'Partner', head: ['', 'Amount ₦'], right: [1], rows: [[`Partner share ${share}% of gross profit — due`, n0(D.partnerDue)], ['Paid out to partner', n0(D.payouts)], ['Balance to partner', n0(D.partnerBalance)]] },
+      { title: 'Profit portfolio', head: ['', 'Share ₦', 'Pulled out ₦', 'Can pull out ₦'], right: [1, 2, 3], rows: [[`Partner (${share}%)`, n0(D.partnerShare), n0(D.payouts), n0(D.partnerShare - D.payouts)], [`Owner (${100 - share}%)`, n0(D.ownerShare), n0(D.ownerOut), n0(D.ownerShare - D.ownerOut)]], total: ['Profit made so far (after running costs)', n0(D.distributable), n0(D.payouts + D.ownerOut), n0(D.distributable - D.payouts - D.ownerOut)] },
       { title: 'Stock left', head: ['Item', 'On hand', 'Landed cost (RMB)', 'Value (RMB)'], right: [1, 2, 3], rows: D.stockRows.map((s) => [label(s.i), `${n0(s.qty)} ${s.i.unit}`, s.landed.toLocaleString('en-US', { maximumFractionDigits: 4 }), n2(s.value)]), total: ['Total', '', '', n2(D.stockLanded)] },
     ]);
   }
@@ -190,19 +196,7 @@ export default function NigeriaOverview() {
         <p className="px-4 py-2 text-xs text-gray-500">Profit so far = sales of that shipment's items − their landed cost. The rest of the profit is still in "Left in stock".</p>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide mb-2">Partner payout</h3>
-        <div className="flex flex-wrap items-end gap-3 mb-3">
-          <div><label className="text-xs text-gray-500">Partner's share of gross profit (%)</label><input type="number" inputMode="decimal" className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" value={shareBox} onChange={(e) => setShareBox(e.target.value)} placeholder="50" /></div>
-          <button onClick={saveShare} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">Save share</button>
-          <p className="text-xs text-gray-500">Payouts to the partner are entered in Expenses NG with type "Partner payout" (general, no shipment).</p>
-        </div>
-        <div className="grid grid-cols-3 gap-3 max-w-xl">
-          <Tile l="Due to partner" v={`₦${n0(D.partnerDue)}`} s={share ? `${share}% of ₦${n0(D.tot.profit)}` : 'set the share %'} />
-          <Tile l="Paid out" v={`₦${n0(D.payouts)}`} />
-          <Tile l="Balance" v={`₦${n0(D.partnerBalance)}`} tone={D.partnerBalance > 0.5 ? 'text-amber-700' : 'text-green-700'} />
-        </div>
-      </div>
+      <p className="text-xs text-gray-500">Profit of each sale and what each partner can pull out: see <b>Profit NG</b>.</p>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">

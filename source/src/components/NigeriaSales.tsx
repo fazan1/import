@@ -10,9 +10,9 @@ import { landedCosts } from '../lib/ngLanded';
    customer, note). Profit = sale ₦ − quantity × landed cost × rate, where landed cost = item China cost × (1 + shipment uplift)
    (uplift = expenses with a reference ÷ goods RMB of that reference; items are matched to the shipment of their last IN). */
 
-interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; sell_naira: number | null; is_active: boolean; duty_factor?: number | null }
+interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; cost_rmb: number; sell_naira: number | null; is_active: boolean }
 interface NgMove { id: string; item_id: string; kind: 'in' | 'out' | 'adjust'; entry_date: string; quantity: number; cost_rmb: number | null; sale_naira: number | null; rate: number | null; reference: string | null; note: string | null; created_at: string }
-interface NgExpense { amount: number; currency: string; rate: number | null; reference: string | null }
+interface NgExpense { amount: number; currency: string; rate: number | null; reference: string | null; item_id?: string | null }
 
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500';
 const n2 = (v: number | null | undefined) => (v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }));
@@ -36,9 +36,9 @@ export default function NigeriaSales() {
   async function load() {
     setLoading(true);
     const [it, mv, ex, se] = await Promise.all([
-      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, sell_naira, is_active, duty_factor').order('name').order('finish').order('specification')),
+      fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, cost_rmb, sell_naira, is_active').order('name').order('finish').order('specification')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
-      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
+      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference, item_id')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
     ]);
     if (it.error) alert('Could not load Items NG: ' + it.error);
@@ -120,7 +120,7 @@ export default function NigeriaSales() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><ShoppingCart className="w-6 h-6 text-[#e8552a]" /> Nigeria — Sales NG</h1>
-          <p className="text-sm text-gray-500">What the partner sold. Each sale comes off stock; profit = sale − landed cost (China cost + duty & expenses of its shipment) at the rate.</p>
+          <p className="text-sm text-gray-500">What the partner sold. Each sale comes off stock; profit = sale − landed cost (China cost + the shipment's duty per piece) at the rate.</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
@@ -142,9 +142,9 @@ export default function NigeriaSales() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[820px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Item</th><th className="text-left px-4 py-2">Customer</th><th className="text-right px-4 py-2">Qty</th><th className="text-right px-4 py-2">₦ / pc</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit ₦</th><th className="px-4 py-2"></th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Item</th><th className="text-left px-4 py-2">Customer</th><th className="text-right px-4 py-2">Qty</th><th className="text-right px-4 py-2">₦ / pc</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost / pc ₦<span className="block normal-case text-[10px]">China + duty</span></th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit ₦</th><th className="px-4 py-2"></th></tr></thead>
           <tbody>
-            {mSales.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">No sales in {monthName(month)} — press "New sale".</td></tr>}
+            {mSales.length === 0 && <tr><td colSpan={10} className="px-4 py-8 text-center text-gray-500">No sales in {monthName(month)} — press "New sale".</td></tr>}
             {mSales.map((s) => { const it = itemOf(s.item_id); const p = profitOf(s); return (
               <tr key={s.id} className="border-t border-gray-100">
                 <td className="px-4 py-2 whitespace-nowrap">{showDate(s.entry_date)}</td>
@@ -153,11 +153,12 @@ export default function NigeriaSales() {
                 <td className="px-4 py-2 text-right font-mono">{n2(s.quantity)}</td>
                 <td className="px-4 py-2 text-right font-mono">{s.quantity ? n2((s.sale_naira || 0) / s.quantity) : ''}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(s.sale_naira)}</td>
+                <td className="px-4 py-2 text-right font-mono text-gray-600">{(() => { const l = landed[s.item_id]; const r = s.rate || defRate || 0; return l && r ? <>{n2(l.cost * r)}<span className="block text-[10px] text-gray-400">{n2((l.cost - l.perPiece) * r)} + {n2(l.perPiece * r)}</span></> : ''; })()}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(p.costNgn)}</td>
                 <td className={`px-4 py-2 text-right font-mono font-semibold ${p.profitNgn >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n2(p.profitNgn)}</td>
                 <td className="px-4 py-2 text-right"><button onClick={() => remove(s)} className="p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin) — stock goes back"><Trash2 className="w-4 h-4" /></button></td>
               </tr>); })}
-            {mSales.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>Total {monthName(month)}</td><td className="px-4 py-2 text-right font-mono">{n2(mTot.qty)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(mTot.sale)}</td><td className="px-4 py-2 text-right font-mono">{n2(mTot.cost)}</td><td className={`px-4 py-2 text-right font-mono ${mTot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n2(mTot.profit)}</td><td></td></tr>}
+            {mSales.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>Total {monthName(month)}</td><td className="px-4 py-2 text-right font-mono">{n2(mTot.qty)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(mTot.sale)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(mTot.cost)}</td><td className={`px-4 py-2 text-right font-mono ${mTot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n2(mTot.profit)}</td><td></td></tr>}
           </tbody>
         </table>
       </div>
@@ -174,8 +175,15 @@ export default function NigeriaSales() {
               <div><label className="text-xs text-gray-500">Selling price (₦ per {fItem?.unit || 'pc'})</label><input type="number" inputMode="decimal" className={input} value={form.price} onChange={(e) => setForm(calc({ ...form, price: e.target.value }))} /></div>
               <div><label className="text-xs text-gray-500">Total sold (₦)</label><input type="number" inputMode="decimal" className={input} value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value, price: isFinite(fQty) && fQty > 0 && e.target.value ? String(Math.round((parseFloat(e.target.value) / fQty) * 100) / 100) : form.price })} /></div>
               <div><label className="text-xs text-gray-500">Rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></div>
-              <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
-                {fl ? <>Landed cost {fl.cost.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB per {fItem?.unit}{fl.up ? ` (China cost + ${(fl.up * 100).toFixed(1)}% ${fl.ref}${fl.factor !== 1 ? `, duty factor ×${fl.factor}` : ''})` : ' (no duty / expenses on its shipment yet)'}{isFinite(fCost) ? <> · cost of this sale <b>₦{n0(fCost)}</b> · profit <b className={fTotal - fCost >= 0 ? 'text-green-700' : 'text-red-600'}>₦{n0(fTotal - fCost)}</b></> : null}</> : 'Pick an item'}
+              <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 space-y-0.5">
+                {fl && fItem ? (() => { const r = isFinite(fRate) && fRate > 0 ? fRate : (defRate || 0); const china = (fl.cost - fl.perPiece) * r, dutyN = fl.perPiece * r, landedN = fl.cost * r; return (<>
+                  <div className="flex justify-between"><span className="text-gray-600">Product cost (China) per {fItem.unit}</span><span className="font-mono">₦{n2(china)}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">+ duty & clearing per {fItem.unit}{fl.ref ? ` (${fl.ref})` : ''}</span><span className="font-mono">₦{n2(dutyN)}</span></div>
+                  <div className="flex justify-between border-t border-gray-200 pt-0.5 font-semibold"><span>= cost per {fItem.unit}</span><span className="font-mono">₦{n2(landedN)} <span className="text-xs text-gray-500 font-normal">({fl.cost.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB)</span></span></div>
+                  {isFinite(fCost) && <div className="flex justify-between pt-1"><span className="text-gray-600">Cost of this sale ({n2(fQty)} × ₦{n2(landedN)})</span><span className="font-mono">₦{n0(fCost)}</span></div>}
+                  {isFinite(fCost) && isFinite(fTotal) && <div className="flex justify-between font-semibold"><span>Profit of this sale</span><span className={`font-mono ${fTotal - fCost >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n0(fTotal - fCost)}{fTotal ? <span className="text-xs text-gray-500 font-normal"> ({(((fTotal - fCost) / fTotal) * 100).toFixed(0)}% of sale)</span> : null}</span></div>}
+                  {!fl.perPiece && <p className="text-[11px] text-amber-700">No duty or expenses are entered for this item's shipment yet — enter them in Expenses NG.</p>}
+                </>); })() : 'Pick an item'}
               </div>
               <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>
