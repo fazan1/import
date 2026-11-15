@@ -3,6 +3,7 @@ import { Boxes, Plus, X, RefreshCw, Trash2, PackagePlus, SlidersHorizontal, Prin
 import { ngPrint } from '../lib/ngPrint';
 import { landedCosts, pendingRefs } from '../lib/ngLanded';
 import { supabase } from '../lib/supabase';
+import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 
@@ -24,6 +25,7 @@ const label = (i: NgItem) => [i.name, i.specification, i.finish].filter(Boolean)
 export const unitsPerTon = (i: NgItem) => (i.unit === 'ton' ? 1 : i.unit === 'kg' ? 1000 : i.unit === 'bag' ? 1000 / KG_PER_BAG : i.pcs_per_ton || 0);
 
 export default function NigeriaStock() {
+  const { t } = useNgLang();
   const [items, setItems] = useState<NgItem[]>([]);
   const [moves, setMoves] = useState<NgMove[]>([]);
   const [exps, setExps] = useState<NgExp[]>([]);
@@ -131,21 +133,21 @@ export default function NigeriaStock() {
     }]);
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Boxes className="w-6 h-6 text-[#e8552a]" /> Nigeria — Stock NG</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Boxes className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Stock NG')}</h1>
           <p className="text-sm text-gray-500">What is in Nigeria, in each item's unit. Value at cost in RMB (average of what was paid).</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
-          <button onClick={printPage} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
-          <button onClick={() => openIn('adjust')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><SlidersHorizontal className="w-4 h-4" /> Adjust</button>
-          <button onClick={() => setProforma({ reference: '', entry_date: today(), tons: {} })} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><PackagePlus className="w-4 h-4" /> Load a proforma</button>
-          <button onClick={() => openIn('in')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> Stock in</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
+          <button onClick={printPage} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
+          <button onClick={() => openIn('adjust')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><SlidersHorizontal className="w-4 h-4" /> {t('Adjust')}</button>
+          <button onClick={() => setProforma({ reference: '', entry_date: today(), tons: {} })} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><PackagePlus className="w-4 h-4" /> {t('Load a proforma')}</button>
+          <button onClick={() => openIn('in')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> {t('Stock in')}</button>
         </div>
       </div>
 
@@ -153,14 +155,14 @@ export default function NigeriaStock() {
       {!setupNeeded && items.length === 0 && <div className="p-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">No items yet — add them in Items NG first.</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at China cost</div><div className="text-lg font-semibold font-mono">{n2(totValue)} RMB</div><div className="text-xs text-gray-500">{rate ? `₦${n2(totValue * rate)}` : 'save the rate in Expenses NG'}</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at landed cost</div><div className="text-lg font-semibold font-mono">₦{n2(totCostNgn)}</div><div className="text-xs text-gray-500">China cost + duty by weight</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Stock at selling price</div><div className="text-lg font-semibold font-mono">₦{n2(totSellNgn)}</div><div className="text-xs text-gray-500">{noPrice ? `${noPrice} item${noPrice === 1 ? '' : 's'} without a selling price` : 'all items priced'}</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Profit in the stock</div><div className={`text-lg font-semibold font-mono ${totSellNgn - totCostNgn >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n2(totSellNgn - totCostNgn)}</div><div className="text-xs text-gray-500">if all sold at the selling price</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Stock at China cost')}</div><div className="text-lg font-semibold font-mono">{n2(totValue)} RMB</div><div className="text-xs text-gray-500">{rate ? `₦${n2(totValue * rate)}` : 'save the rate in Expenses NG'}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Stock at landed cost')}</div><div className="text-lg font-semibold font-mono">₦{n2(totCostNgn)}</div><div className="text-xs text-gray-500">China cost + duty by weight</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Stock at selling price')}</div><div className="text-lg font-semibold font-mono">₦{n2(totSellNgn)}</div><div className="text-xs text-gray-500">{noPrice ? `${noPrice} item${noPrice === 1 ? '' : 's'} without a selling price` : 'all items priced'}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Profit in the stock')}</div><div className={`text-lg font-semibold font-mono ${totSellNgn - totCostNgn >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n2(totSellNgn - totCostNgn)}</div><div className="text-xs text-gray-500">{t('if all sold at the selling price')}</div></div>
       </div>
 
       <div className="flex gap-2">
-        <button onClick={() => setTab('stock')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'stock' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Stock on hand</button>
+        <button onClick={() => setTab('stock')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'stock' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>{t('Stock on hand')}</button>
         <button onClick={() => setTab('moves')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'moves' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Movements ({moves.length})</button>
       </div>
 
@@ -168,8 +170,8 @@ export default function NigeriaStock() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[1040px]">
             <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <th className="text-left px-4 py-2">Item</th><th className="text-right px-4 py-2">In</th><th className="text-right px-4 py-2">Sold</th><th className="text-right px-4 py-2">Adjust</th>
-              <th className="text-right px-4 py-2">On hand</th><th className="text-right px-4 py-2">Cost (RMB)</th><th className="text-right px-4 py-2">Landed ₦ / unit</th><th className="text-right px-4 py-2">Value at cost ₦</th><th className="text-right px-4 py-2">Sell ₦ / unit</th><th className="text-right px-4 py-2">Value at selling ₦</th>
+              <th className="text-left px-4 py-2">{t('Item')}</th><th className="text-right px-4 py-2">{t('In')}</th><th className="text-right px-4 py-2">{t('Sold')}</th><th className="text-right px-4 py-2">{t('Adjust')}</th>
+              <th className="text-right px-4 py-2">{t('On hand')}</th><th className="text-right px-4 py-2">{t('Cost (RMB)')}</th><th className="text-right px-4 py-2">{t('Landed ₦ / unit')}</th><th className="text-right px-4 py-2">{t('Value at cost ₦')}</th><th className="text-right px-4 py-2">{t('Sell ₦ / unit')}</th><th className="text-right px-4 py-2">{t('Value at selling ₦')}</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
@@ -186,7 +188,7 @@ export default function NigeriaStock() {
                   <td className="px-4 py-2 text-right font-mono">{isFinite(r.sellNgn) ? n2(r.sellNgn) : ''}</td>
                 </tr>
               ))}
-              {rows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={5}>Total</td><td className="px-4 py-2 text-right font-mono">{n2(totValue)} RMB</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totCostNgn)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totSellNgn)}</td></tr>}
+              {rows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={5}>{t('Total')}</td><td className="px-4 py-2 text-right font-mono">{n2(totValue)} RMB</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totCostNgn)}</td><td></td><td className="px-4 py-2 text-right font-mono">{n2(totSellNgn)}</td></tr>}
             </tbody>
           </table>
         </div>
@@ -196,7 +198,7 @@ export default function NigeriaStock() {
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
-              <th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Type</th><th className="text-left px-4 py-2">Item</th><th className="text-right px-4 py-2">Quantity</th>
+              <th className="text-left px-4 py-2">{t('Date')}</th><th className="text-left px-4 py-2">{t('Type')}</th><th className="text-left px-4 py-2">{t('Item')}</th><th className="text-right px-4 py-2">{t('Quantity')}</th>
               <th className="text-right px-4 py-2">Cost RMB</th><th className="text-right px-4 py-2">Sale ₦</th><th className="text-left px-4 py-2">Reference / note</th><th className="px-4 py-2"></th>
             </tr></thead>
             <tbody>
@@ -222,16 +224,16 @@ export default function NigeriaStock() {
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{form.kind === 'in' ? 'Stock in' : 'Adjust stock'}</h3><button onClick={() => setForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><label className="text-xs text-gray-500">Item</label><select className={input} value={form.item_id} onChange={(e) => setForm({ ...form, item_id: e.target.value, qty: '', tons: '', cost: '' })}>{items.filter((i) => i.is_active).map((i) => <option key={i.id} value={i.id}>{label(i)} ({i.unit})</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Item')}</label><select className={input} value={form.item_id} onChange={(e) => setForm({ ...form, item_id: e.target.value, qty: '', tons: '', cost: '' })}>{items.filter((i) => i.is_active).map((i) => <option key={i.id} value={i.id}>{label(i)} ({i.unit})</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Date')}</label><input type="date" className={input} value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
               <div><label className="text-xs text-gray-500">Reference (proforma / invoice)</label><input className={input} value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} /></div>
-              {form.kind === 'in' && fItem && unitsPerTon(fItem) > 0 && <div><label className="text-xs text-gray-500">Tons</label><input type="number" inputMode="decimal" className={input} value={form.tons} onChange={(e) => setTons(e.target.value)} placeholder="1" /><p className="text-[11px] text-gray-500 mt-1">1 ton = {n2(unitsPerTon(fItem))} {fItem.unit}</p></div>}
+              {form.kind === 'in' && fItem && unitsPerTon(fItem) > 0 && <div><label className="text-xs text-gray-500">{t('Tons')}</label><input type="number" inputMode="decimal" className={input} value={form.tons} onChange={(e) => setTons(e.target.value)} placeholder="1" /><p className="text-[11px] text-gray-500 mt-1">1 ton = {n2(unitsPerTon(fItem))} {fItem.unit}</p></div>}
               <div><label className="text-xs text-gray-500">Quantity ({fItem?.unit || 'unit'}){form.kind === 'adjust' ? ' — minus to reduce' : ''}</label><input type="number" inputMode="decimal" className={input} value={form.qty} onChange={(e) => setQty(e.target.value)} /></div>
-              {form.kind === 'in' && <div><label className="text-xs text-gray-500">Total cost (RMB)</label><input type="number" inputMode="decimal" className={input} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /><p className="text-[11px] text-gray-500 mt-1">{fItem ? `item cost ${fItem.cost_rmb.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB per ${fItem.unit}` : ''}</p></div>}
+              {form.kind === 'in' && <div><label className="text-xs text-gray-500">{t('Total cost (RMB)')}</label><input type="number" inputMode="decimal" className={input} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} /><p className="text-[11px] text-gray-500 mt-1">{fItem ? `item cost ${fItem.cost_rmb.toLocaleString('en-US', { maximumFractionDigits: 4 })} RMB per ${fItem.unit}` : ''}</p></div>}
               <div className="col-span-2"><label className="text-xs text-gray-500">Note{form.kind === 'adjust' ? ' — reason' : ''}</label><input className={input} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
+              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button>
               <button onClick={saveForm} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
@@ -247,7 +249,7 @@ export default function NigeriaStock() {
               <div><label className="text-xs text-gray-500">Date (arrival in Nigeria)</label><input type="date" className={input} value={proforma.entry_date} onChange={(e) => setProforma({ ...proforma, entry_date: e.target.value })} /></div>
             </div>
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item</th><th className="text-right py-1">Tons</th><th className="text-right py-1">= quantity</th><th className="text-right py-1">Cost RMB</th></tr></thead>
+              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">{t('Item')}</th><th className="text-right py-1">{t('Tons')}</th><th className="text-right py-1">= quantity</th><th className="text-right py-1">Cost RMB</th></tr></thead>
               <tbody>
                 {items.filter((i) => i.is_active).map((i) => { const t = parseFloat(proforma.tons[i.id] || ''); const q = isFinite(t) && t > 0 ? Math.round(t * unitsPerTon(i)) : 0; return (
                   <tr key={i.id} className="border-t border-gray-100">
@@ -259,7 +261,7 @@ export default function NigeriaStock() {
               </tbody>
             </table>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setProforma(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
+              <button onClick={() => setProforma(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button>
               <button onClick={saveProforma} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Put into stock'}</button>
             </div>
           </div>

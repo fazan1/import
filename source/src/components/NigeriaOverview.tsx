@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { LayoutDashboard, RefreshCw, Copy, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { expenseBoth } from './NigeriaExpenses';
 import { landedCosts, pendingRefs } from '../lib/ngLanded';
@@ -21,6 +22,7 @@ const monthName = (ym: string) => new Date(ym + '-01T00:00:00').toLocaleDateStri
 const label = (i: NgItem) => [i.name, i.specification, i.finish].filter(Boolean).join(' ');
 
 export default function NigeriaOverview() {
+  const { t } = useNgLang();
   const [items, setItems] = useState<NgItem[]>([]);
   const [moves, setMoves] = useState<NgMove[]>([]);
   const [expenses, setExpenses] = useState<NgExpense[]>([]);
@@ -142,7 +144,7 @@ export default function NigeriaOverview() {
     ]);
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
   const Tile = ({ l, v, s, tone }: { l: string; v: string; s?: string; tone?: string }) => <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{l}</div><div className={`text-lg font-semibold font-mono ${tone || 'text-gray-900'}`}>{v}</div>{s && <div className="text-xs text-gray-500">{s}</div>}</div>;
   const r = D.rate;
 
@@ -150,25 +152,25 @@ export default function NigeriaOverview() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><LayoutDashboard className="w-6 h-6 text-[#e8552a]" /> Nigeria — Overview NG</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><LayoutDashboard className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Overview NG')}</h1>
           <p className="text-sm text-gray-500">The whole picture: money in goods, duty, stock, sales and profit. {r ? `Rate ₦${r} per RMB.` : 'Save the rate in Expenses NG to see Naira values.'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
-          <button onClick={printPage} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-4 h-4" /> Print / PDF</button>
-          <button onClick={copySummary} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90"><Copy className="w-4 h-4" /> Copy summary</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
+          <button onClick={printPage} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
+          <button onClick={copySummary} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90"><Copy className="w-4 h-4" /> {t('Copy summary')}</button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Tile l="Ordered from China" v={`${n0(D.ordered)} RMB`} s={`paid ${n0(D.paid)} · outstanding ${n0(D.outstanding)}`} />
-        <Tile l="Duty & clearing" v={`₦${n0(D.exShipNgn)}`} s={`${n0(D.exShipRmb)} RMB on shipments`} />
-        <Tile l="Stock in Nigeria (landed)" v={`${n0(D.stockLanded)} RMB`} s={r ? `₦${n0(D.stockLanded * r)} · China cost ${n0(D.stockChina)} RMB` : `China cost ${n0(D.stockChina)} RMB`} />
-        <Tile l="Sold (all time)" v={`₦${n0(D.tot.ngn)}`} s={`${D.salesCount} sales · ${n0(D.tot.rmb)} RMB`} />
-        <Tile l="Cost of goods sold" v={`₦${n0(D.tot.cost)}`} s="at landed cost" />
-        <Tile l="Gross profit" v={`₦${n0(D.tot.profit)}`} s={`${D.tot.ngn ? ((D.tot.profit / D.tot.ngn) * 100).toFixed(0) + '% of sales · ' : ''}${n0(r ? D.tot.profit / r : NaN)} RMB`} tone={D.tot.profit >= 0 ? 'text-green-700' : 'text-red-600'} />
-        <Tile l="General expenses" v={`₦${n0(D.exGenNgn)}`} s="rent, salary, bank… (not on a shipment)" />
-        <Tile l="Net" v={`₦${n0(D.net)}`} s={`${n0(r ? D.net / r : NaN)} RMB`} tone={D.net >= 0 ? 'text-green-700' : 'text-red-600'} />
+        <Tile l={t('Ordered from China')} v={`${n0(D.ordered)} RMB`} s={`paid ${n0(D.paid)} · outstanding ${n0(D.outstanding)}`} />
+        <Tile l={t('Duty & clearing')} v={`₦${n0(D.exShipNgn)}`} s={`${n0(D.exShipRmb)} RMB on shipments`} />
+        <Tile l={t('Stock in Nigeria (landed)')} v={`${n0(D.stockLanded)} RMB`} s={r ? `₦${n0(D.stockLanded * r)} · China cost ${n0(D.stockChina)} RMB` : `China cost ${n0(D.stockChina)} RMB`} />
+        <Tile l={t('Sold (all time)')} v={`₦${n0(D.tot.ngn)}`} s={`${D.salesCount} sales · ${n0(D.tot.rmb)} RMB`} />
+        <Tile l={t('Cost of goods sold')} v={`₦${n0(D.tot.cost)}`} s="at landed cost" />
+        <Tile l={t('Gross profit')} v={`₦${n0(D.tot.profit)}`} s={`${D.tot.ngn ? ((D.tot.profit / D.tot.ngn) * 100).toFixed(0) + '% of sales · ' : ''}${n0(r ? D.tot.profit / r : NaN)} RMB`} tone={D.tot.profit >= 0 ? 'text-green-700' : 'text-red-600'} />
+        <Tile l={t('General expenses')} v={`₦${n0(D.exGenNgn)}`} s="rent, salary, bank… (not on a shipment)" />
+        <Tile l={t('Net')} v={`₦${n0(D.net)}`} s={`${n0(r ? D.net / r : NaN)} RMB`} tone={D.net >= 0 ? 'text-green-700' : 'text-red-600'} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -180,14 +182,14 @@ export default function NigeriaOverview() {
           <div className="flex justify-between"><span className="text-gray-600">− still in stock (landed)</span><span className="font-mono">{n0(D.stockLanded)} RMB</span></div>
           <div className="flex justify-between"><span className="text-gray-600">= cost of what was sold</span><span className="font-mono">{n0(r ? D.tot.cost / r : NaN)} RMB</span></div>
           <div className="flex justify-between"><span className="text-gray-600">Sold for</span><span className="font-mono">{n0(D.tot.rmb)} RMB</span></div>
-          <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold"><span>Gross profit</span><span className={`font-mono ${D.tot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(r ? D.tot.profit / r : NaN)} RMB = ₦{n0(D.tot.profit)}</span></div>
+          <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold"><span>{t('Gross profit')}</span><span className={`font-mono ${D.tot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(r ? D.tot.profit / r : NaN)} RMB = ₦{n0(D.tot.profit)}</span></div>
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">Profit by shipment</div>
+        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">{t('Profit by shipment')}</div>
         <table className="w-full text-sm min-w-[820px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Shipment</th><th className="text-right px-4 py-2">Goods RMB</th><th className="text-right px-4 py-2">Duty & clearing RMB</th><th className="text-right px-4 py-2">Sold / in (pcs)</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit so far ₦</th><th className="text-right px-4 py-2">Left in stock RMB</th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Shipment')}</th><th className="text-right px-4 py-2">Goods RMB</th><th className="text-right px-4 py-2">Duty & clearing RMB</th><th className="text-right px-4 py-2">Sold / in (pcs)</th><th className="text-right px-4 py-2">{t('Sold ₦')}</th><th className="text-right px-4 py-2">{t('Cost ₦')}</th><th className="text-right px-4 py-2">{t('Profit so far ₦')}</th><th className="text-right px-4 py-2">{t('Left in stock RMB')}</th></tr></thead>
           <tbody>
             {D.shipRows.length === 0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-500">No shipments yet.</td></tr>}
             {D.shipRows.map(([k, sh]) => <tr key={k} className="border-t border-gray-100"><td className="px-4 py-2 font-medium">{k}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.goods)}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.ex)}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.pcsSold)} / {n0(sh.pcsIn)}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.sales)}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.cost)}</td><td className={`px-4 py-2 text-right font-mono font-semibold ${sh.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(sh.profit)}</td><td className="px-4 py-2 text-right font-mono">{n0(sh.left)}</td></tr>)}
@@ -196,11 +198,11 @@ export default function NigeriaOverview() {
         <p className="px-4 py-2 text-xs text-gray-500">Profit so far = sales of that shipment's items − their landed cost. The rest of the profit is still in "Left in stock".</p>
       </div>
 
-      <p className="text-xs text-gray-500">Profit of each sale and what each partner can pull out: see <b>Profit NG</b>.</p>
+      <p className="text-xs text-gray-500">Profit of each sale and what each partner can pull out: see <b>{t('Profit NG')}</b>.</p>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Month</th><th className="text-right px-4 py-2">Pcs sold</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit ₦</th><th className="text-right px-4 py-2">General expenses ₦</th><th className="text-right px-4 py-2">Net ₦</th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Month')}</th><th className="text-right px-4 py-2">{t('Pcs sold')}</th><th className="text-right px-4 py-2">{t('Sold ₦')}</th><th className="text-right px-4 py-2">{t('Cost ₦')}</th><th className="text-right px-4 py-2">{t('Profit ₦')}</th><th className="text-right px-4 py-2">General expenses ₦</th><th className="text-right px-4 py-2">Net ₦</th></tr></thead>
           <tbody>
             {D.months.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No sales yet.</td></tr>}
             {D.months.map(([k, m]) => <tr key={k} className="border-t border-gray-100"><td className="px-4 py-2 font-medium">{monthName(k)}</td><td className="px-4 py-2 text-right font-mono">{n0(m.qty)}</td><td className="px-4 py-2 text-right font-mono">{n0(m.sales)}</td><td className="px-4 py-2 text-right font-mono">{n0(m.cost)}</td><td className={`px-4 py-2 text-right font-mono ${m.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(m.profit)}</td><td className="px-4 py-2 text-right font-mono">{n0(m.gen)}</td><td className={`px-4 py-2 text-right font-mono font-semibold ${m.profit - m.gen >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(m.profit - m.gen)}</td></tr>)}
@@ -210,10 +212,10 @@ export default function NigeriaOverview() {
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[560px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Stock left</th><th className="text-right px-4 py-2">On hand</th><th className="text-right px-4 py-2">Landed cost (RMB)</th><th className="text-right px-4 py-2">Value (RMB)</th><th className="text-right px-4 py-2">Value (₦)</th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Stock left')}</th><th className="text-right px-4 py-2">{t('On hand')}</th><th className="text-right px-4 py-2">Landed cost (RMB)</th><th className="text-right px-4 py-2">Value (RMB)</th><th className="text-right px-4 py-2">Value (₦)</th></tr></thead>
           <tbody>
             {D.stockRows.map((s) => <tr key={s.i.id} className="border-t border-gray-100"><td className="px-4 py-2">{label(s.i)}</td><td className="px-4 py-2 text-right font-mono">{n0(s.qty)} <span className="text-xs text-gray-400">{s.i.unit}</span></td><td className="px-4 py-2 text-right font-mono">{s.landed.toLocaleString('en-US', { maximumFractionDigits: 4 })}</td><td className="px-4 py-2 text-right font-mono">{n2(s.value)}</td><td className="px-4 py-2 text-right font-mono">{r ? n0(s.value * r) : '—'}</td></tr>)}
-            {D.stockRows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>Total</td><td className="px-4 py-2 text-right font-mono">{n2(D.stockLanded)}</td><td className="px-4 py-2 text-right font-mono">{r ? n0(D.stockLanded * r) : '—'}</td></tr>}
+            {D.stockRows.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>{t('Total')}</td><td className="px-4 py-2 text-right font-mono">{n2(D.stockLanded)}</td><td className="px-4 py-2 text-right font-mono">{r ? n0(D.stockLanded * r) : '—'}</td></tr>}
           </tbody>
         </table>
       </div>

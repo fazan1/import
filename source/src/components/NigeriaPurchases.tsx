@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FileText, Plus, X, RefreshCw, Trash2, Printer, PackageCheck, Building2, Pencil, Banknote } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { esc } from '../lib/html';
@@ -27,6 +28,7 @@ const label = (i: NgItem) => [i.name, i.specification, i.finish].filter(Boolean)
 const STATUS: Record<string, string> = { draft: 'bg-gray-100 text-gray-700', ordered: 'bg-amber-100 text-amber-800', paid: 'bg-teal-100 text-teal-800', received: 'bg-green-100 text-green-800', cancelled: 'bg-red-100 text-red-700' };
 
 export default function NigeriaPurchases() {
+  const { t } = useNgLang();
   const [suppliers, setSuppliers] = useState<NgSupplier[]>([]);
   const [items, setItems] = useState<NgItem[]>([]);
   const [purchases, setPurchases] = useState<NgPurchase[]>([]);
@@ -207,29 +209,29 @@ export default function NigeriaPurchases() {
       table{width:100%;border-collapse:collapse;font-size:12px}th{background:#111;color:#fff;text-align:left;padding:7px;font-weight:600;font-size:11px}td{padding:7px;border-bottom:1px solid #e5e5e5;vertical-align:top}.r,th.r{text-align:right;font-family:'IBM Plex Mono',monospace}
       tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:0}.box{margin-top:18px;border:1px solid #ccc;border-radius:8px;padding:10px 14px;font-size:12px}.foot{margin-top:28px;font-size:11px;color:#777;display:flex;justify-content:space-between}@media print{body{padding:0}}</style></head><body>
       <h1>${p.kind === 'pi' ? 'PROFORMA INVOICE' : 'PURCHASE ORDER'}</h1><div class="sub">NG — Nigeria business · ${esc(p.number)} · Currency RMB (CNY)</div>
-      <div class="head"><div><div class="lab">Supplier</div><div style="font-size:15px;font-weight:700">${esc(s?.name || '-')}</div><div class="sub">${esc([s?.contact, s?.phone].filter(Boolean).join(' · '))}</div></div><div style="text-align:right"><div class="lab">Order details</div><div>Date: ${showDate(p.order_date)}</div><div>Status: ${esc(p.status)}</div></div></div>
-      <table><thead><tr><th>#</th><th>Product</th><th>Specification</th><th>Finish</th><th class="r">Tons</th><th class="r">Qty (pcs)</th><th class="r">Unit price (RMB)</th><th class="r">Amount (RMB)</th><th>Remark</th></tr></thead>
-      <tbody>${rows}<tr class="tot"><td colspan="4">Total</td><td class="r">${ls.some((l) => l.tons) ? n2(ls.reduce((t, l) => t + (l.tons || 0), 0)) : ''}</td><td class="r">${n2(ls.reduce((t, l) => t + l.quantity, 0))}</td><td></td><td class="r">${n2(p.total_rmb)}</td><td></td></tr></tbody></table>
+      <div class="head"><div><div class="lab">{t('Supplier')}</div><div style="font-size:15px;font-weight:700">${esc(s?.name || '-')}</div><div class="sub">${esc([s?.contact, s?.phone].filter(Boolean).join(' · '))}</div></div><div style="text-align:right"><div class="lab">Order details</div><div>Date: ${showDate(p.order_date)}</div><div>Status: ${esc(p.status)}</div></div></div>
+      <table><thead><tr><th>#</th><th>{t('Product')}</th><th>{t('Specification')}</th><th>{t('Finish')}</th><th class="r">{t('Tons')}</th><th class="r">Qty (pcs)</th><th class="r">Unit price (RMB)</th><th class="r">Amount (RMB)</th><th>Remark</th></tr></thead>
+      <tbody>${rows}<tr class="tot"><td colspan="4">{t('Total')}</td><td class="r">${ls.some((l) => l.tons) ? n2(ls.reduce((t, l) => t + (l.tons || 0), 0)) : ''}</td><td class="r">${n2(ls.reduce((t, l) => t + l.quantity, 0))}</td><td></td><td class="r">${n2(p.total_rmb)}</td><td></td></tr></tbody></table>
       ${p.terms ? `<div class="box">${esc(p.terms)}</div>` : ''}${p.note ? `<div class="box">${esc(p.note)}</div>` : ''}
       <div class="foot"><div>Generated ${new Date().toLocaleDateString('en-GB')}</div><div>Total Chinese RMB only</div></div>
       <script>window.onload=function(){setTimeout(function(){window.print();},300);}</script></body></html>`);
     w.document.close();
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText className="w-6 h-6 text-[#e8552a]" /> Nigeria — Purchases NG</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><FileText className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Purchases NG')}</h1>
           <p className="text-sm text-gray-500">Orders and proformas to the Chinese suppliers, in RMB, from Items NG. "Receive" puts an order into Stock NG in one press.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
-          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
-          <button onClick={() => setSupForm({ name: '', contact: '', phone: '', note: '', is_active: true })} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Building2 className="w-4 h-4" /> New supplier</button>
-          <button onClick={newOrder} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New order / PI</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
+          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
+          <button onClick={() => setSupForm({ name: '', contact: '', phone: '', note: '', is_active: true })} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Building2 className="w-4 h-4" /> {t('New supplier')}</button>
+          <button onClick={newOrder} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> {t('New order / PI')}</button>
         </div>
       </div>
 
@@ -237,10 +239,10 @@ export default function NigeriaPurchases() {
       {!setupNeeded && suppliers.length === 0 && <div className="p-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">Start with "New supplier" — the Chinese factory you buy from.</div>}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Ordered (RMB)</div><div className="text-lg font-semibold font-mono">{n2(totOrdered)}</div><div className="text-xs text-gray-500">{live.length} orders</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Paid to suppliers</div><div className="text-lg font-semibold font-mono">{n2(totPaid)}</div><div className="text-xs text-gray-500">{payments.length} payments</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Outstanding</div><div className={`text-lg font-semibold font-mono ${totOutstanding > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{n2(totOutstanding)}</div><div className="text-xs text-gray-500">still to pay China</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center"><button onClick={() => openPay(null)} disabled={setupNeeded || !suppliers.length} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><Banknote className="w-4 h-4" /> Record a payment</button></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Ordered (RMB)')}</div><div className="text-lg font-semibold font-mono">{n2(totOrdered)}</div><div className="text-xs text-gray-500">{live.length} orders</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Paid to suppliers')}</div><div className="text-lg font-semibold font-mono">{n2(totPaid)}</div><div className="text-xs text-gray-500">{payments.length} payments</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Outstanding')}</div><div className={`text-lg font-semibold font-mono ${totOutstanding > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{n2(totOutstanding)}</div><div className="text-xs text-gray-500">{t('still to pay China')}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center"><button onClick={() => openPay(null)} disabled={setupNeeded || !suppliers.length} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><Banknote className="w-4 h-4" /> {t('Record a payment')}</button></div>
       </div>
 
       <div className="flex gap-2">
@@ -266,9 +268,9 @@ export default function NigeriaPurchases() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <select value={p.status} onChange={(e) => setStatus(p, e.target.value)} className={`px-2 py-1 rounded-full text-xs border-0 ${STATUS[p.status] || ''}`}>{['draft', 'ordered', 'paid', 'received', 'cancelled'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
-                <button onClick={() => openOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Pencil className="w-3.5 h-3.5" /> Edit</button>
-                <button onClick={() => printOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-3.5 h-3.5" /> Print</button>
-                <button onClick={() => openPay(p)} disabled={p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Banknote className="w-3.5 h-3.5" /> Pay</button>
+                <button onClick={() => openOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Pencil className="w-3.5 h-3.5" /> {t('Edit')}</button>
+                <button onClick={() => printOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-3.5 h-3.5" /> {t('Print')}</button>
+                <button onClick={() => openPay(p)} disabled={p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Banknote className="w-3.5 h-3.5" /> {t('Pay')}</button>
                 <button onClick={() => receive(p)} disabled={!!p.received_at || p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><PackageCheck className="w-3.5 h-3.5" /> {p.received_at ? 'Received' : recvPct(p) > 0 ? `Receive more (${recvPct(p).toFixed(0)}% in)` : 'Receive into stock'}</button>
                 <button onClick={() => removeOrder(p)} className="ml-auto p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button>
               </div>
@@ -279,7 +281,7 @@ export default function NigeriaPurchases() {
       {tab === 'suppliers' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[560px]">
-            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Supplier</th><th className="text-left px-4 py-2">Contact</th><th className="text-left px-4 py-2">Phone</th><th className="text-right px-4 py-2">Ordered (RMB)</th><th className="text-right px-4 py-2">Paid</th><th className="text-right px-4 py-2">To pay</th><th className="px-4 py-2"></th></tr></thead>
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Supplier')}</th><th className="text-left px-4 py-2">Contact</th><th className="text-left px-4 py-2">Phone</th><th className="text-right px-4 py-2">{t('Ordered (RMB)')}</th><th className="text-right px-4 py-2">{t('Paid')}</th><th className="text-right px-4 py-2">To pay</th><th className="px-4 py-2"></th></tr></thead>
             <tbody>
               {suppliers.map((s) => { const ord = purchases.filter((p) => p.supplier_id === s.id && p.status !== 'cancelled' && p.status !== 'draft').reduce((t, p) => t + p.total_rmb, 0); const paid = payments.filter((x) => x.supplier_id === s.id).reduce((t, x) => t + x.amount_rmb, 0); return (
                 <tr key={s.id} className={`border-t border-gray-100 ${s.is_active ? '' : 'opacity-50'}`}>
@@ -295,7 +297,7 @@ export default function NigeriaPurchases() {
       {tab === 'payments' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
-            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Supplier</th><th className="text-left px-4 py-2">Order</th><th className="text-right px-4 py-2">RMB</th><th className="text-left px-4 py-2">Paid with</th><th className="text-right px-4 py-2">Cost to us</th><th className="text-left px-4 py-2">Ref / note</th><th className="px-4 py-2"></th></tr></thead>
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Date')}</th><th className="text-left px-4 py-2">{t('Supplier')}</th><th className="text-left px-4 py-2">Order</th><th className="text-right px-4 py-2">RMB</th><th className="text-left px-4 py-2">{t('Paid with')}</th><th className="text-right px-4 py-2">Cost to us</th><th className="text-left px-4 py-2">Ref / note</th><th className="px-4 py-2"></th></tr></thead>
             <tbody>
               {payments.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No payments yet — press "Record a payment" or "Pay" on an order.</td></tr>}
               {payments.map((x) => { const p = purchases.find((q) => q.id === x.purchase_id); return (
@@ -315,18 +317,18 @@ export default function NigeriaPurchases() {
       {pay && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setPay(null)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg p-5">
-            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Payment to supplier</h3><button onClick={() => setPay(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{t('Payment to supplier')}</h3><button onClick={() => setPay(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-gray-500">Supplier</label><select className={input} value={pay.supplier_id || ''} onChange={(e) => setPay({ ...pay, supplier_id: e.target.value || null, purchase_id: null })}>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">Against order</label><select className={input} value={pay.purchase_id || ''} onChange={(e) => { const p = purchases.find((q) => q.id === e.target.value); setPay({ ...pay, purchase_id: e.target.value || null, amount: p ? String(Math.round(Math.max(0, p.total_rmb - paidOf(p)) * 100) / 100) : pay.amount }); }}><option value="">On account (no order)</option>{purchases.filter((p) => p.supplier_id === pay.supplier_id && p.status !== 'cancelled').map((p) => <option key={p.id} value={p.id}>{p.number} — to pay {n2(Math.max(0, p.total_rmb - paidOf(p)))}</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={pay.pay_date} onChange={(e) => setPay({ ...pay, pay_date: e.target.value })} /></div>
-              <div><label className="text-xs text-gray-500">Amount paid (RMB)</label><input type="number" inputMode="decimal" className={input} value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} autoFocus /></div>
-              <div><label className="text-xs text-gray-500">Paid with</label><select className={input} value={pay.paid_with} onChange={(e) => setPay({ ...pay, paid_with: e.target.value })}>{['TT', 'USDT', 'Cash', 'Agent', 'Alipay / WeChat', 'Other'].map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Supplier')}</label><select className={input} value={pay.supplier_id || ''} onChange={(e) => setPay({ ...pay, supplier_id: e.target.value || null, purchase_id: null })}>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Against order')}</label><select className={input} value={pay.purchase_id || ''} onChange={(e) => { const p = purchases.find((q) => q.id === e.target.value); setPay({ ...pay, purchase_id: e.target.value || null, amount: p ? String(Math.round(Math.max(0, p.total_rmb - paidOf(p)) * 100) / 100) : pay.amount }); }}><option value="">On account (no order)</option>{purchases.filter((p) => p.supplier_id === pay.supplier_id && p.status !== 'cancelled').map((p) => <option key={p.id} value={p.id}>{p.number} — to pay {n2(Math.max(0, p.total_rmb - paidOf(p)))}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Date')}</label><input type="date" className={input} value={pay.pay_date} onChange={(e) => setPay({ ...pay, pay_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">{t('Amount paid (RMB)')}</label><input type="number" inputMode="decimal" className={input} value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} autoFocus /></div>
+              <div><label className="text-xs text-gray-500">{t('Paid with')}</label><select className={input} value={pay.paid_with} onChange={(e) => setPay({ ...pay, paid_with: e.target.value })}>{['TT', 'USDT', 'Cash', 'Agent', 'Alipay / WeChat', 'Other'].map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
               <div><label className="text-xs text-gray-500">What it cost us (optional)</label><div className="flex gap-2"><input type="number" inputMode="decimal" className={input} value={pay.paid_amount} onChange={(e) => setPay({ ...pay, paid_amount: e.target.value })} placeholder="amount" /><select className={input + ' w-24'} value={pay.paid_currency} onChange={(e) => setPay({ ...pay, paid_currency: e.target.value })}>{['LKR', 'NGN', 'USD'].map((c) => <option key={c} value={c}>{c}</option>)}</select></div></div>
-              <div><label className="text-xs text-gray-500">Reference</label><input className={input} value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} placeholder="TT slip no." /></div>
-              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={pay.note} onChange={(e) => setPay({ ...pay, note: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">{t('Reference')}</label><input className={input} value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} placeholder="TT slip no." /></div>
+              <div><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={pay.note} onChange={(e) => setPay({ ...pay, note: e.target.value })} /></div>
             </div>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setPay(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={savePay} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save payment'}</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setPay(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button><button onClick={savePay} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save payment'}</button></div>
           </div>
         </div>
       )}
@@ -337,11 +339,11 @@ export default function NigeriaPurchases() {
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Receive {recv.p.number} into Stock NG</h3><button onClick={() => setRecv(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <p className="text-sm text-gray-600 mb-3">Type what arrived in this container. "Receiving now" is pre-filled with what is still to come; lower it if only part came — you can receive the rest later. Only the received quantity goes into stock, at the order's price per piece.</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
-              <div><label className="text-xs text-gray-500">Arrival date in Nigeria</label><input type="date" className={input} value={recv.date} onChange={(e) => setRecv({ ...recv, date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">{t('Arrival date in Nigeria')}</label><input type="date" className={input} value={recv.date} onChange={(e) => setRecv({ ...recv, date: e.target.value })} /></div>
               <div><label className="text-xs text-gray-500">Note (damage, missing bags…)</label><input className={input} value={recv.note} onChange={(e) => setRecv({ ...recv, note: e.target.value })} /></div>
             </div>
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item</th><th className="text-right py-1">Ordered</th><th className="text-right py-1">Received before</th><th className="text-right py-1 w-32">Receiving now</th><th className="text-right py-1">Still to come</th><th className="text-right py-1">Cost RMB</th></tr></thead>
+              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">{t('Item')}</th><th className="text-right py-1">{t('Ordered')}</th><th className="text-right py-1">{t('Received before')}</th><th className="text-right py-1 w-32">{t('Receiving now')}</th><th className="text-right py-1">{t('Still to come')}</th><th className="text-right py-1">Cost RMB</th></tr></thead>
               <tbody>
                 {lines.filter((l) => l.purchase_id === recv.p.id).map((l) => { const it = itemOf(l.item_id); const got = gotOf(recv.p, l.item_id); const q = parseFloat(recv.qty[l.id as string] || ''); const left = isFinite(q) ? l.quantity - got - q : l.quantity - got; return (
                   <tr key={l.id} className="border-t border-gray-100">
@@ -354,7 +356,7 @@ export default function NigeriaPurchases() {
                   </tr>); })}
               </tbody>
             </table>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setRecv(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={confirmReceive} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Put into stock'}</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setRecv(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button><button onClick={confirmReceive} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Put into stock'}</button></div>
           </div>
         </div>
       )}
@@ -366,10 +368,10 @@ export default function NigeriaPurchases() {
             <div className="space-y-3">
               <div><label className="text-xs text-gray-500">Name</label><input className={input} value={supForm.name || ''} onChange={(e) => setSupForm({ ...supForm, name: e.target.value })} placeholder="Anchor Bolt" autoFocus /></div>
               <div className="grid grid-cols-2 gap-3"><div><label className="text-xs text-gray-500">Contact person</label><input className={input} value={supForm.contact || ''} onChange={(e) => setSupForm({ ...supForm, contact: e.target.value })} /></div><div><label className="text-xs text-gray-500">Phone / WeChat</label><input className={input} value={supForm.phone || ''} onChange={(e) => setSupForm({ ...supForm, phone: e.target.value })} /></div></div>
-              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={supForm.note || ''} onChange={(e) => setSupForm({ ...supForm, note: e.target.value })} placeholder="Deliver to Guangzhou warehouse" /></div>
+              <div><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={supForm.note || ''} onChange={(e) => setSupForm({ ...supForm, note: e.target.value })} placeholder="Deliver to Guangzhou warehouse" /></div>
               {supForm.id && <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={supForm.is_active !== false} onChange={(e) => setSupForm({ ...supForm, is_active: e.target.checked })} /> Active</label>}
             </div>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setSupForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={saveSupplier} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">Save</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setSupForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button><button onClick={saveSupplier} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{t('Save')}</button></div>
           </div>
         </div>
       )}
@@ -380,12 +382,12 @@ export default function NigeriaPurchases() {
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{edit.p.id ? `Edit ${edit.p.number}` : 'New order / proforma'}</h3><button onClick={() => setEdit(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
               <div><label className="text-xs text-gray-500">Number</label><input className={input} value={edit.p.number || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, number: e.target.value } })} /></div>
-              <div><label className="text-xs text-gray-500">Type</label><select className={input} value={edit.p.kind || 'pi'} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, kind: e.target.value as 'po' | 'pi' } })}><option value="pi">Proforma invoice (PI)</option><option value="po">Purchase order (PO)</option></select></div>
-              <div><label className="text-xs text-gray-500">Supplier</label><select className={input} value={edit.p.supplier_id || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, supplier_id: e.target.value || null } })}><option value="">—</option>{suppliers.filter((s) => s.is_active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={edit.p.order_date || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, order_date: e.target.value } })} /></div>
+              <div><label className="text-xs text-gray-500">{t('Type')}</label><select className={input} value={edit.p.kind || 'pi'} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, kind: e.target.value as 'po' | 'pi' } })}><option value="pi">Proforma invoice (PI)</option><option value="po">Purchase order (PO)</option></select></div>
+              <div><label className="text-xs text-gray-500">{t('Supplier')}</label><select className={input} value={edit.p.supplier_id || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, supplier_id: e.target.value || null } })}><option value="">—</option>{suppliers.filter((s) => s.is_active).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Date')}</label><input type="date" className={input} value={edit.p.order_date || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, order_date: e.target.value } })} /></div>
             </div>
             <div className="overflow-x-auto"><table className="w-full text-sm min-w-[720px]">
-              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item (Items NG)</th><th className="text-right py-1 w-20">Tons</th><th className="text-right py-1 w-28">Qty (pcs)</th><th className="text-right py-1 w-28">RMB / pc</th><th className="text-right py-1 w-28">Amount</th><th className="text-left py-1 w-28">Remark</th><th className="w-8"></th></tr></thead>
+              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item (Items NG)</th><th className="text-right py-1 w-20">{t('Tons')}</th><th className="text-right py-1 w-28">Qty (pcs)</th><th className="text-right py-1 w-28">RMB / pc</th><th className="text-right py-1 w-28">{t('Amount')}</th><th className="text-left py-1 w-28">Remark</th><th className="w-8"></th></tr></thead>
               <tbody>
                 {edit.lines.map((l, k) => { const it = itemOf(l.item_id); return (
                   <tr key={k} className="border-t border-gray-100">
@@ -398,14 +400,14 @@ export default function NigeriaPurchases() {
                     <td className="py-1"><button onClick={() => setEdit({ ...edit, lines: edit.lines.filter((_, i) => i !== k) })} className="p-1 text-gray-400 hover:text-red-600"><X className="w-4 h-4" /></button></td>
                   </tr>); })}
               </tbody>
-              <tfoot><tr className="border-t-2 border-gray-900 font-semibold"><td className="py-2">Total</td><td className="py-2 text-right font-mono">{editTons ? n2(editTons) : ''}</td><td className="py-2 text-right font-mono">{n2(edit.lines.reduce((t, l) => t + (parseFloat(l.qty) || 0), 0))}</td><td></td><td className="py-2 text-right font-mono">{n2(editTotal)} RMB</td><td colSpan={2}></td></tr></tfoot>
+              <tfoot><tr className="border-t-2 border-gray-900 font-semibold"><td className="py-2">{t('Total')}</td><td className="py-2 text-right font-mono">{editTons ? n2(editTons) : ''}</td><td className="py-2 text-right font-mono">{n2(edit.lines.reduce((t, l) => t + (parseFloat(l.qty) || 0), 0))}</td><td></td><td className="py-2 text-right font-mono">{n2(editTotal)} RMB</td><td colSpan={2}></td></tr></tfoot>
             </table></div>
             <button onClick={() => setEdit({ ...edit, lines: [...edit.lines, { item_id: items.find((i) => i.is_active)?.id || '', tons: '', qty: '', price: '', remark: '' }] })} className="mt-2 px-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50">+ Add line</button>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
               <div><label className="text-xs text-gray-500">Terms (packing, price term, delivery)</label><input className={input} value={edit.p.terms || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, terms: e.target.value } })} placeholder="25 kg 2-layer PP woven bag · Deliver to Guangzhou warehouse" /></div>
-              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.p.note || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, note: e.target.value } })} /></div>
+              <div><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={edit.p.note || ''} onChange={(e) => setEdit({ ...edit, p: { ...edit.p, note: e.target.value } })} /></div>
             </div>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={saveOrder} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save order'}</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button><button onClick={saveOrder} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save order'}</button></div>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Globe, Plus, Pencil, X, RefreshCw, Trash2, Printer } from 'lucide-react';
 import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
+import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { landedCosts, pendingRefs } from '../lib/ngLanded';
 
@@ -33,6 +34,7 @@ export function costPerUnit(pricePerTon: number, unit: string, pcsPerTon: number
 }
 
 export default function NigeriaTrade() {
+  const { t } = useNgLang();
   const [items, setItems] = useState<NgItem[]>([]);
   const [stock, setStock] = useState<NgStock[]>([]);
   const [exps, setExps] = useState<NgExp[]>([]);
@@ -123,26 +125,26 @@ export default function NigeriaTrade() {
     }]);
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Globe className="w-6 h-6 text-[#e8552a]" /> Nigeria — Items NG</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Globe className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Items NG')}</h1>
           <p className="text-sm text-gray-500">Goods bought in China per ton, sold in Nigeria per unit. Landed = China cost + the shipment's duty by weight{rate ? ` · rate ₦${rate} / RMB` : ' · save the rate in Expenses NG for ₦ figures'}.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
-          <button onClick={printList} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
-          <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New item</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
+          <button onClick={printList} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
+          <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> {t('New item')}</button>
         </div>
       </div>
 
       {setupNeeded && <div className="p-4 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900">One-time setup needed: run <b>nigeria-setup.sql</b> in Supabase (MAIN project), then Refresh.</div>}
 
       <div className="flex flex-wrap items-center gap-3">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, specification, finish" className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white w-72 max-w-full" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('Search name, specification, finish')} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white w-72 max-w-full" />
         <label className="flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show hidden</label>
         <span className="text-xs text-gray-500">{shown.length} of {items.length} items</span>
       </div>
@@ -150,9 +152,9 @@ export default function NigeriaTrade() {
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[980px]">
           <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
-            <th className="text-left px-4 py-2">Product</th><th className="text-left px-4 py-2">Specification</th><th className="text-left px-4 py-2">Finish</th>
-            <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">China cost (RMB)</th><th className="text-right px-4 py-2">Landed / unit (RMB)</th><th className="text-right px-4 py-2">Landed ₦</th>
-            <th className="text-right px-4 py-2">Selling price (₦)</th><th className="text-right px-4 py-2">Margin</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
+            <th className="text-left px-4 py-2">{t('Product')}</th><th className="text-left px-4 py-2">{t('Specification')}</th><th className="text-left px-4 py-2">{t('Finish')}</th>
+            <th className="text-left px-4 py-2">{t('Unit')}</th><th className="text-right px-4 py-2">{t('Pcs / ton')}</th><th className="text-right px-4 py-2">{t('China cost (RMB)')}</th><th className="text-right px-4 py-2">{t('Landed / unit (RMB)')}</th><th className="text-right px-4 py-2">{t('Landed ₦')}</th>
+            <th className="text-right px-4 py-2">{t('Selling price (₦)')}</th><th className="text-right px-4 py-2">{t('Margin')}</th><th className="text-right px-4 py-2">{t('Stock')}</th><th className="px-4 py-2"></th>
           </tr></thead>
           <tbody>
             {shown.length === 0 && <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
@@ -186,18 +188,18 @@ export default function NigeriaTrade() {
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{edit.id ? 'Edit item' : 'New item NG'}</h3><button onClick={() => setEdit(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><label className="text-xs text-gray-500">Product</label><input className={input} value={edit.name || ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Hex Bolt + Nut" autoFocus /></div>
-              <div><label className="text-xs text-gray-500">Specification</label><input className={input} value={edit.specification || ''} onChange={(e) => setEdit({ ...edit, specification: e.target.value })} placeholder="M12x30" /></div>
-              <div><label className="text-xs text-gray-500">Finish</label><input className={input} value={edit.finish || ''} onChange={(e) => setEdit({ ...edit, finish: e.target.value })} placeholder="ZP / HDG" /></div>
-              <div><label className="text-xs text-gray-500">Unit (counted in)</label><select className={input} value={edit.unit || 'pcs'} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u === 'bag' ? `bag (${KG_PER_BAG} kg)` : u}</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">Pieces per ton</label><input type="number" inputMode="decimal" className={input} value={edit.pcs_per_ton ?? ''} onChange={(e) => setEdit({ ...edit, pcs_per_ton: e.target.value === '' ? null : Number(e.target.value) })} placeholder="19600" /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Product')}</label><input className={input} value={edit.name || ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Hex Bolt + Nut" autoFocus /></div>
+              <div><label className="text-xs text-gray-500">{t('Specification')}</label><input className={input} value={edit.specification || ''} onChange={(e) => setEdit({ ...edit, specification: e.target.value })} placeholder="M12x30" /></div>
+              <div><label className="text-xs text-gray-500">{t('Finish')}</label><input className={input} value={edit.finish || ''} onChange={(e) => setEdit({ ...edit, finish: e.target.value })} placeholder="ZP / HDG" /></div>
+              <div><label className="text-xs text-gray-500">{t('Unit (counted in)')}</label><select className={input} value={edit.unit || 'pcs'} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u === 'bag' ? `bag (${KG_PER_BAG} kg)` : u}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">{t('Pieces per ton')}</label><input type="number" inputMode="decimal" className={input} value={edit.pcs_per_ton ?? ''} onChange={(e) => setEdit({ ...edit, pcs_per_ton: e.target.value === '' ? null : Number(e.target.value) })} placeholder="19600" /></div>
               <div><label className="text-xs text-gray-500">Selling price (₦ per {edit.unit || 'pcs'})</label><input type="number" inputMode="decimal" className={input} value={edit.sell_naira ?? ''} onChange={(e) => setEdit({ ...edit, sell_naira: e.target.value === '' ? null : Number(e.target.value) })} /></div>
-              <div><label className="text-xs text-gray-500">Price per ton (RMB) — from the proforma</label><input type="number" inputMode="decimal" className={input} value={edit.price_per_ton || ''} onChange={(e) => setEdit({ ...edit, price_per_ton: e.target.value })} placeholder="5270" /></div>
+              <div><label className="text-xs text-gray-500">{t('Price per ton (RMB) — from the proforma')}</label><input type="number" inputMode="decimal" className={input} value={edit.price_per_ton || ''} onChange={(e) => setEdit({ ...edit, price_per_ton: e.target.value })} placeholder="5270" /></div>
               <div><label className="text-xs text-gray-500">Cost per {edit.unit || 'pcs'} (RMB)</label><input type="number" inputMode="decimal" className={input} value={derivedCost != null ? String(Math.round(derivedCost * 10000) / 10000) : (edit.cost_rmb || '')} onChange={(e) => setEdit({ ...edit, cost_rmb: Number(e.target.value) || 0, price_per_ton: '' })} /><p className="text-[11px] text-gray-500 mt-1">{derivedCost != null ? 'worked out from the ton price' : 'or type it directly'}</p></div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
+              <button onClick={() => setEdit(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button>
               <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save item'}</button>
             </div>
           </div>

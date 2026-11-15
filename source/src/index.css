@@ -142,3 +142,19 @@ h1, h2, h3 { font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif !im
   /* the screen behind the pop-up takes no space, so no blank pages are added */
   body:has([id$="-content"]) *:has([id$="-content"]) > :not(:has([id$="-content"])):not([id$="-content"]) { display: none !important; }
 }
+
+/* NG book (owner: "font a little bigger and darker"): the partner reads on a phone */
+.ng-book { font-size: 17px; color: #111; }
+.ng-book .text-sm { font-size: 1.06rem; line-height: 1.6rem; }
+.ng-book .text-xs { font-size: 0.92rem; line-height: 1.3rem; }
+.ng-book .text-\[10px\], .ng-book .text-\[11px\] { font-size: 0.86rem; line-height: 1.2rem; }
+.ng-book .text-lg { font-size: 1.35rem; } .ng-book .text-xl { font-size: 1.5rem; } .ng-book .text-4xl { font-size: 2.6rem; }
+.ng-book table td, .ng-book table th { padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.ng-book button { font-size: 1rem; }
+.ng-book .text-gray-400, .ng-book .text-gray-500 { color: #374151; }
+.ng-book .text-gray-600, .ng-book .text-gray-700 { color: #1f2937; }
+.ng-book table td { color: #111; }
+.ng-book thead th { color: #1f2937; font-weight: 700; }
+.ng-book input, .ng-book select, .ng-book textarea { font-size: 1rem; color: #111; }
+.ng-book .font-mono { font-weight: 500; }
+.ng-book h1 { font-size: 1.9rem; }
