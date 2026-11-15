@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FileText, Plus, X, RefreshCw, Trash2, Printer, PackageCheck, Building2, Pencil } from 'lucide-react';
+import { FileText, Plus, X, RefreshCw, Trash2, Printer, PackageCheck, Building2, Pencil, Banknote } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -14,7 +14,7 @@ interface NgSupplier { id: string; name: string; contact: string | null; phone: 
 interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; is_active: boolean }
 interface NgPurchase { id: string; number: string; kind: 'po' | 'pi'; supplier_id: string | null; order_date: string; status: string; total_rmb: number; terms: string | null; note: string | null; received_at: string | null; created_at: string }
 interface NgLine { id?: string; purchase_id?: string; item_id: string; quantity: number; tons: number | null; unit_price: number; amount_rmb: number; remark: string | null; sort_order: number }
-interface NgPayment { purchase_id: string | null; supplier_id: string | null; amount_rmb: number }
+interface NgPayment { id: string; purchase_id: string | null; supplier_id: string | null; pay_date: string; amount_rmb: number; paid_with: string | null; paid_amount: number | null; paid_currency: string | null; reference: string | null; note: string | null }
 
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500';
 const n2 = (v: number | null | undefined) => (v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }));
@@ -32,9 +32,11 @@ export default function NigeriaPurchases() {
   const [payments, setPayments] = useState<NgPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
-  const [tab, setTab] = useState<'orders' | 'suppliers'>('orders');
+  const [tab, setTab] = useState<'orders' | 'suppliers' | 'payments'>('orders');
+  const [pay, setPay] = useState<{ purchase_id: string | null; supplier_id: string | null; pay_date: string; amount: string; paid_with: string; paid_amount: string; paid_currency: string; reference: string; note: string } | null>(null);
   const [supForm, setSupForm] = useState<Partial<NgSupplier> | null>(null);
   const [edit, setEdit] = useState<{ p: Partial<NgPurchase>; lines: { item_id: string; tons: string; qty: string; price: string; remark: string }[] } | null>(null);
+  const [recv, setRecv] = useState<{ p: NgPurchase; date: string; note: string; qty: Record<string, string> } | null>(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
@@ -45,14 +47,14 @@ export default function NigeriaPurchases() {
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name').order('finish').order('specification')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('*').order('order_date', { ascending: false }).order('number', { ascending: false })),
       fetchAllPages<NgLine>(() => supabase.from('ng_purchase_items').select('*').order('sort_order')),
-      fetchAllPages<NgPayment>(() => supabase.from('ng_payments').select('purchase_id, supplier_id, amount_rmb')),
+      fetchAllPages<NgPayment>(() => supabase.from('ng_payments').select('*').order('pay_date', { ascending: false }).order('created_at', { ascending: false })),
     ]);
     if (su.error) { if (/ng_suppliers|does not exist|schema cache/i.test(su.error)) setSetupNeeded(true); else alert('Could not load: ' + su.error); } else setSetupNeeded(false);
     setSuppliers(su.data || []);
     setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton) })));
     setPurchases((pu.data || []).map((p) => ({ ...p, total_rmb: Number(p.total_rmb) || 0 })));
     setLines((li.data || []).map((l) => ({ ...l, quantity: Number(l.quantity) || 0, tons: l.tons == null ? null : Number(l.tons), unit_price: Number(l.unit_price) || 0, amount_rmb: Number(l.amount_rmb) || 0 })));
-    setPayments((pa.data || []).map((x) => ({ ...x, amount_rmb: Number(x.amount_rmb) || 0 })));
+    setPayments((pa.data || []).map((x) => ({ ...x, amount_rmb: Number(x.amount_rmb) || 0, paid_amount: x.paid_amount == null ? null : Number(x.paid_amount) })));
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -108,15 +110,28 @@ export default function NigeriaPurchases() {
     const { error } = await supabase.from('ng_purchases').update({ status, updated_at: new Date().toISOString() }).eq('id', p.id);
     if (error) alert('Could not save: ' + error.message); else load();
   }
-  async function receive(p: NgPurchase) {
+  function receive(p: NgPurchase) {
     if (p.received_at) { alert(`${p.number} was already received into stock on ${showDate(p.received_at)}.`); return; }
     const ls = lines.filter((l) => l.purchase_id === p.id); if (!ls.length) { alert('This order has no lines.'); return; }
-    const d = prompt(`Receive ${p.number} into Stock NG — ${ls.length} lines, ${n2(ls.reduce((t, l) => t + l.quantity, 0))} pcs, ${n2(p.total_rmb)} RMB.\n\nDate the goods arrived in Nigeria (YYYY-MM-DD):`, today());
-    if (!d) return; if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { alert('Type the date as YYYY-MM-DD.'); return; }
-    const rows = ls.map((l) => ({ item_id: l.item_id, kind: 'in', entry_date: d, quantity: l.quantity, cost_rmb: l.amount_rmb, reference: p.number, note: `${p.kind.toUpperCase()} ${p.number}${l.tons ? ` — ${l.tons} ton` : ''}` }));
+    setRecv({ p, date: today(), note: '', qty: Object.fromEntries(ls.map((l) => [l.id as string, String(l.quantity)])) });
+  }
+  async function confirmReceive() {
+    if (!recv || savingRef.current) return;
+    const p = recv.p; const ls = lines.filter((l) => l.purchase_id === p.id);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(recv.date)) { alert('Pick the arrival date.'); return; }
+    const got = ls.map((l) => ({ l, q: parseFloat(recv.qty[l.id as string] || '') }));
+    if (got.some((x) => !isFinite(x.q) || x.q < 0)) { alert('Every line needs the quantity received (0 if nothing came).'); return; }
+    const rows = got.filter((x) => x.q > 0).map(({ l, q }) => ({ item_id: l.item_id, kind: 'in', entry_date: recv.date, quantity: q, cost_rmb: Math.round(q * l.unit_price * 100) / 100, reference: p.number, note: `${p.kind.toUpperCase()} ${p.number}${q !== l.quantity ? ` — ordered ${n2(l.quantity)}, received ${n2(q)}` : ''}` }));
+    if (!rows.length) { alert('Nothing received — all quantities are 0.'); return; }
+    const short = got.filter((x) => x.q !== x.l.quantity).map(({ l, q }) => { const it = itemOf(l.item_id); return `${it ? label(it) : ''}: ordered ${n2(l.quantity)}, received ${n2(q)}`; });
+    if (!confirm(`Put ${rows.length} lines into Stock NG on ${showDate(recv.date)}?${short.length ? '\n\nDifferences:\n' + short.join('\n') : ''}`)) return;
+    savingRef.current = true; setSaving(true);
     const { error } = await supabase.from('ng_stock').insert(rows);
-    if (error) { alert('Could not put the goods into stock: ' + error.message); return; }
-    await supabase.from('ng_purchases').update({ received_at: d, status: 'received', updated_at: new Date().toISOString() }).eq('id', p.id);
+    if (error) { savingRef.current = false; setSaving(false); alert('Could not put the goods into stock: ' + error.message); return; }
+    const noteAdd = [short.length ? 'Received short: ' + short.join('; ') : '', recv.note.trim()].filter(Boolean).join(' · ');
+    await supabase.from('ng_purchases').update({ received_at: recv.date, status: 'received', note: [p.note, noteAdd].filter(Boolean).join(' · ') || null, updated_at: new Date().toISOString() }).eq('id', p.id);
+    savingRef.current = false; setSaving(false);
+    setRecv(null);
     alert(`${p.number} is in Stock NG (reference ${p.number}). Put its duty and freight into Expenses NG with the same reference.`);
     load();
   }
@@ -129,6 +144,34 @@ export default function NigeriaPurchases() {
     if (error) alert('Could not delete: ' + error.message);
     load();
   }
+  function openPay(p: NgPurchase | null) {
+    const left = p ? Math.max(0, p.total_rmb - paidOf(p)) : 0;
+    setPay({ purchase_id: p?.id || null, supplier_id: p?.supplier_id || suppliers[0]?.id || null, pay_date: today(), amount: left ? String(Math.round(left * 100) / 100) : '', paid_with: 'TT', paid_amount: '', paid_currency: 'LKR', reference: '', note: '' });
+  }
+  async function savePay() {
+    if (!pay || savingRef.current) return;
+    const amount = parseFloat(pay.amount); if (!isFinite(amount) || amount <= 0) { alert('Type the amount paid in RMB.'); return; }
+    if (!pay.supplier_id) { alert('Pick the supplier.'); return; }
+    savingRef.current = true; setSaving(true);
+    const row = { supplier_id: pay.supplier_id, purchase_id: pay.purchase_id || null, pay_date: pay.pay_date || today(), amount_rmb: amount, paid_with: pay.paid_with || null, paid_amount: parseFloat(pay.paid_amount) || null, paid_currency: pay.paid_amount ? pay.paid_currency : null, reference: pay.reference.trim() || null, note: pay.note.trim() || null };
+    const { error } = await supabase.from('ng_payments').insert(row);
+    savingRef.current = false; setSaving(false);
+    if (error) { alert('Could not save the payment: ' + error.message); return; }
+    if (pay.purchase_id) { const p = purchases.find((x) => x.id === pay.purchase_id); if (p && p.status === 'ordered' && paidOf(p) + amount >= p.total_rmb - 0.5) await supabase.from('ng_purchases').update({ status: 'paid', updated_at: new Date().toISOString() }).eq('id', p.id); }
+    setPay(null); load();
+  }
+  async function removePay(x: NgPayment) {
+    if (!confirm(`Delete the payment of ${n2(x.amount_rmb)} RMB on ${showDate(x.pay_date)}?`)) return;
+    const res = await moveToRecycleBin({ source_table: 'ng_payments', source_id: x.id, record_data: x as unknown as Record<string, unknown>, display_name: `NG payment ${n2(x.amount_rmb)} RMB ${showDate(x.pay_date)}`, portal: 'cn' });
+    if (!res.success) { alert('Could not move it to the Recycle Bin: ' + (res.error || '')); return; }
+    const { error } = await supabase.from('ng_payments').delete().eq('id', x.id);
+    if (error) alert('Could not delete: ' + error.message);
+    load();
+  }
+  const live = purchases.filter((p) => p.status !== 'cancelled' && p.status !== 'draft');
+  const totOrdered = live.reduce((t, p) => t + p.total_rmb, 0), totPaid = payments.reduce((t, x) => t + x.amount_rmb, 0);
+  const totOutstanding = live.reduce((t, p) => t + Math.max(0, p.total_rmb - paidOf(p)), 0);
+
   function printOrder(p: NgPurchase) {
     const w = window.open('', '_blank', 'width=860,height=900'); if (!w) { alert('Allow pop-ups to print.'); return; }
     const s = supOf(p.supplier_id); const ls = lines.filter((l) => l.purchase_id === p.id);
@@ -167,9 +210,17 @@ export default function NigeriaPurchases() {
       {setupNeeded && <div className="p-4 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900">One-time setup needed: run <b>nigeria-purchases.sql</b> in Supabase (MAIN project), then Refresh.</div>}
       {!setupNeeded && suppliers.length === 0 && <div className="p-4 rounded-lg border border-gray-200 bg-white text-sm text-gray-600">Start with "New supplier" — the Chinese factory you buy from.</div>}
 
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Ordered (RMB)</div><div className="text-lg font-semibold font-mono">{n2(totOrdered)}</div><div className="text-xs text-gray-500">{live.length} orders</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Paid to suppliers</div><div className="text-lg font-semibold font-mono">{n2(totPaid)}</div><div className="text-xs text-gray-500">{payments.length} payments</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Outstanding</div><div className={`text-lg font-semibold font-mono ${totOutstanding > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>{n2(totOutstanding)}</div><div className="text-xs text-gray-500">still to pay China</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-center"><button onClick={() => openPay(null)} disabled={setupNeeded || !suppliers.length} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><Banknote className="w-4 h-4" /> Record a payment</button></div>
+      </div>
+
       <div className="flex gap-2">
         <button onClick={() => setTab('orders')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'orders' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Orders ({purchases.length})</button>
         <button onClick={() => setTab('suppliers')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'suppliers' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Suppliers NG ({suppliers.length})</button>
+        <button onClick={() => setTab('payments')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'payments' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Payments ({payments.length})</button>
       </div>
 
       {tab === 'orders' && (
@@ -191,6 +242,7 @@ export default function NigeriaPurchases() {
                 <select value={p.status} onChange={(e) => setStatus(p, e.target.value)} className={`px-2 py-1 rounded-full text-xs border-0 ${STATUS[p.status] || ''}`}>{['draft', 'ordered', 'paid', 'received', 'cancelled'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
                 <button onClick={() => openOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Pencil className="w-3.5 h-3.5" /> Edit</button>
                 <button onClick={() => printOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-3.5 h-3.5" /> Print</button>
+                <button onClick={() => openPay(p)} disabled={p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Banknote className="w-3.5 h-3.5" /> Pay</button>
                 <button onClick={() => receive(p)} disabled={!!p.received_at || p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><PackageCheck className="w-3.5 h-3.5" /> {p.received_at ? 'Received' : 'Receive into stock'}</button>
                 <button onClick={() => removeOrder(p)} className="ml-auto p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button>
               </div>
@@ -211,6 +263,72 @@ export default function NigeriaPurchases() {
                 </tr>); })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === 'payments' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm min-w-[720px]">
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Supplier</th><th className="text-left px-4 py-2">Order</th><th className="text-right px-4 py-2">RMB</th><th className="text-left px-4 py-2">Paid with</th><th className="text-right px-4 py-2">Cost to us</th><th className="text-left px-4 py-2">Ref / note</th><th className="px-4 py-2"></th></tr></thead>
+            <tbody>
+              {payments.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No payments yet — press "Record a payment" or "Pay" on an order.</td></tr>}
+              {payments.map((x) => { const p = purchases.find((q) => q.id === x.purchase_id); return (
+                <tr key={x.id} className="border-t border-gray-100">
+                  <td className="px-4 py-2 whitespace-nowrap">{showDate(x.pay_date)}</td><td className="px-4 py-2">{supOf(x.supplier_id)?.name || '-'}</td><td className="px-4 py-2">{p?.number || <span className="text-gray-400">on account</span>}</td>
+                  <td className="px-4 py-2 text-right font-mono font-semibold">{n2(x.amount_rmb)}</td><td className="px-4 py-2">{x.paid_with || ''}</td>
+                  <td className="px-4 py-2 text-right font-mono">{x.paid_amount ? `${x.paid_currency || ''} ${n2(x.paid_amount)}` : ''}{x.paid_amount && x.amount_rmb ? <span className="block text-[11px] text-gray-400">{n2(x.paid_amount / x.amount_rmb)} per RMB</span> : null}</td>
+                  <td className="px-4 py-2 text-gray-600">{[x.reference, x.note].filter(Boolean).join(' · ')}</td>
+                  <td className="px-4 py-2 text-right"><button onClick={() => removePay(x)} className="p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button></td>
+                </tr>); })}
+              {payments.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>Total paid</td><td className="px-4 py-2 text-right font-mono">{n2(totPaid)}</td><td colSpan={4}></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {pay && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setPay(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg p-5">
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Payment to supplier</h3><button onClick={() => setPay(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="text-xs text-gray-500">Supplier</label><select className={input} value={pay.supplier_id || ''} onChange={(e) => setPay({ ...pay, supplier_id: e.target.value || null, purchase_id: null })}>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">Against order</label><select className={input} value={pay.purchase_id || ''} onChange={(e) => { const p = purchases.find((q) => q.id === e.target.value); setPay({ ...pay, purchase_id: e.target.value || null, amount: p ? String(Math.round(Math.max(0, p.total_rmb - paidOf(p)) * 100) / 100) : pay.amount }); }}><option value="">On account (no order)</option>{purchases.filter((p) => p.supplier_id === pay.supplier_id && p.status !== 'cancelled').map((p) => <option key={p.id} value={p.id}>{p.number} — to pay {n2(Math.max(0, p.total_rmb - paidOf(p)))}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={pay.pay_date} onChange={(e) => setPay({ ...pay, pay_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Amount paid (RMB)</label><input type="number" inputMode="decimal" className={input} value={pay.amount} onChange={(e) => setPay({ ...pay, amount: e.target.value })} autoFocus /></div>
+              <div><label className="text-xs text-gray-500">Paid with</label><select className={input} value={pay.paid_with} onChange={(e) => setPay({ ...pay, paid_with: e.target.value })}>{['TT', 'USDT', 'Cash', 'Agent', 'Alipay / WeChat', 'Other'].map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">What it cost us (optional)</label><div className="flex gap-2"><input type="number" inputMode="decimal" className={input} value={pay.paid_amount} onChange={(e) => setPay({ ...pay, paid_amount: e.target.value })} placeholder="amount" /><select className={input + ' w-24'} value={pay.paid_currency} onChange={(e) => setPay({ ...pay, paid_currency: e.target.value })}>{['LKR', 'NGN', 'USD'].map((c) => <option key={c} value={c}>{c}</option>)}</select></div></div>
+              <div><label className="text-xs text-gray-500">Reference</label><input className={input} value={pay.reference} onChange={(e) => setPay({ ...pay, reference: e.target.value })} placeholder="TT slip no." /></div>
+              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={pay.note} onChange={(e) => setPay({ ...pay, note: e.target.value })} /></div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setPay(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={savePay} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save payment'}</button></div>
+          </div>
+        </div>
+      )}
+
+      {recv && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setRecv(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5">
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Receive {recv.p.number} into Stock NG</h3><button onClick={() => setRecv(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <p className="text-sm text-gray-600 mb-3">Check what actually arrived. Change a quantity if pieces are missing or extra — only the received quantity goes into stock, at the order's price per piece.</p>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div><label className="text-xs text-gray-500">Arrival date in Nigeria</label><input type="date" className={input} value={recv.date} onChange={(e) => setRecv({ ...recv, date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Note (damage, missing bags…)</label><input className={input} value={recv.note} onChange={(e) => setRecv({ ...recv, note: e.target.value })} /></div>
+            </div>
+            <table className="w-full text-sm">
+              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item</th><th className="text-right py-1">Ordered</th><th className="text-right py-1 w-32">Received</th><th className="text-right py-1">Difference</th><th className="text-right py-1">Cost RMB</th></tr></thead>
+              <tbody>
+                {lines.filter((l) => l.purchase_id === recv.p.id).map((l) => { const it = itemOf(l.item_id); const q = parseFloat(recv.qty[l.id as string] || ''); const d = isFinite(q) ? q - l.quantity : NaN; return (
+                  <tr key={l.id} className="border-t border-gray-100">
+                    <td className="py-1.5">{it ? label(it) : ''} <span className="text-xs text-gray-400">{it?.unit}</span></td>
+                    <td className="py-1.5 text-right font-mono">{n2(l.quantity)}</td>
+                    <td className="py-1.5 text-right"><input type="number" inputMode="decimal" className="w-28 px-2 py-1 border border-gray-300 rounded-lg text-sm text-right" value={recv.qty[l.id as string] || ''} onChange={(e) => setRecv({ ...recv, qty: { ...recv.qty, [l.id as string]: e.target.value } })} /></td>
+                    <td className={`py-1.5 text-right font-mono ${d < 0 ? 'text-red-600' : d > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{isFinite(d) && d !== 0 ? (d > 0 ? '+' : '') + n2(d) : ''}</td>
+                    <td className="py-1.5 text-right font-mono">{isFinite(q) ? n2(q * l.unit_price) : ''}</td>
+                  </tr>); })}
+              </tbody>
+            </table>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setRecv(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={confirmReceive} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Put into stock'}</button></div>
+          </div>
         </div>
       )}
 

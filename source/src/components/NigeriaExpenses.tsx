@@ -10,6 +10,7 @@ import { moveToRecycleBin } from '../lib/recycleBin';
 
 interface NgExpense { id: string; entry_date: string; category: string; description: string | null; amount: number; currency: 'NGN' | 'RMB'; rate: number | null; reference: string | null; note: string | null; created_at: string }
 interface NgIn { item_id: string; kind: string; quantity: number; cost_rmb: number | null; reference: string | null }
+interface NgPurchaseRef { number: string; total_rmb: number; order_date: string; status: string; supplier_id: string | null }
 
 export const NG_CATEGORIES = ['Customs duty', 'Shipping / freight', 'Clearing agent', 'Port / terminal', 'Transport', 'Rent', 'Salary', 'Bank charges', 'Other'];
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500';
@@ -28,6 +29,8 @@ export function expenseBoth(e: { amount: number; currency: string; rate: number 
 export default function NigeriaExpenses() {
   const [rows, setRows] = useState<NgExpense[]>([]);
   const [ins, setIns] = useState<NgIn[]>([]);
+  const [bills, setBills] = useState<NgPurchaseRef[]>([]);
+  const [supNames, setSupNames] = useState<Record<string, string>>({});
   const [defRate, setDefRate] = useState<number>(0);
   const [rateBox, setRateBox] = useState('');
   const [loading, setLoading] = useState(true);
@@ -40,11 +43,15 @@ export default function NigeriaExpenses() {
 
   async function load() {
     setLoading(true);
-    const [ex, st, se] = await Promise.all([
+    const [ex, st, se, pu, su] = await Promise.all([
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('*').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgIn>(() => supabase.from('ng_stock').select('item_id, kind, quantity, cost_rmb, reference').eq('kind', 'in')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
+      fetchAllPages<NgPurchaseRef>(() => supabase.from('ng_purchases').select('number, total_rmb, order_date, status, supplier_id').order('order_date', { ascending: false })),
+      fetchAllPages<{ id: string; name: string }>(() => supabase.from('ng_suppliers').select('id, name')),
     ]);
+    setBills((pu.data || []).map((b) => ({ ...b, total_rmb: Number(b.total_rmb) || 0 })));
+    setSupNames(Object.fromEntries((su.data || []).map((x) => [x.id, x.name])));
     if (ex.error) { if (/ng_expenses|does not exist|schema cache/i.test(ex.error)) setSetupNeeded(true); else alert('Could not load expenses: ' + ex.error); }
     else setSetupNeeded(false);
     setRows((ex.data || []).map((r) => ({ ...r, amount: Number(r.amount) || 0, rate: r.rate == null ? null : Number(r.rate) })));
@@ -66,11 +73,12 @@ export default function NigeriaExpenses() {
   const sum = (xs: NgExpense[]) => xs.reduce((t, e) => { const b = expenseBoth(e, defRate); return { ngn: t.ngn + (isFinite(b.ngn) ? b.ngn : 0), rmb: t.rmb + (isFinite(b.rmb) ? b.rmb : 0) }; }, { ngn: 0, rmb: 0 });
   const mTot = sum(mRows), allTot = sum(rows);
   const byCat = NG_CATEGORIES.map((c) => ({ c, ...sum(mRows.filter((r) => r.category === c)) })).filter((x) => x.ngn > 0 || x.rmb > 0);
-  const refs = useMemo(() => Array.from(new Set([...ins.map((i) => i.reference || ''), ...rows.map((r) => r.reference || '')].filter(Boolean))).sort(), [ins, rows]);
+  const refs = useMemo(() => Array.from(new Set([...bills.map((b) => b.number), ...ins.map((i) => i.reference || ''), ...rows.map((r) => r.reference || '')].filter(Boolean))).sort(), [ins, rows, bills]);
   const shipments = refs.map((ref) => {
     const goods = ins.filter((i) => i.reference === ref); const goodsRmb = goods.reduce((t, i) => t + (i.cost_rmb || 0), 0); const pcs = goods.reduce((t, i) => t + i.quantity, 0);
     const ex = sum(rows.filter((r) => r.reference === ref));
-    return { ref, goodsRmb, pcs, exRmb: ex.rmb, exNgn: ex.ngn, landed: goodsRmb + ex.rmb, uplift: goodsRmb > 0 ? (ex.rmb / goodsRmb) * 100 : NaN };
+    const bill = bills.find((b) => b.number === ref); const base = goodsRmb || bill?.total_rmb || 0;
+    return { ref, who: bill ? supNames[bill.supplier_id || ''] || '' : '', goodsRmb: base, inStock: goodsRmb > 0, pcs, exRmb: ex.rmb, exNgn: ex.ngn, landed: base + ex.rmb, uplift: base > 0 ? (ex.rmb / base) * 100 : NaN };
   });
 
   function openNew() { setForm({ entry_date: today(), category: 'Customs duty', description: '', amount_s: '', currency: 'NGN', rate_s: defRate ? String(defRate) : '', reference: refs[0] || '', note: '' }); }
@@ -162,8 +170,8 @@ export default function NigeriaExpenses() {
               {shipments.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">No shipment references yet. Put stock in with a reference (PI-001) and give expenses the same reference.</td></tr>}
               {shipments.map((s) => (
                 <tr key={s.ref} className="border-t border-gray-100">
-                  <td className="px-4 py-2 font-medium">{s.ref}</td>
-                  <td className="px-4 py-2 text-right font-mono">{n2(s.pcs)}</td>
+                  <td className="px-4 py-2 font-medium">{s.ref}{s.who ? <span className="block text-xs text-gray-400">{s.who}</span> : null}{!s.inStock && <span className="block text-[11px] text-amber-700">not received into stock yet</span>}</td>
+                  <td className="px-4 py-2 text-right font-mono">{s.pcs ? n2(s.pcs) : ''}</td>
                   <td className="px-4 py-2 text-right font-mono">{n2(s.goodsRmb)}</td>
                   <td className="px-4 py-2 text-right font-mono">{n2(s.exNgn)}</td>
                   <td className="px-4 py-2 text-right font-mono">{n2(s.exRmb)}</td>
@@ -188,7 +196,12 @@ export default function NigeriaExpenses() {
               <div><label className="text-xs text-gray-500">Amount</label><input type="number" inputMode="decimal" className={input} value={form.amount_s || ''} onChange={(e) => setForm({ ...form, amount_s: e.target.value })} autoFocus /></div>
               <div><label className="text-xs text-gray-500">Currency</label><select className={input} value={form.currency || 'NGN'} onChange={(e) => setForm({ ...form, currency: e.target.value as 'NGN' | 'RMB' })}><option value="NGN">Naira (₦)</option><option value="RMB">RMB</option></select></div>
               <div><label className="text-xs text-gray-500">Rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input} value={form.rate_s || ''} onChange={(e) => setForm({ ...form, rate_s: e.target.value })} /><p className="text-[11px] text-gray-500 mt-1">{isFinite(fAmt) && isFinite(fRate) && fRate > 0 ? (form.currency === 'RMB' ? `= ₦${n2(fAmt * fRate)}` : `= ${n2(fAmt / fRate)} RMB`) : ''}</p></div>
-              <div><label className="text-xs text-gray-500">Shipment (reference) — empty = general</label><input className={input} list="ng-refs" value={form.reference || ''} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="PI-001" /><datalist id="ng-refs">{refs.map((r) => <option key={r} value={r} />)}</datalist></div>
+              <div><label className="text-xs text-gray-500">For which bill / shipment</label><select className={input} value={form.reference || ''} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
+                <option value="">General (not for one shipment)</option>
+                {bills.map((b) => <option key={b.number} value={b.number}>{b.number} — {supNames[b.supplier_id || ''] || ''} {n2(b.total_rmb)} RMB</option>)}
+                {refs.filter((r) => !bills.some((b) => b.number === r)).map((r) => <option key={r} value={r}>{r}</option>)}
+                {form.reference && !refs.includes(form.reference) && !bills.some((b) => b.number === form.reference) && <option value={form.reference}>{form.reference}</option>}
+              </select></div>
               <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={form.note || ''} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
