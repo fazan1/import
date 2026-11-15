@@ -63,7 +63,7 @@ import CnReports from './components/CnReports';
 import CnHome from './components/CnHome';
 import ClearingAgents from './components/ClearingAgents';
 import { NG_MODULES, SHOP_MODULES } from './lib/modules';
-import { translateTo, translateIsIgbo, loadTranslator } from './lib/ngTranslate';
+import { translateTo, translateIsIgbo, loadTranslator, wantsIgbo, leaveTranslator } from './lib/ngTranslate';
 
 const SETTINGS_PIN_HASH = 'd665119136130460b3e98647a4a280654685bf8eb0b300062a201879e7cb2074'; // SHA-256 of the Settings password
 const HUNT_URL = 'https://claude.ai/artifact/WrDS1pCKmJ8Sv8YST4SvPc';
@@ -167,7 +167,11 @@ function App() {
     }
   }, [perm]); // eslint-disable-line react-hooks/exhaustive-deps
   // in the shop book only the shop's screens exist — land on its Home
-  useEffect(() => { if (book === BOOK_NG && translateIsIgbo()) loadTranslator(); }, [book]);
+  // online translation belongs to the NG book only: on when entering NG (if chosen), off the moment another book opens
+  useEffect(() => {
+    if (book === BOOK_NG) { if (wantsIgbo() && !translateIsIgbo()) translateTo('ig'); else if (translateIsIgbo()) loadTranslator(); }
+    else leaveTranslator();
+  }, [book]);
   useEffect(() => {
     if (book === BOOK_BRO && currentView !== 'settings' && !SHOP_MODULES.includes(currentView)) setCurrentView('cn-home');
     if (book === BOOK_NG && currentView !== 'settings' && !NG_MODULES.includes(currentView)) setCurrentView('ng-items');
@@ -485,7 +489,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V220</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V221</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -514,7 +518,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v220</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v221</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
