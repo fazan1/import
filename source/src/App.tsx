@@ -63,6 +63,7 @@ import CnReports from './components/CnReports';
 import CnHome from './components/CnHome';
 import ClearingAgents from './components/ClearingAgents';
 import { NG_MODULES, SHOP_MODULES } from './lib/modules';
+import { translateTo, translateIsIgbo, loadTranslator } from './lib/ngTranslate';
 
 const SETTINGS_PIN_HASH = 'd665119136130460b3e98647a4a280654685bf8eb0b300062a201879e7cb2074'; // SHA-256 of the Settings password
 const HUNT_URL = 'https://claude.ai/artifact/WrDS1pCKmJ8Sv8YST4SvPc';
@@ -166,6 +167,7 @@ function App() {
     }
   }, [perm]); // eslint-disable-line react-hooks/exhaustive-deps
   // in the shop book only the shop's screens exist — land on its Home
+  useEffect(() => { if (book === BOOK_NG && translateIsIgbo()) loadTranslator(); }, [book]);
   useEffect(() => {
     if (book === BOOK_BRO && currentView !== 'settings' && !SHOP_MODULES.includes(currentView)) setCurrentView('cn-home');
     if (book === BOOK_NG && currentView !== 'settings' && !NG_MODULES.includes(currentView)) setCurrentView('ng-items');
@@ -483,7 +485,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V219</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V220</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -512,7 +514,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v219</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v220</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}
@@ -544,6 +546,12 @@ function App() {
         )}
 
         <main className={`flex-1 min-w-0 p-3 sm:p-6 bg-gray-50 overflow-x-hidden pb-20 lg:pb-6 ${book === BOOK_NG ? 'ng-book' : ''}`}>
+          {book === BOOK_NG && (
+            <button onClick={() => translateTo(translateIsIgbo() ? 'en' : 'ig')} title="Switch the page language (online translation)" className="notranslate fixed bottom-24 lg:bottom-6 right-4 z-40 flex items-center rounded-full bg-red-600 text-white shadow-lg text-[11px] font-bold tracking-wide overflow-hidden border-2 border-red-700">
+              <span className={`px-3 py-1.5 ${translateIsIgbo() ? 'opacity-60' : 'bg-red-800'}`}>EN</span>
+              <span className={`px-3 py-1.5 ${translateIsIgbo() ? 'bg-red-800' : 'opacity-60'}`}>IG</span>
+            </button>
+          )}
           {book !== BOOK_NEW && !bookLocked && (
             <div className="max-w-[1600px] mx-auto mb-3 border-l-4 border-amber-500 bg-amber-50 px-3 py-2 text-[12px] text-amber-900 flex items-center justify-between gap-3">
               <span>{book === BOOK_ALL ? <><b>All books</b> — old and new together, for reading only. To add anything, switch to one book.</> : book === BOOK_BRO ? <><b>{BOOK_BRO}</b> — the shop's own books, separate from your import books. Anything you add or correct here stays in the shop book.</> : book === BOOK_NG ? <><b>NG — Nigeria</b> — the Nigeria business: its own items, stock and sales, nothing shared with Sri Lanka.</> : bookMode(BOOK_OLD) === 'closed' ? <><b>{BOOK_OLD} books — closed</b>. Reference only: nothing can be added or changed.</> : bookMode(BOOK_OLD) === 'collection' ? <><b>{BOOK_OLD} books — collection only</b>. Record customer receipts and supplier payments here. New POs, bills, shipments, orders and invoices go in {BOOK_NEW}.</> : <><b>{BOOK_OLD} books</b> — the business up to the changeover. Collect and settle here; anything you add is saved into the old books.</>}</span>
