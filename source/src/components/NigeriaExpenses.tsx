@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Receipt, Plus, X, RefreshCw, Trash2, Pencil } from 'lucide-react';
+import { Receipt, Plus, X, RefreshCw, Trash2, Pencil, Printer } from 'lucide-react';
+import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -104,6 +105,18 @@ export default function NigeriaExpenses() {
   }
   const fAmt = form ? parseFloat(form.amount_s || '') : NaN, fRate = form ? parseFloat(form.rate_s || '') : NaN;
 
+  function printPage() {
+    if (tab === 'list') ngPrint(`Expenses NG — ${monthName(month)}`, `Total ₦${n2(mTot.ngn)} = ${n2(mTot.rmb)} RMB · default rate ₦${defRate || '—'} / RMB`, [{
+      head: ['Date', 'Type', 'Description', 'Bill / shipment', 'Amount', '= ₦', '= RMB'], right: [4, 5, 6],
+      rows: mRows.map((e) => { const b = expenseBoth(e, defRate); return [showDate(e.entry_date), e.category, [e.description, e.note].filter(Boolean).join(' · '), e.reference || 'general', `${e.currency === 'RMB' ? 'RMB ' : '₦'}${n2(e.amount)}`, n2(b.ngn), n2(b.rmb)]; }),
+      total: ['Total', '', '', '', '', n2(mTot.ngn), n2(mTot.rmb)],
+    }]);
+    else ngPrint('Expenses NG — landed cost by shipment', `default rate ₦${defRate || '—'} / RMB`, [{
+      head: ['Shipment', 'Supplier', 'Pieces in', 'Goods (RMB)', 'Duty & expenses (₦)', '= RMB', 'Landed (RMB)', 'Add to cost'], right: [2, 3, 4, 5, 6, 7],
+      rows: shipments.map((s) => [s.ref + (s.inStock ? '' : ' (not in stock yet)'), s.who, s.pcs ? n2(s.pcs) : '', n2(s.goodsRmb), n2(s.exNgn), n2(s.exRmb), n2(s.landed), isFinite(s.uplift) ? `+${s.uplift.toFixed(1)}%` : '']),
+    }], 'Landed cost of an item = its China cost × (1 + "Add to cost").');
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -115,6 +128,7 @@ export default function NigeriaExpenses() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New expense</button>
         </div>
       </div>

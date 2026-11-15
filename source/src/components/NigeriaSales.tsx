@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ShoppingCart, Plus, X, RefreshCw, Trash2, Copy } from 'lucide-react';
+import { ShoppingCart, Plus, X, RefreshCw, Trash2, Copy, Printer } from 'lucide-react';
+import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -113,6 +114,17 @@ export default function NigeriaSales() {
     try { await navigator.clipboard.writeText(t); alert('Summary copied — paste it into WhatsApp.'); } catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('Summary copied — paste it into WhatsApp.'); }
   }
 
+  function printMonth() {
+    ngPrint(`Sales NG — ${monthName(month)}`, `Sold ₦${n0(mTot.sale)} · cost of goods (landed) ₦${n0(mTot.cost)} · profit ₦${n0(mTot.profit)}${mTot.sale ? ` (${((mTot.profit / mTot.sale) * 100).toFixed(0)}% of sales)` : ''} · rate ₦${n2(rateOfMonth)} / RMB`, [{
+      head: ['Date', 'Item', 'Customer', 'Qty', '₦ / pc', 'Sold ₦', 'Cost ₦', 'Profit ₦'], right: [3, 4, 5, 6, 7],
+      rows: mSales.map((s) => { const it = itemOf(s.item_id); const p = profitOf(s); return [showDate(s.entry_date), (it ? label(it) : s.item_id) + (s.note ? ` — ${s.note}` : ''), s.reference || '', n2(s.quantity), s.quantity ? n2((s.sale_naira || 0) / s.quantity) : '', n2(s.sale_naira), n2(p.costNgn), n2(p.profitNgn)]; }),
+      total: ['Total', '', '', n2(mTot.qty), '', n2(mTot.sale), n2(mTot.cost), n2(mTot.profit)],
+    }, {
+      title: 'Stock left', head: ['Item', 'On hand'], right: [1],
+      rows: items.filter((i) => i.is_active && (onHand[i.id] || 0) !== 0).map((i) => [label(i), `${n0(onHand[i.id] || 0)} ${i.unit}`]),
+    }], 'Profit = sale − quantity × landed cost (China cost + duty & expenses of the shipment) × rate.');
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -124,6 +136,7 @@ export default function NigeriaSales() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printMonth} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={copySummary} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Copy className="w-4 h-4" /> Copy summary</button>
           <button onClick={openNew} disabled={!items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New sale</button>
         </div>

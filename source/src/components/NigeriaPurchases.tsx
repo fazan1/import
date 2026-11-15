@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { esc } from '../lib/html';
+import { ngPrint } from '../lib/ngPrint';
 import { unitsPerTon } from './NigeriaStock';
 
 /* NIGERIA — step 5A: Purchases NG. Own suppliers (ng_suppliers) and purchase orders / proformas (ng_purchases +
@@ -172,6 +173,22 @@ export default function NigeriaPurchases() {
   const totOrdered = live.reduce((t, p) => t + p.total_rmb, 0), totPaid = payments.reduce((t, x) => t + x.amount_rmb, 0);
   const totOutstanding = live.reduce((t, p) => t + Math.max(0, p.total_rmb - paidOf(p)), 0);
 
+  function printPage() {
+    if (tab === 'orders') ngPrint('Purchases NG — orders', `Ordered ${n2(totOrdered)} RMB · paid ${n2(totPaid)} · outstanding ${n2(totOutstanding)}`, [{
+      head: ['Number', 'Type', 'Supplier', 'Date', 'Status', 'Lines', 'Pcs', 'Total RMB', 'Paid', 'To pay', 'In stock'], right: [5, 6, 7, 8, 9],
+      rows: purchases.map((p) => { const ls = lines.filter((l) => l.purchase_id === p.id); const paid = paidOf(p); return [p.number, p.kind.toUpperCase(), supOf(p.supplier_id)?.name || '-', showDate(p.order_date), p.status, String(ls.length), n2(ls.reduce((t, l) => t + l.quantity, 0)), n2(p.total_rmb), n2(paid), n2(Math.max(0, p.total_rmb - paid)), p.received_at ? showDate(p.received_at) : '']; }),
+      total: ['Total', '', '', '', '', '', '', n2(totOrdered), n2(totPaid), n2(totOutstanding), ''],
+    }]);
+    else if (tab === 'suppliers') ngPrint('Purchases NG — suppliers', `${suppliers.length} suppliers · amounts in RMB`, [{
+      head: ['Supplier', 'Contact', 'Phone', 'Ordered', 'Paid', 'To pay'], right: [3, 4, 5],
+      rows: suppliers.map((s) => { const ord = purchases.filter((p) => p.supplier_id === s.id && p.status !== 'cancelled' && p.status !== 'draft').reduce((t, p) => t + p.total_rmb, 0); const paid = payments.filter((x) => x.supplier_id === s.id).reduce((t, x) => t + x.amount_rmb, 0); return [s.name, s.contact || '', s.phone || '', n2(ord), n2(paid), n2(Math.max(0, ord - paid))]; }),
+    }]);
+    else ngPrint('Purchases NG — payments to suppliers', `${payments.length} payments · total ${n2(totPaid)} RMB`, [{
+      head: ['Date', 'Supplier', 'Order', 'RMB', 'Paid with', 'Cost to us', 'Ref / note'], right: [3, 5],
+      rows: payments.map((x) => [showDate(x.pay_date), supOf(x.supplier_id)?.name || '-', purchases.find((q) => q.id === x.purchase_id)?.number || 'on account', n2(x.amount_rmb), x.paid_with || '', x.paid_amount ? `${x.paid_currency || ''} ${n2(x.paid_amount)}` : '', [x.reference, x.note].filter(Boolean).join(' · ')]),
+      total: ['Total paid', '', '', n2(totPaid), '', '', ''],
+    }]);
+  }
   function printOrder(p: NgPurchase) {
     const w = window.open('', '_blank', 'width=860,height=900'); if (!w) { alert('Allow pop-ups to print.'); return; }
     const s = supOf(p.supplier_id); const ls = lines.filter((l) => l.purchase_id === p.id);
@@ -202,6 +219,7 @@ export default function NigeriaPurchases() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={() => setSupForm({ name: '', contact: '', phone: '', note: '', is_active: true })} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Building2 className="w-4 h-4" /> New supplier</button>
           <button onClick={newOrder} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New order / PI</button>
         </div>

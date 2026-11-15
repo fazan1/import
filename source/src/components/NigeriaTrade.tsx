@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Globe, Plus, Pencil, X, RefreshCw, Trash2 } from 'lucide-react';
+import { Globe, Plus, Pencil, X, RefreshCw, Trash2, Printer } from 'lucide-react';
+import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 
@@ -101,6 +102,13 @@ export default function NigeriaTrade() {
     load();
   }
 
+  function printList() {
+    ngPrint('Items NG', `${shown.length} items · cost per unit in RMB · stock in each item's unit`, [{
+      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'Cost / unit (RMB)', 'Selling price (₦)', 'Stock'], right: [4, 5, 6, 7],
+      rows: shown.map((i) => [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), n2(i.sell_naira), `${n2(onHand[i.id] || 0)} ${i.unit}`]),
+    }]);
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -112,6 +120,7 @@ export default function NigeriaTrade() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printList} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New item</button>
         </div>
       </div>

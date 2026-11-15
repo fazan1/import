@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Boxes, Plus, X, RefreshCw, Trash2, PackagePlus, SlidersHorizontal } from 'lucide-react';
+import { Boxes, Plus, X, RefreshCw, Trash2, PackagePlus, SlidersHorizontal, Printer } from 'lucide-react';
+import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
@@ -103,6 +104,18 @@ export default function NigeriaStock() {
     load();
   }
 
+  function printPage() {
+    if (tab === 'stock') ngPrint('Stock NG — on hand', `${rows.length} items · value at average cost in RMB`, [{
+      head: ['Item', 'Unit', 'In', 'Sold', 'Adjust', 'On hand', 'Avg cost (RMB)', 'Value (RMB)'], right: [2, 3, 4, 5, 6, 7],
+      rows: rows.map((r) => [label(r.i), r.i.unit, n2(r.inQty), n2(r.outQty), r.adjQty ? n2(r.adjQty) : '', n2(r.qty), r.avg.toLocaleString('en-US', { maximumFractionDigits: 4 }), n2(r.value)]),
+      total: ['Stock value at cost', '', '', '', '', '', '', n2(totValue)],
+    }]);
+    else ngPrint('Stock NG — movements', `${moves.length} movements, newest first`, [{
+      head: ['Date', 'Type', 'Item', 'Quantity', 'Cost RMB', 'Sale ₦', 'Reference / note'], right: [3, 4, 5],
+      rows: moves.map((m) => { const it = itemOf(m.item_id); return [showDate(m.entry_date), m.kind === 'in' ? 'In' : m.kind === 'out' ? 'Sold' : 'Adjust', it ? label(it) : m.item_id, `${n2(m.quantity)} ${it?.unit || ''}`, m.cost_rmb != null ? n2(m.cost_rmb) : '', m.sale_naira != null ? n2(m.sale_naira) : '', [m.reference, m.note].filter(Boolean).join(' · ')]; }),
+    }]);
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -114,6 +127,7 @@ export default function NigeriaStock() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printPage} disabled={!items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={() => openIn('adjust')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><SlidersHorizontal className="w-4 h-4" /> Adjust</button>
           <button onClick={() => setProforma({ reference: '', entry_date: today(), tons: {} })} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><PackagePlus className="w-4 h-4" /> Load a proforma</button>
           <button onClick={() => openIn('in')} disabled={setupNeeded || !items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> Stock in</button>
