@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Globe, Plus, Pencil, X, RefreshCw } from 'lucide-react';
+import { Globe, Plus, Pencil, X, RefreshCw, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 
@@ -92,6 +92,15 @@ export default function NigeriaTrade() {
     }
   }
 
+  async function remove(i: NgItem) {
+    const moves = stock.filter((s) => s.item_id === i.id).length;
+    if (moves > 0) { alert(`"${i.name} ${i.specification || ''}" has ${moves} stock movement${moves === 1 ? '' : 's'} and cannot be deleted. Use "hide" instead — the history stays.`); return; }
+    if (!confirm(`Delete "${i.name} ${i.specification || ''} ${i.finish || ''}" from Items NG?`)) return;
+    const { error } = await supabase.from('ng_items').delete().eq('id', i.id);
+    if (error) { alert('Could not delete: ' + (/foreign key|violates/i.test(error.message) ? 'this item has stock movements — hide it instead.' : error.message)); return; }
+    load();
+  }
+
   if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
@@ -137,6 +146,7 @@ export default function NigeriaTrade() {
                 <td className="px-4 py-2 text-right whitespace-nowrap">
                   <button onClick={() => openEdit(i)} className="p-1 text-gray-400 hover:text-gray-800" title="Edit"><Pencil className="w-4 h-4" /></button>
                   <button onClick={() => toggleActive(i)} className="p-1 text-gray-400 hover:text-gray-800 text-xs" title={i.is_active ? 'Hide' : 'Show again'}>{i.is_active ? 'hide' : 'show'}</button>
+                  <button onClick={() => remove(i)} className="p-1 text-gray-400 hover:text-red-600" title="Delete (only when it has no stock movements)"><Trash2 className="w-4 h-4" /></button>
                 </td>
               </tr>
             ))}
