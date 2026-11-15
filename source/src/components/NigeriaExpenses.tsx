@@ -3,7 +3,6 @@ import { Receipt, Plus, X, RefreshCw, Trash2, Pencil, Printer } from 'lucide-rea
 import { ngPrint } from '../lib/ngPrint';
 import { kgPerUnit } from '../lib/ngLanded';
 import { supabase } from '../lib/supabase';
-import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 
@@ -32,7 +31,6 @@ export function expenseBoth(e: { amount: number; currency: string; rate: number 
 }
 
 export default function NigeriaExpenses() {
-  const { t } = useNgLang();
   const [rows, setRows] = useState<NgExpense[]>([]);
   const [ins, setIns] = useState<NgIn[]>([]);
   const [bills, setBills] = useState<NgPurchaseRef[]>([]);
@@ -125,46 +123,46 @@ export default function NigeriaExpenses() {
     }], "Duty per kg = the shipment's duty & expenses ÷ its weight; each piece carries its weight × duty per kg. Landed cost of a piece = China cost + that duty.");
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Receipt className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Expenses & duty NG')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Receipt className="w-6 h-6 text-[#e8552a]" /> Nigeria — Expenses & duty NG</h1>
           <p className="text-sm text-gray-500">Duty, freight, clearing and running costs in Naira or RMB. Costs with a shipment reference are spread over that shipment's goods by weight.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
-          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
-          <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> {t('New expense')}</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printPage} disabled={setupNeeded} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
+          <button onClick={openNew} disabled={setupNeeded} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New expense</button>
         </div>
       </div>
 
       {setupNeeded && <div className="p-4 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900">One-time setup needed: run <b>nigeria-expenses.sql</b> in Supabase (MAIN project), then Refresh.</div>}
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-3">
-        <div><label className="text-xs text-gray-500">{t('Default rate — Naira for 1 RMB')}</label><input type="number" inputMode="decimal" className={input + ' w-40'} value={rateBox} onChange={(e) => setRateBox(e.target.value)} placeholder="210" /></div>
-        <button onClick={saveRate} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">{t('Save rate')}</button>
+        <div><label className="text-xs text-gray-500">Default rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input + ' w-40'} value={rateBox} onChange={(e) => setRateBox(e.target.value)} placeholder="210" /></div>
+        <button onClick={saveRate} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">Save rate</button>
         <p className="text-xs text-gray-500">{defRate ? `1 RMB = ₦${defRate} · ₦1,000,000 = ${n2(1000000 / defRate)} RMB · it pre-fills the rate on new expenses and sales — the rate typed on each entry is what counts (Edit an entry to change its rate)` : 'No rate yet — type it once; every entry and the overview use it.'}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{monthName(month)}</div><div className="text-lg font-semibold">₦{n2(mTot.ngn)}</div><div className="text-xs text-gray-500">{n2(mTot.rmb)} RMB</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('All time')}</div><div className="text-lg font-semibold">₦{n2(allTot.ngn)}</div><div className="text-xs text-gray-500">{n2(allTot.rmb)} RMB</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">All time</div><div className="text-lg font-semibold">₦{n2(allTot.ngn)}</div><div className="text-xs text-gray-500">{n2(allTot.rmb)} RMB</div></div>
         {byCat.slice(0, 2).map((x) => <div key={x.c} className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{x.c} · {monthName(month).split(' ')[0]}</div><div className="text-lg font-semibold">₦{n2(x.ngn)}</div><div className="text-xs text-gray-500">{n2(x.rmb)} RMB</div></div>)}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => setTab('list')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'list' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>{t('Entries')}</button>
-        <button onClick={() => setTab('ship')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'ship' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>{t('Landed cost by shipment')}</button>
+        <button onClick={() => setTab('list')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'list' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Entries</button>
+        <button onClick={() => setTab('ship')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'ship' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Landed cost by shipment</button>
         {tab === 'list' && <select value={month} onChange={(e) => setMonth(e.target.value)} className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">{months.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</select>}
       </div>
 
       {tab === 'list' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
-            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Date')}</th><th className="text-left px-4 py-2">{t('Type')}</th><th className="text-left px-4 py-2">{t('Description')}</th><th className="text-left px-4 py-2">{t('Shipment')}</th><th className="text-right px-4 py-2">{t('Amount')}</th><th className="text-right px-4 py-2">= ₦</th><th className="text-right px-4 py-2">= RMB</th><th className="px-4 py-2"></th></tr></thead>
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Type</th><th className="text-left px-4 py-2">Description</th><th className="text-left px-4 py-2">Shipment</th><th className="text-right px-4 py-2">Amount</th><th className="text-right px-4 py-2">= ₦</th><th className="text-right px-4 py-2">= RMB</th><th className="px-4 py-2"></th></tr></thead>
             <tbody>
               {mRows.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No expenses in {monthName(month)}.</td></tr>}
               {mRows.map((e) => { const b = expenseBoth(e, defRate); return (
@@ -187,7 +185,7 @@ export default function NigeriaExpenses() {
       {tab === 'ship' && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
-            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Shipment')}</th><th className="text-right px-4 py-2">{t('Pieces in')}</th><th className="text-right px-4 py-2">{t('Goods (RMB)')}</th><th className="text-right px-4 py-2">{t('Duty & expenses (₦)')}</th><th className="text-right px-4 py-2">= RMB</th><th className="text-right px-4 py-2">{t('Landed (RMB)')}</th><th className="text-right px-4 py-2">{t('Weight')}</th><th className="text-right px-4 py-2">{t('Duty per kg')}</th></tr></thead>
+            <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Shipment</th><th className="text-right px-4 py-2">Pieces in</th><th className="text-right px-4 py-2">Goods (RMB)</th><th className="text-right px-4 py-2">Duty & expenses (₦)</th><th className="text-right px-4 py-2">= RMB</th><th className="text-right px-4 py-2">Landed (RMB)</th><th className="text-right px-4 py-2">Weight</th><th className="text-right px-4 py-2">Duty per kg</th></tr></thead>
             <tbody>
               {shipments.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No shipment references yet. Put stock in with a reference (PI-001) and give expenses the same reference.</td></tr>}
               {shipments.map((s) => (
@@ -213,22 +211,22 @@ export default function NigeriaExpenses() {
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{form.id ? 'Edit expense' : 'New expense'}</h3><button onClick={() => setForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-gray-500">{t('Date')}</label><input type="date" className={input} value={form.entry_date || ''} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
-              <div><label className="text-xs text-gray-500">{t('Type')}</label><select className={input} value={form.category || 'Other'} onChange={(e) => setForm({ ...form, category: e.target.value })}>{NG_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Description')}</label><input className={input} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Customs duty Lagos port, 10 tons" /></div>
-              <div><label className="text-xs text-gray-500">{t('Amount')}</label><input type="number" inputMode="decimal" className={input} value={form.amount_s || ''} onChange={(e) => setForm({ ...form, amount_s: e.target.value })} autoFocus /></div>
-              <div><label className="text-xs text-gray-500">{t('Currency')}</label><select className={input} value={form.currency || 'NGN'} onChange={(e) => setForm({ ...form, currency: e.target.value as 'NGN' | 'RMB' })}><option value="NGN">Naira (₦)</option><option value="RMB">RMB</option></select></div>
-              <div><label className="text-xs text-gray-500">{t('Rate — Naira for 1 RMB')}</label><input type="number" inputMode="decimal" className={input} value={form.rate_s || ''} onChange={(e) => setForm({ ...form, rate_s: e.target.value })} /><p className="text-[11px] text-gray-500 mt-1">{isFinite(fAmt) && isFinite(fRate) && fRate > 0 ? (form.currency === 'RMB' ? `= ₦${n2(fAmt * fRate)}` : `= ${n2(fAmt / fRate)} RMB`) : ''}</p></div>
-              <div><label className="text-xs text-gray-500">{t('For which bill / shipment')}</label><select className={input} value={form.reference || ''} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
-                <option value="">{t('General (not for one shipment)')}</option>
+              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={form.entry_date || ''} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Type</label><select className={input} value={form.category || 'Other'} onChange={(e) => setForm({ ...form, category: e.target.value })}>{NG_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Description</label><input className={input} value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Customs duty Lagos port, 10 tons" /></div>
+              <div><label className="text-xs text-gray-500">Amount</label><input type="number" inputMode="decimal" className={input} value={form.amount_s || ''} onChange={(e) => setForm({ ...form, amount_s: e.target.value })} autoFocus /></div>
+              <div><label className="text-xs text-gray-500">Currency</label><select className={input} value={form.currency || 'NGN'} onChange={(e) => setForm({ ...form, currency: e.target.value as 'NGN' | 'RMB' })}><option value="NGN">Naira (₦)</option><option value="RMB">RMB</option></select></div>
+              <div><label className="text-xs text-gray-500">Rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input} value={form.rate_s || ''} onChange={(e) => setForm({ ...form, rate_s: e.target.value })} /><p className="text-[11px] text-gray-500 mt-1">{isFinite(fAmt) && isFinite(fRate) && fRate > 0 ? (form.currency === 'RMB' ? `= ₦${n2(fAmt * fRate)}` : `= ${n2(fAmt / fRate)} RMB`) : ''}</p></div>
+              <div><label className="text-xs text-gray-500">For which bill / shipment</label><select className={input} value={form.reference || ''} onChange={(e) => setForm({ ...form, reference: e.target.value })}>
+                <option value="">General (not for one shipment)</option>
                 {bills.map((b) => <option key={b.number} value={b.number}>{b.number} — {supNames[b.supplier_id || ''] || ''} {n2(b.total_rmb)} RMB</option>)}
                 {refs.filter((r) => !bills.some((b) => b.number === r)).map((r) => <option key={r} value={r}>{r}</option>)}
                 {form.reference && !refs.includes(form.reference) && !bills.some((b) => b.number === form.reference) && <option value={form.reference}>{form.reference}</option>}
               </select></div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={form.note || ''} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={form.note || ''} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button>
+              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
               <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>

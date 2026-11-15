@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TrendingUp, RefreshCw, Copy, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { expenseBoth } from './NigeriaExpenses';
 import { landedCosts, pendingRefs } from '../lib/ngLanded';
@@ -21,7 +20,6 @@ const monthName = (ym: string) => new Date(ym + '-01T00:00:00').toLocaleDateStri
 const label = (i: NgItem) => [i.name, i.specification, i.finish].filter(Boolean).join(' ');
 
 export default function NigeriaProfit() {
-  const { t } = useNgLang();
   const [items, setItems] = useState<NgItem[]>([]);
   const [moves, setMoves] = useState<NgMove[]>([]);
   const [expenses, setExpenses] = useState<NgExpense[]>([]);
@@ -96,20 +94,20 @@ export default function NigeriaProfit() {
     ]);
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingUp className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Profit NG')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><TrendingUp className="w-6 h-6 text-[#e8552a]" /> Nigeria — Profit NG</h1>
           <p className="text-sm text-gray-500">Total profit, the profit of every sale, and what each partner can pull out.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"><option value="all">{t('All time')}</option>{D.months.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</select>
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
-          <button onClick={print} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
-          <button onClick={copy} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90"><Copy className="w-4 h-4" /> {t('Copy summary')}</button>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"><option value="all">All time</option>{D.months.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</select>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={print} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-4 h-4" /> Print / PDF</button>
+          <button onClick={copy} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90"><Copy className="w-4 h-4" /> Copy summary</button>
         </div>
       </div>
 
@@ -120,30 +118,30 @@ export default function NigeriaProfit() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">{t('Each sale')}</div>
+        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">Each sale</div>
         <table className="w-full text-sm min-w-[760px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Date')}</th><th className="text-left px-4 py-2">{t('Item')}</th><th className="text-left px-4 py-2">{t('Customer')}</th><th className="text-right px-4 py-2">{t('Qty')}</th><th className="text-right px-4 py-2">{t('Sold ₦')}</th><th className="text-right px-4 py-2">{t('Cost ₦')}</th><th className="text-right px-4 py-2">{t('Profit ₦')}</th><th className="text-right px-4 py-2">%</th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Item</th><th className="text-left px-4 py-2">Customer</th><th className="text-right px-4 py-2">Qty</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit ₦</th><th className="text-right px-4 py-2">%</th></tr></thead>
           <tbody>
             {D.shown.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-500">No sales yet.</td></tr>}
             {D.shown.map((x) => <tr key={x.s.id} className="border-t border-gray-100"><td className="px-4 py-2 whitespace-nowrap">{showDate(x.s.entry_date)}</td><td className="px-4 py-2">{x.it ? label(x.it) : ''}{x.s.note ? <span className="block text-xs text-gray-400">{x.s.note}</span> : null}</td><td className="px-4 py-2">{x.s.reference || ''}</td><td className="px-4 py-2 text-right font-mono">{n2(x.s.quantity)}</td><td className="px-4 py-2 text-right font-mono">{n0(x.sale)}</td><td className="px-4 py-2 text-right font-mono">{n0(x.cost)}</td><td className={`px-4 py-2 text-right font-mono font-semibold ${x.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(x.profit)}</td><td className="px-4 py-2 text-right font-mono text-gray-500">{isFinite(x.pct) ? `${x.pct.toFixed(0)}%` : ''}</td></tr>)}
-            {D.shown.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>{t('Total')}</td><td className="px-4 py-2 text-right font-mono">{n2(D.shownTot.qty)}</td><td className="px-4 py-2 text-right font-mono">{n0(D.shownTot.sale)}</td><td className="px-4 py-2 text-right font-mono">{n0(D.shownTot.cost)}</td><td className={`px-4 py-2 text-right font-mono ${D.shownTot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(D.shownTot.profit)}</td><td className="px-4 py-2 text-right font-mono text-gray-500">{D.shownTot.sale ? `${((D.shownTot.profit / D.shownTot.sale) * 100).toFixed(0)}%` : ''}</td></tr>}
+            {D.shown.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2" colSpan={3}>Total</td><td className="px-4 py-2 text-right font-mono">{n2(D.shownTot.qty)}</td><td className="px-4 py-2 text-right font-mono">{n0(D.shownTot.sale)}</td><td className="px-4 py-2 text-right font-mono">{n0(D.shownTot.cost)}</td><td className={`px-4 py-2 text-right font-mono ${D.shownTot.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(D.shownTot.profit)}</td><td className="px-4 py-2 text-right font-mono text-gray-500">{D.shownTot.sale ? `${((D.shownTot.profit / D.shownTot.sale) * 100).toFixed(0)}%` : ''}</td></tr>}
           </tbody>
         </table>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">{t('By item — all time')}</div>
+        <div className="px-4 py-2 border-b border-gray-200 text-xs font-semibold text-gray-800 uppercase tracking-wide">By item — all time</div>
         <table className="w-full text-sm min-w-[520px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Item')}</th><th className="text-right px-4 py-2">{t('Pcs sold')}</th><th className="text-right px-4 py-2">{t('Sold ₦')}</th><th className="text-right px-4 py-2">{t('Profit ₦')}</th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Item</th><th className="text-right px-4 py-2">Pcs sold</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Profit ₦</th></tr></thead>
           <tbody>{D.byItem.map((r, k) => <tr key={k} className="border-t border-gray-100"><td className="px-4 py-2">{r.it ? label(r.it) : ''}</td><td className="px-4 py-2 text-right font-mono">{n0(r.qty)}</td><td className="px-4 py-2 text-right font-mono">{n0(r.sale)}</td><td className={`px-4 py-2 text-right font-mono font-semibold ${r.profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{n0(r.profit)}</td></tr>)}</tbody>
         </table>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4">
-        <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide mb-2">{t('Pull out — what each partner can take')}</h3>
+        <h3 className="text-xs font-semibold text-gray-800 uppercase tracking-wide mb-2">Pull out — what each partner can take</h3>
         <div className="flex flex-wrap items-end gap-3 mb-3">
           <div><label className="text-xs text-gray-500">Partner's share (%) — owner gets the rest</label><input type="number" inputMode="decimal" className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" value={shareBox} onChange={(e) => setShareBox(e.target.value)} placeholder="50" /></div>
-          <button onClick={saveShare} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">{t('Save share')}</button>
+          <button onClick={saveShare} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">Save share</button>
           <p className="text-xs text-gray-500">Pull-outs are entered in Expenses NG (General): "Partner payout" for the partner, "Owner withdrawal" for you.</p>
         </div>
         <div className="text-sm space-y-1 max-w-lg mb-3">
@@ -152,7 +150,7 @@ export default function NigeriaProfit() {
           <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold"><span>= profit to share</span><span className={`font-mono ${D.distributable >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n0(D.distributable)}</span></div>
         </div>
         <table className="w-full text-sm max-w-2xl">
-          <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1"></th><th className="text-right py-1">{t('Share')}</th><th className="text-right py-1">{t('Pulled out')}</th><th className="text-right py-1">{t('Can pull out now')}</th></tr></thead>
+          <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1"></th><th className="text-right py-1">Share</th><th className="text-right py-1">Pulled out</th><th className="text-right py-1">Can pull out now</th></tr></thead>
           <tbody>
             <tr className="border-t border-gray-100"><td className="py-1.5">Partner ({share}%)</td><td className="py-1.5 text-right font-mono">₦{n0(D.partnerShare)}</td><td className="py-1.5 text-right font-mono">₦{n0(D.partnerOut)}</td><td className={`py-1.5 text-right font-mono font-semibold ${D.partnerShare - D.partnerOut >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n0(D.partnerShare - D.partnerOut)}</td></tr>
             <tr className="border-t border-gray-100"><td className="py-1.5">Owner ({100 - share}%)</td><td className="py-1.5 text-right font-mono">₦{n0(D.ownerShare)}</td><td className="py-1.5 text-right font-mono">₦{n0(D.ownerOut)}</td><td className={`py-1.5 text-right font-mono font-semibold ${D.ownerShare - D.ownerOut >= 0 ? 'text-green-700' : 'text-red-600'}`}>₦{n0(D.ownerShare - D.ownerOut)}</td></tr>

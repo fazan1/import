@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ShoppingCart, Plus, X, RefreshCw, Trash2, Copy, Printer, Banknote } from 'lucide-react';
 import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
-import { useNgLang } from '../lib/ngLang';
 import { fetchAllPages } from '../lib/fetchAll';
 import { moveToRecycleBin } from '../lib/recycleBin';
 import { landedCosts, pendingRefs } from '../lib/ngLanded';
@@ -25,7 +24,6 @@ const monthName = (ym: string) => new Date(ym + '-01T00:00:00').toLocaleDateStri
 const label = (i: NgItem) => [i.name, i.specification, i.finish].filter(Boolean).join(' ');
 
 export default function NigeriaSales() {
-  const { t } = useNgLang();
   const [items, setItems] = useState<NgItem[]>([]);
   const [moves, setMoves] = useState<NgMove[]>([]);
   const [expenses, setExpenses] = useState<NgExpense[]>([]);
@@ -153,21 +151,21 @@ export default function NigeriaSales() {
     }], 'Profit = sale − quantity × landed cost (China cost + duty & expenses of the shipment) × rate.');
   }
 
-  if (loading) return <div className="p-8 text-center text-gray-500">{t('Loading…')}</div>;
+  if (loading) return <div className="p-8 text-center text-gray-500">Loading…</div>;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><ShoppingCart className="w-6 h-6 text-[#e8552a]" /> {t('Nigeria — Sales NG')}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><ShoppingCart className="w-6 h-6 text-[#e8552a]" /> Nigeria — Sales NG</h1>
           <p className="text-sm text-gray-500">What the partner sold. Each sale comes off stock; profit = sale − landed cost (China cost + the shipment's duty by weight) at the rate.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> {t('Refresh')}</button>
-          <button onClick={printMonth} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> {t('Print / PDF')}</button>
-          <button onClick={copySummary} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Copy className="w-4 h-4" /> {t('Copy summary')}</button>
-          <button onClick={() => openRemit()} disabled={remitMissing} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><Banknote className="w-4 h-4" /> {t('Money from partner')}</button>
-          <button onClick={openNew} disabled={!items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> {t('New sale')}</button>
+          <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>
+          <button onClick={printMonth} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Printer className="w-4 h-4" /> Print / PDF</button>
+          <button onClick={copySummary} disabled={!mSales.length} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Copy className="w-4 h-4" /> Copy summary</button>
+          <button onClick={() => openRemit()} disabled={remitMissing} className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><Banknote className="w-4 h-4" /> Money from partner</button>
+          <button onClick={openNew} disabled={!items.length} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#e8552a] rounded-lg hover:opacity-90 disabled:opacity-40"><Plus className="w-4 h-4" /> New sale</button>
         </div>
       </div>
 
@@ -181,19 +179,19 @@ export default function NigeriaSales() {
 
       {remitMissing && <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm text-amber-900">To record money from the partner, run <b>nigeria-remittances.sql</b> in Supabase (MAIN project) once, then Refresh.</div>}
       <div className="grid grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Sold all time')}</div><div className="text-lg font-semibold font-mono">₦{n0(allTot.sale)}</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Received from partner')}</div><div className="text-lg font-semibold font-mono text-green-700">₦{n0(totRemit)}</div><div className="text-xs text-gray-500">{remits.length} transfers{paidOn.unapplied > 0.5 ? ` · ₦${n0(paidOn.unapplied)} more than the sales` : ''}</div></div>
-        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">{t('Partner still holds')}</div><div className={`text-lg font-semibold font-mono ${allTot.sale - totRemit > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>₦{n0(Math.max(0, allTot.sale - totRemit))}</div><div className="text-xs text-gray-500">{t('sales money not sent yet')}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Sold all time</div><div className="text-lg font-semibold font-mono">₦{n0(allTot.sale)}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Received from partner</div><div className="text-lg font-semibold font-mono text-green-700">₦{n0(totRemit)}</div><div className="text-xs text-gray-500">{remits.length} transfers{paidOn.unapplied > 0.5 ? ` · ₦${n0(paidOn.unapplied)} more than the sales` : ''}</div></div>
+        <div className="bg-white rounded-xl border border-gray-200 p-4"><div className="text-xs text-gray-500 uppercase tracking-wide">Partner still holds</div><div className={`text-lg font-semibold font-mono ${allTot.sale - totRemit > 0.5 ? 'text-amber-700' : 'text-green-700'}`}>₦{n0(Math.max(0, allTot.sale - totRemit))}</div><div className="text-xs text-gray-500">sales money not sent yet</div></div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => setTab('sales')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'sales' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>{t('Sales')}</button>
+        <button onClick={() => setTab('sales')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'sales' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Sales</button>
         <button onClick={() => setTab('money')} className={`px-3 py-1.5 rounded-full text-sm border ${tab === 'money' ? 'bg-[#111] text-white border-[#111]' : 'bg-white border-gray-300 text-gray-700'}`}>Money from partner ({remits.length})</button>
         {tab === 'sales' && <select value={month} onChange={(e) => setMonth(e.target.value)} className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white">{months.map((m) => <option key={m} value={m}>{monthName(m)}</option>)}</select>}
       </div>
 
       {tab === 'sales' && <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[920px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Date')}</th><th className="text-left px-4 py-2">{t('Item')}</th><th className="text-left px-4 py-2">{t('Customer')}</th><th className="text-right px-4 py-2">{t('Qty')}</th><th className="text-right px-4 py-2">{t('₦ / pc')}</th><th className="text-right px-4 py-2">{t('Sold ₦')}</th><th className="text-right px-4 py-2">Cost / pc ₦<span className="block normal-case text-[10px]">China + duty</span></th><th className="text-right px-4 py-2">{t('Cost ₦')}</th><th className="text-right px-4 py-2">{t('Profit ₦')}</th><th className="text-right px-4 py-2">{t('Sent to us')}</th><th className="px-4 py-2"></th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-left px-4 py-2">Item</th><th className="text-left px-4 py-2">Customer</th><th className="text-right px-4 py-2">Qty</th><th className="text-right px-4 py-2">₦ / pc</th><th className="text-right px-4 py-2">Sold ₦</th><th className="text-right px-4 py-2">Cost / pc ₦<span className="block normal-case text-[10px]">China + duty</span></th><th className="text-right px-4 py-2">Cost ₦</th><th className="text-right px-4 py-2">Profit ₦</th><th className="text-right px-4 py-2">Sent to us</th><th className="px-4 py-2"></th></tr></thead>
           <tbody>
             {mSales.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-gray-500">No sales in {monthName(month)} — press "New sale".</td></tr>}
             {mSales.map((s) => { const it = itemOf(s.item_id); const p = profitOf(s); return (
@@ -217,7 +215,7 @@ export default function NigeriaSales() {
 
       {tab === 'money' && <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[760px]">
-          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">{t('Date')}</th><th className="text-right px-4 py-2">{t('Amount ₦')}</th><th className="text-left px-4 py-2">{t('How')}</th><th className="text-right px-4 py-2">{t('We got')}</th><th className="text-left px-4 py-2">{t('For sale')}</th><th className="text-left px-4 py-2">Ref / note</th><th className="px-4 py-2"></th></tr></thead>
+          <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase"><th className="text-left px-4 py-2">Date</th><th className="text-right px-4 py-2">Amount ₦</th><th className="text-left px-4 py-2">How</th><th className="text-right px-4 py-2">We got</th><th className="text-left px-4 py-2">For sale</th><th className="text-left px-4 py-2">Ref / note</th><th className="px-4 py-2"></th></tr></thead>
           <tbody>
             {remits.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-500">Nothing received from the partner yet — press "Money from partner".</td></tr>}
             {remits.map((r) => { const sl = r.sale_id ? sales.find((x) => x.id === r.sale_id) : undefined; const it = sl ? itemOf(sl.item_id) : undefined; return (
@@ -228,7 +226,7 @@ export default function NigeriaSales() {
                 <td className="px-4 py-2 text-gray-600">{[r.reference, r.note].filter(Boolean).join(' · ')}</td>
                 <td className="px-4 py-2 text-right"><button onClick={() => removeRemit(r)} className="p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button></td>
               </tr>); })}
-            {remits.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2">{t('Total received')}</td><td className="px-4 py-2 text-right font-mono">{n2(totRemit)}</td><td colSpan={5}></td></tr>}
+            {remits.length > 0 && <tr className="border-t-2 border-gray-900 font-semibold"><td className="px-4 py-2">Total received</td><td className="px-4 py-2 text-right font-mono">{n2(totRemit)}</td><td colSpan={5}></td></tr>}
           </tbody>
         </table>
       </div>}
@@ -236,17 +234,17 @@ export default function NigeriaSales() {
       {rForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setRForm(null)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg p-5">
-            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{t('Money received from the partner')}</h3><button onClick={() => setRForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Money received from the partner</h3><button onClick={() => setRForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className="text-xs text-gray-500">{t('Date received')}</label><input type="date" className={input} value={rForm.rec_date} onChange={(e) => setRForm({ ...rForm, rec_date: e.target.value })} /></div>
-              <div><label className="text-xs text-gray-500">{t('Amount (₦ of sales money)')}</label><input type="number" inputMode="decimal" className={input} value={rForm.amount} onChange={(e) => setRForm({ ...rForm, amount: e.target.value })} autoFocus /></div>
-              <div><label className="text-xs text-gray-500">{t('How it came')}</label><select className={input} value={rForm.method} onChange={(e) => setRForm({ ...rForm, method: e.target.value })}>{['Bank', 'USDT', 'Cash', 'Agent', 'Other'].map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">Date received</label><input type="date" className={input} value={rForm.rec_date} onChange={(e) => setRForm({ ...rForm, rec_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Amount (₦ of sales money)</label><input type="number" inputMode="decimal" className={input} value={rForm.amount} onChange={(e) => setRForm({ ...rForm, amount: e.target.value })} autoFocus /></div>
+              <div><label className="text-xs text-gray-500">How it came</label><select className={input} value={rForm.method} onChange={(e) => setRForm({ ...rForm, method: e.target.value })}>{['Bank', 'USDT', 'Cash', 'Agent', 'Other'].map((m) => <option key={m} value={m}>{m}</option>)}</select></div>
               <div><label className="text-xs text-gray-500">What we got (optional)</label><div className="flex gap-2"><input type="number" inputMode="decimal" className={input} value={rForm.got_amount} onChange={(e) => setRForm({ ...rForm, got_amount: e.target.value })} placeholder="amount" /><select className={input + ' w-24'} value={rForm.got_currency} onChange={(e) => setRForm({ ...rForm, got_currency: e.target.value })}>{['LKR', 'USD', 'RMB'].map((c) => <option key={c} value={c}>{c}</option>)}</select></div></div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">{t('For which sale (optional — otherwise the oldest unpaid sales first)')}</label><select className={input} value={rForm.sale_id} onChange={(e) => { const sl = sales.find((x) => x.id === e.target.value); const open = sl ? Math.max(0, (sl.sale_naira || 0) - (paidOn.m[sl.id] || 0)) : 0; setRForm({ ...rForm, sale_id: e.target.value, amount: sl ? String(Math.round(open * 100) / 100) : rForm.amount }); }}><option value="">{t('Oldest unpaid sales first')}</option>{[...sales].sort((a, b) => a.entry_date.localeCompare(b.entry_date)).map((x) => { const it = itemOf(x.item_id); const open = (x.sale_naira || 0) - (paidOn.m[x.id] || 0); return <option key={x.id} value={x.id}>{showDate(x.entry_date)} {it ? label(it) : ''} — ₦{n0(x.sale_naira || 0)}{open > 0.5 ? ` (₦${n0(open)} open)` : ' (paid)'}</option>; })}</select></div>
-              <div><label className="text-xs text-gray-500">{t('Reference')}</label><input className={input} value={rForm.reference} onChange={(e) => setRForm({ ...rForm, reference: e.target.value })} placeholder="transfer no." /></div>
-              <div><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={rForm.note} onChange={(e) => setRForm({ ...rForm, note: e.target.value })} /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">For which sale (optional — otherwise the oldest unpaid sales first)</label><select className={input} value={rForm.sale_id} onChange={(e) => { const sl = sales.find((x) => x.id === e.target.value); const open = sl ? Math.max(0, (sl.sale_naira || 0) - (paidOn.m[sl.id] || 0)) : 0; setRForm({ ...rForm, sale_id: e.target.value, amount: sl ? String(Math.round(open * 100) / 100) : rForm.amount }); }}><option value="">Oldest unpaid sales first</option>{[...sales].sort((a, b) => a.entry_date.localeCompare(b.entry_date)).map((x) => { const it = itemOf(x.item_id); const open = (x.sale_naira || 0) - (paidOn.m[x.id] || 0); return <option key={x.id} value={x.id}>{showDate(x.entry_date)} {it ? label(it) : ''} — ₦{n0(x.sale_naira || 0)}{open > 0.5 ? ` (₦${n0(open)} open)` : ' (paid)'}</option>; })}</select></div>
+              <div><label className="text-xs text-gray-500">Reference</label><input className={input} value={rForm.reference} onChange={(e) => setRForm({ ...rForm, reference: e.target.value })} placeholder="transfer no." /></div>
+              <div><label className="text-xs text-gray-500">Note</label><input className={input} value={rForm.note} onChange={(e) => setRForm({ ...rForm, note: e.target.value })} /></div>
             </div>
-            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setRForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button><button onClick={saveRemit} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button></div>
+            <div className="flex justify-end gap-2 mt-4"><button onClick={() => setRForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button><button onClick={saveRemit} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button></div>
           </div>
         </div>
       )}
@@ -254,15 +252,15 @@ export default function NigeriaSales() {
       {form && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setForm(null)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-5">
-            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">{t('New sale')}</h3><button onClick={() => setForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
+            <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">New sale</h3><button onClick={() => setForm(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Item')}</label><select className={input} value={form.item_id} onChange={(e) => { const i = itemOf(e.target.value); setForm(calc({ ...form, item_id: e.target.value, price: i?.sell_naira ? String(i.sell_naira) : '' })); }}>{items.filter((i) => i.is_active).map((i) => <option key={i.id} value={i.id}>{label(i)} — {n2(onHand[i.id] || 0)} {i.unit} in stock</option>)}</select></div>
-              <div><label className="text-xs text-gray-500">{t('Date')}</label><input type="date" className={input} value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
-              <div><label className="text-xs text-gray-500">{t('Customer (optional)')}</label><input className={input} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Item</label><select className={input} value={form.item_id} onChange={(e) => { const i = itemOf(e.target.value); setForm(calc({ ...form, item_id: e.target.value, price: i?.sell_naira ? String(i.sell_naira) : '' })); }}>{items.filter((i) => i.is_active).map((i) => <option key={i.id} value={i.id}>{label(i)} — {n2(onHand[i.id] || 0)} {i.unit} in stock</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">Date</label><input type="date" className={input} value={form.entry_date} onChange={(e) => setForm({ ...form, entry_date: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Customer (optional)</label><input className={input} value={form.customer} onChange={(e) => setForm({ ...form, customer: e.target.value })} /></div>
               <div><label className="text-xs text-gray-500">Quantity ({fItem?.unit || 'pcs'})</label><input type="number" inputMode="decimal" className={input} value={form.qty} onChange={(e) => setForm(calc({ ...form, qty: e.target.value }))} autoFocus /></div>
               <div><label className="text-xs text-gray-500">Selling price (₦ per {fItem?.unit || 'pc'})</label><input type="number" inputMode="decimal" className={input} value={form.price} onChange={(e) => setForm(calc({ ...form, price: e.target.value }))} /></div>
-              <div><label className="text-xs text-gray-500">{t('Total sold (₦)')}</label><input type="number" inputMode="decimal" className={input} value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value, price: isFinite(fQty) && fQty > 0 && e.target.value ? String(Math.round((parseFloat(e.target.value) / fQty) * 100) / 100) : form.price })} /></div>
-              <div><label className="text-xs text-gray-500">{t('Rate — Naira for 1 RMB')}</label><input type="number" inputMode="decimal" className={input} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></div>
+              <div><label className="text-xs text-gray-500">Total sold (₦)</label><input type="number" inputMode="decimal" className={input} value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value, price: isFinite(fQty) && fQty > 0 && e.target.value ? String(Math.round((parseFloat(e.target.value) / fQty) * 100) / 100) : form.price })} /></div>
+              <div><label className="text-xs text-gray-500">Rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input} value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} /></div>
               <div className="col-span-2 text-sm bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 space-y-0.5">
                 {fl && fItem ? (() => { const r = isFinite(fRate) && fRate > 0 ? fRate : (defRate || 0); const china = (fl.cost - fl.perPiece) * r, dutyN = fl.perPiece * r, landedN = fl.cost * r; return (<>
                   <div className="flex justify-between"><span className="text-gray-600">Product cost (China) per {fItem.unit}</span><span className="font-mono">₦{n2(china)}</span></div>
@@ -273,10 +271,10 @@ export default function NigeriaSales() {
                   {fl.pending ? <p className="text-[11px] text-amber-700">Goods of {fl.ref} are still arriving — duty is added to the cost once the whole order is received.</p> : !fl.perPiece && <p className="text-[11px] text-amber-700">No duty or expenses are entered for this item's shipment yet — enter them in Expenses NG.</p>}
                 </>); })() : 'Pick an item'}
               </div>
-              <div className="col-span-2"><label className="text-xs text-gray-500">{t('Note')}</label><input className={input} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
+              <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">{t('Cancel')}</button>
+              <button onClick={() => setForm(null)} className="px-3 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button>
               <button onClick={save} disabled={saving} className="px-4 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Saving…' : 'Save sale'}</button>
             </div>
           </div>
