@@ -3,7 +3,7 @@ import { Globe, Plus, Pencil, X, RefreshCw, Trash2, Printer } from 'lucide-react
 import { ngPrint } from '../lib/ngPrint';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
-import { landedCosts } from '../lib/ngLanded';
+import { landedCosts, pendingRefs } from '../lib/ngLanded';
 
 /* NIGERIA business — step 1: Items NG (own items, nothing shared with the Sri Lanka Items master).
    Goods are bought in China per TON (price per ton RMB, pieces per ton) and sold in Nigeria per unit (pcs / kg / bag / ton).
@@ -37,6 +37,7 @@ export default function NigeriaTrade() {
   const [stock, setStock] = useState<NgStock[]>([]);
   const [exps, setExps] = useState<NgExp[]>([]);
   const [rate, setRate] = useState(0);
+  const [pend, setPend] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -47,12 +48,14 @@ export default function NigeriaTrade() {
 
   async function load() {
     setLoading(true);
-    const [it, st, ex, se] = await Promise.all([
+    const [it, st, ex, se, pu] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('*').order('name').order('specification')),
       fetchAllPages<NgStock>(() => supabase.from('ng_stock').select('id, item_id, kind, quantity, cost_rmb, reference').order('entry_date', { ascending: false })),
       fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference, item_id')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
+      fetchAllPages<{ number: string; received_at: string | null; status: string }>(() => supabase.from('ng_purchases').select('number, received_at, status')),
     ]);
+    setPend(pendingRefs(pu.data || []));
     setExps((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
     setRate(Number((se.data?.value as { naira_per_rmb?: number } | undefined)?.naira_per_rmb) || 0);
     if (it.error) {
@@ -71,7 +74,7 @@ export default function NigeriaTrade() {
   }, [stock]);
 
   // landed cost per item = China cost × (1 + duty & expenses of its shipment ÷ goods of that shipment); shipment = the item's last IN
-  const landed = useMemo(() => landedCosts(items, stock, exps, rate), [items, stock, exps, rate]);
+  const landed = useMemo(() => landedCosts(items, stock, exps, rate, pend), [items, stock, exps, rate, pend]);
 
   const shown = items.filter((i) => (showInactive || i.is_active) && (!q || [i.name, i.specification, i.finish].join(' ').toLowerCase().includes(q.toLowerCase())));
 
@@ -161,7 +164,7 @@ export default function NigeriaTrade() {
                 <td className="px-4 py-2">{i.unit}</td>
                 <td className="px-4 py-2 text-right">{n2(i.pcs_per_ton)}</td>
                 <td className="px-4 py-2 text-right font-mono">{n4(i.cost_rmb)}</td>
-                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.perPiece ? <span className="block text-[10px] text-gray-400">+{landed[i.id].perPiece.toFixed(4)} duty</span> : null}</td>
+                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.pending ? <span className="block text-[10px] text-amber-700">goods still arriving — duty not applied yet</span> : landed[i.id]?.perPiece ? <span className="block text-[10px] text-gray-400">+{landed[i.id].perPiece.toFixed(4)} duty</span> : null}</td>
                 <td className="px-4 py-2 text-right font-mono">{rate ? n2((landed[i.id]?.cost ?? i.cost_rmb) * rate) : '—'}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(i.sell_naira)}</td>
                 <td className={`px-4 py-2 text-right font-mono ${i.sell_naira && rate && i.sell_naira < (landed[i.id]?.cost ?? i.cost_rmb) * rate ? 'text-red-600' : 'text-gray-700'}`}>{i.sell_naira && rate ? `${(((i.sell_naira - (landed[i.id]?.cost ?? i.cost_rmb) * rate) / i.sell_naira) * 100).toFixed(0)}%` : ''}</td>

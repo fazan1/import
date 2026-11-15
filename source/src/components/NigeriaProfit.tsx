@@ -3,7 +3,7 @@ import { TrendingUp, RefreshCw, Copy, Printer } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '../lib/fetchAll';
 import { expenseBoth } from './NigeriaExpenses';
-import { landedCosts } from '../lib/ngLanded';
+import { landedCosts, pendingRefs } from '../lib/ngLanded';
 import { ngPrint } from '../lib/ngPrint';
 
 /* NIGERIA — Profit NG: the plain answer. TOTAL PROFIT at the top, then every sale with its own profit, then what each
@@ -25,19 +25,22 @@ export default function NigeriaProfit() {
   const [expenses, setExpenses] = useState<NgExpense[]>([]);
   const [rate, setRate] = useState(0);
   const [share, setShare] = useState(0);
+  const [pend, setPend] = useState<Set<string>>(new Set());
   const [shareBox, setShareBox] = useState('');
   const [loading, setLoading] = useState(true);
   const [month, setMonth] = useState('all');
 
   async function load() {
     setLoading(true);
-    const [it, mv, ex, se, sp] = await Promise.all([
+    const [it, mv, ex, se, sp, pu] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('id, item_id, kind, entry_date, quantity, cost_rmb, sale_naira, rate, reference, note').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference, item_id')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
       supabase.from('ng_settings').select('value').eq('key', 'partner').maybeSingle(),
+      fetchAllPages<{ number: string; received_at: string | null; status: string }>(() => supabase.from('ng_purchases').select('number, received_at, status')),
     ]);
+    setPend(pendingRefs(pu.data || []));
     setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton) })));
     setMoves((mv.data || []).map((m) => ({ ...m, quantity: Number(m.quantity) || 0, cost_rmb: m.cost_rmb == null ? null : Number(m.cost_rmb), sale_naira: m.sale_naira == null ? null : Number(m.sale_naira), rate: m.rate == null ? null : Number(m.rate) })));
     setExpenses((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
@@ -48,7 +51,7 @@ export default function NigeriaProfit() {
   useEffect(() => { load(); }, []);
 
   const D = useMemo(() => {
-    const L = landedCosts(items, moves, expenses, rate);
+    const L = landedCosts(items, moves, expenses, rate, pend);
     const itemOf = (id: string) => items.find((i) => i.id === id);
     const all = moves.filter((m) => m.kind === 'out').map((s) => { const r = s.rate || rate; const lc = L[s.item_id]?.cost ?? itemOf(s.item_id)?.cost_rmb ?? 0; const cost = r ? s.quantity * lc * r : NaN; const sale = s.sale_naira || 0; return { s, it: itemOf(s.item_id), sale, cost, profit: isFinite(cost) ? sale - cost : NaN, pct: isFinite(cost) && sale ? ((sale - cost) / sale) * 100 : NaN }; });
     const months = Array.from(new Set(all.map((x) => x.s.entry_date.slice(0, 7)))).sort().reverse();
@@ -62,7 +65,7 @@ export default function NigeriaProfit() {
     const byItem: Record<string, { it: NgItem | undefined; qty: number; sale: number; profit: number }> = {};
     all.forEach((x) => { const r = (byItem[x.s.item_id] ||= { it: x.it, qty: 0, sale: 0, profit: 0 }); r.qty += x.s.quantity; r.sale += x.sale; r.profit += isFinite(x.profit) ? x.profit : 0; });
     return { all, shown, months, tot, shownTot, general, partnerOut, ownerOut, distributable, partnerShare, ownerShare, byItem: Object.values(byItem).sort((a, b) => b.profit - a.profit) };
-  }, [items, moves, expenses, rate, share, month]);
+  }, [items, moves, expenses, rate, share, month, pend]);
 
   async function saveShare() {
     const v = parseFloat(shareBox); if (!isFinite(v) || v < 0 || v > 100) { alert("Type the partner's share of the profit as a percentage, e.g. 50."); return; }

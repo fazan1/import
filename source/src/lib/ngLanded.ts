@@ -9,7 +9,7 @@ import { expenseBoth } from '../components/NigeriaExpenses';
 export interface LandedItem { id: string; cost_rmb: number; unit?: string; pcs_per_ton?: number | null }
 export interface LandedIn { item_id: string; kind: string; quantity: number; cost_rmb: number | null; reference: string | null }
 export interface LandedExp { amount: number; currency: string; rate: number | null; reference: string | null }
-export interface Landed { cost: number; up: number; ref: string | null; perPiece: number; kgPerUnit: number; perKg: number }
+export interface Landed { cost: number; up: number; ref: string | null; perPiece: number; kgPerUnit: number; perKg: number; pending: boolean }
 
 /** kg of one unit of the item (0 when unknown) */
 export function kgPerUnit(i: { unit?: string; pcs_per_ton?: number | null }): number {
@@ -18,7 +18,12 @@ export function kgPerUnit(i: { unit?: string; pcs_per_ton?: number | null }): nu
   return i.pcs_per_ton && i.pcs_per_ton > 0 ? 1000 / i.pcs_per_ton : 0;
 }
 
-export function landedCosts(items: LandedItem[], ins: LandedIn[], exps: LandedExp[], rate: number): Record<string, Landed> {
+/** references of orders that are NOT fully received yet: their duty is not applied until all goods are in (owner's rule) */
+export function pendingRefs(purchases: { number: string; received_at: string | null; status?: string }[]): Set<string> {
+  return new Set(purchases.filter((p) => !p.received_at && p.status !== 'cancelled').map((p) => p.number));
+}
+
+export function landedCosts(items: LandedItem[], ins: LandedIn[], exps: LandedExp[], rate: number, pending: Set<string> = new Set()): Record<string, Landed> {
   const exByRef: Record<string, number> = {};
   exps.filter((e) => e.reference).forEach((e) => { const b = expenseBoth(e, rate); if (isFinite(b.rmb)) exByRef[e.reference!] = (exByRef[e.reference!] || 0) + b.rmb; });
   const kgOf: Record<string, number> = {}; items.forEach((i) => { kgOf[i.id] = kgPerUnit(i); });
@@ -28,13 +33,15 @@ export function landedCosts(items: LandedItem[], ins: LandedIn[], exps: LandedEx
   items.forEach((i) => {
     const li = ins.find((m) => m.item_id === i.id && m.kind === 'in'); // ins are newest first
     const ref = li?.reference || null; const kg = kgOf[i.id] || 0;
-    if (!ref || !pcsByRef[ref]) { out[i.id] = { cost: i.cost_rmb, up: 0, ref, perPiece: 0, kgPerUnit: kg, perKg: 0 }; return; }
+    if (!ref || !pcsByRef[ref]) { out[i.id] = { cost: i.cost_rmb, up: 0, ref, perPiece: 0, kgPerUnit: kg, perKg: 0, pending: false }; return; }
+    const mineEarly = valByItemRef[ref + '|' + i.id]; const baseEarly = mineEarly && mineEarly.qty > 0 ? mineEarly.value / mineEarly.qty : i.cost_rmb;
+    if (pending.has(ref)) { out[i.id] = { cost: baseEarly, up: 0, ref, perPiece: 0, kgPerUnit: kg, perKg: 0, pending: true }; return; }   // goods still arriving: duty not applied yet
     const ex = exByRef[ref] || 0;
     // by weight when the shipment's weight is known; items without a weight fall back to an equal share per piece
     const perKg = kgByRef[ref] > 0 ? ex / kgByRef[ref] : 0;
     const perPiece = kg > 0 && kgByRef[ref] > 0 ? perKg * kg : ex / pcsByRef[ref];
     const mine = valByItemRef[ref + '|' + i.id]; const base = mine && mine.qty > 0 ? mine.value / mine.qty : i.cost_rmb;
-    out[i.id] = { cost: base + perPiece, up: base > 0 ? perPiece / base : 0, ref, perPiece, kgPerUnit: kg, perKg };
+    out[i.id] = { cost: base + perPiece, up: base > 0 ? perPiece / base : 0, ref, perPiece, kgPerUnit: kg, perKg, pending: false };
   });
   return out;
 }
