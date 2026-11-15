@@ -15,6 +15,7 @@ interface NgSupplier { id: string; name: string; contact: string | null; phone: 
 interface NgItem { id: string; name: string; specification: string | null; finish: string | null; unit: string; pcs_per_ton: number | null; cost_rmb: number; is_active: boolean }
 interface NgPurchase { id: string; number: string; kind: 'po' | 'pi'; supplier_id: string | null; order_date: string; status: string; total_rmb: number; terms: string | null; note: string | null; received_at: string | null; created_at: string }
 interface NgLine { id?: string; purchase_id?: string; item_id: string; quantity: number; tons: number | null; unit_price: number; amount_rmb: number; remark: string | null; sort_order: number }
+interface NgIn { item_id: string; kind: string; quantity: number; reference: string | null }
 interface NgPayment { id: string; purchase_id: string | null; supplier_id: string | null; pay_date: string; amount_rmb: number; paid_with: string | null; paid_amount: number | null; paid_currency: string | null; reference: string | null; note: string | null }
 
 const input = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500';
@@ -31,6 +32,7 @@ export default function NigeriaPurchases() {
   const [purchases, setPurchases] = useState<NgPurchase[]>([]);
   const [lines, setLines] = useState<NgLine[]>([]);
   const [payments, setPayments] = useState<NgPayment[]>([]);
+  const [ins, setIns] = useState<NgIn[]>([]);
   const [loading, setLoading] = useState(true);
   const [setupNeeded, setSetupNeeded] = useState(false);
   const [tab, setTab] = useState<'orders' | 'suppliers' | 'payments'>('orders');
@@ -43,13 +45,15 @@ export default function NigeriaPurchases() {
 
   async function load() {
     setLoading(true);
-    const [su, it, pu, li, pa] = await Promise.all([
+    const [su, it, pu, li, pa, si] = await Promise.all([
       fetchAllPages<NgSupplier>(() => supabase.from('ng_suppliers').select('*').order('name')),
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name').order('finish').order('specification')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('*').order('order_date', { ascending: false }).order('number', { ascending: false })),
       fetchAllPages<NgLine>(() => supabase.from('ng_purchase_items').select('*').order('sort_order')),
       fetchAllPages<NgPayment>(() => supabase.from('ng_payments').select('*').order('pay_date', { ascending: false }).order('created_at', { ascending: false })),
+      fetchAllPages<NgIn>(() => supabase.from('ng_stock').select('item_id, kind, quantity, reference').eq('kind', 'in')),
     ]);
+    setIns((si.data || []).map((x) => ({ ...x, quantity: Number(x.quantity) || 0 })));
     if (su.error) { if (/ng_suppliers|does not exist|schema cache/i.test(su.error)) setSetupNeeded(true); else alert('Could not load: ' + su.error); } else setSetupNeeded(false);
     setSuppliers(su.data || []);
     setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, pcs_per_ton: r.pcs_per_ton == null ? null : Number(r.pcs_per_ton) })));
@@ -63,6 +67,8 @@ export default function NigeriaPurchases() {
   const itemOf = (id: string) => items.find((i) => i.id === id);
   const supOf = (id: string | null) => suppliers.find((s) => s.id === id);
   const paidOf = (p: NgPurchase) => payments.filter((x) => x.purchase_id === p.id).reduce((t, x) => t + x.amount_rmb, 0);
+  const gotOf = (p: NgPurchase, itemId: string) => ins.filter((x) => x.reference === p.number && x.item_id === itemId).reduce((t, x) => t + x.quantity, 0);
+  const recvPct = (p: NgPurchase) => { const ls = lines.filter((l) => l.purchase_id === p.id); const ord = ls.reduce((t, l) => t + l.quantity, 0); const got = ls.reduce((t, l) => t + Math.min(l.quantity, gotOf(p, l.item_id)), 0); return ord > 0 ? (got / ord) * 100 : 0; };
   const nextNumber = useMemo(() => { const n = purchases.reduce((m, p) => { const k = parseInt((p.number.match(/(\d+)$/) || ['', '0'])[1], 10); return isNaN(k) ? m : Math.max(m, k); }, 0); return `NG-PO-${String(n + 1).padStart(3, '0')}`; }, [purchases]);
 
   /* ---- suppliers ---- */
@@ -112,9 +118,9 @@ export default function NigeriaPurchases() {
     if (error) alert('Could not save: ' + error.message); else load();
   }
   function receive(p: NgPurchase) {
-    if (p.received_at) { alert(`${p.number} was already received into stock on ${showDate(p.received_at)}.`); return; }
+    if (p.received_at) { alert(`${p.number} is fully received (${showDate(p.received_at)}). Extra pieces: Stock NG → Stock in with this order number.`); return; }
     const ls = lines.filter((l) => l.purchase_id === p.id); if (!ls.length) { alert('This order has no lines.'); return; }
-    setRecv({ p, date: today(), note: '', qty: Object.fromEntries(ls.map((l) => [l.id as string, String(l.quantity)])) });
+    setRecv({ p, date: today(), note: '', qty: Object.fromEntries(ls.map((l) => [l.id as string, String(Math.max(0, l.quantity - gotOf(p, l.item_id)))])) });
   }
   async function confirmReceive() {
     if (!recv || savingRef.current) return;
@@ -122,18 +128,20 @@ export default function NigeriaPurchases() {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(recv.date)) { alert('Pick the arrival date.'); return; }
     const got = ls.map((l) => ({ l, q: parseFloat(recv.qty[l.id as string] || '') }));
     if (got.some((x) => !isFinite(x.q) || x.q < 0)) { alert('Every line needs the quantity received (0 if nothing came).'); return; }
-    const rows = got.filter((x) => x.q > 0).map(({ l, q }) => ({ item_id: l.item_id, kind: 'in', entry_date: recv.date, quantity: q, cost_rmb: Math.round(q * l.unit_price * 100) / 100, reference: p.number, note: `${p.kind.toUpperCase()} ${p.number}${q !== l.quantity ? ` — ordered ${n2(l.quantity)}, received ${n2(q)}` : ''}` }));
+    const before = Object.fromEntries(ls.map((l) => [l.id as string, gotOf(p, l.item_id)]));
+    const rows = got.filter((x) => x.q > 0).map(({ l, q }) => ({ item_id: l.item_id, kind: 'in', entry_date: recv.date, quantity: q, cost_rmb: Math.round(q * l.unit_price * 100) / 100, reference: p.number, note: `${p.kind.toUpperCase()} ${p.number}${before[l.id as string] > 0 ? ` — 2nd part (${n2(before[l.id as string])} received before)` : ''}` }));
     if (!rows.length) { alert('Nothing received — all quantities are 0.'); return; }
-    const short = got.filter((x) => x.q !== x.l.quantity).map(({ l, q }) => { const it = itemOf(l.item_id); return `${it ? label(it) : ''}: ordered ${n2(l.quantity)}, received ${n2(q)}`; });
-    if (!confirm(`Put ${rows.length} lines into Stock NG on ${showDate(recv.date)}?${short.length ? '\n\nDifferences:\n' + short.join('\n') : ''}`)) return;
+    const complete = got.every(({ l, q }) => before[l.id as string] + q >= l.quantity - 0.0001);
+    const open = got.filter(({ l, q }) => before[l.id as string] + q < l.quantity - 0.0001).map(({ l, q }) => { const it = itemOf(l.item_id); return `${it ? label(it) : ''}: ${n2(l.quantity - before[l.id as string] - q)} still to come`; });
+    if (!confirm(`Put ${rows.length} lines into Stock NG on ${showDate(recv.date)}?${complete ? '\n\nThe order will then be complete.' : '\n\nStill to come:\n' + open.join('\n') + '\n\nYou can press Receive again when the rest arrives.'}`)) return;
     savingRef.current = true; setSaving(true);
     const { error } = await supabase.from('ng_stock').insert(rows);
     if (error) { savingRef.current = false; setSaving(false); alert('Could not put the goods into stock: ' + error.message); return; }
-    const noteAdd = [short.length ? 'Received short: ' + short.join('; ') : '', recv.note.trim()].filter(Boolean).join(' · ');
-    await supabase.from('ng_purchases').update({ received_at: recv.date, status: 'received', note: [p.note, noteAdd].filter(Boolean).join(' · ') || null, updated_at: new Date().toISOString() }).eq('id', p.id);
+    const noteAdd = [recv.note.trim()].filter(Boolean).join(' · ');
+    await supabase.from('ng_purchases').update({ ...(complete ? { received_at: recv.date, status: 'received' } : {}), note: [p.note, noteAdd].filter(Boolean).join(' · ') || null, updated_at: new Date().toISOString() }).eq('id', p.id);
     savingRef.current = false; setSaving(false);
     setRecv(null);
-    alert(`${p.number} is in Stock NG (reference ${p.number}). Put its duty and freight into Expenses NG with the same reference.`);
+    alert(complete ? `${p.number} is fully in Stock NG (reference ${p.number}). Put its duty and freight into Expenses NG with the same reference.` : `Part of ${p.number} is in Stock NG. Press "Receive more" when the rest arrives. Duty for each container goes into Expenses NG with the reference ${p.number}.`);
     load();
   }
   async function removeOrder(p: NgPurchase) {
@@ -249,7 +257,7 @@ export default function NigeriaPurchases() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="font-semibold text-gray-900">{p.number} <span className="text-xs font-normal text-gray-500 uppercase">{p.kind}</span> — {supOf(p.supplier_id)?.name || '-'}</div>
-                  <div className="text-xs text-gray-500">{showDate(p.order_date)} · {ls.length} lines · {n2(ls.reduce((t, l) => t + l.quantity, 0))} pcs{ls.some((l) => l.tons) ? ` · ${n2(ls.reduce((t, l) => t + (l.tons || 0), 0))} tons` : ''}{p.received_at ? ` · in stock ${showDate(p.received_at)}` : ''}</div>
+                  <div className="text-xs text-gray-500">{showDate(p.order_date)} · {ls.length} lines · {n2(ls.reduce((t, l) => t + l.quantity, 0))} pcs{ls.some((l) => l.tons) ? ` · ${n2(ls.reduce((t, l) => t + (l.tons || 0), 0))} tons` : ''}{p.received_at ? ` · in stock ${showDate(p.received_at)}` : recvPct(p) > 0 ? ` · ${recvPct(p).toFixed(0)}% received so far` : ''}</div>
                 </div>
                 <div className="text-right">
                   <div className="text-lg font-semibold font-mono">{n2(p.total_rmb)} <span className="text-xs text-gray-500">RMB</span></div>
@@ -261,7 +269,7 @@ export default function NigeriaPurchases() {
                 <button onClick={() => openOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Pencil className="w-3.5 h-3.5" /> Edit</button>
                 <button onClick={() => printOrder(p)} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><Printer className="w-3.5 h-3.5" /> Print</button>
                 <button onClick={() => openPay(p)} disabled={p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40"><Banknote className="w-3.5 h-3.5" /> Pay</button>
-                <button onClick={() => receive(p)} disabled={!!p.received_at || p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><PackageCheck className="w-3.5 h-3.5" /> {p.received_at ? 'Received' : 'Receive into stock'}</button>
+                <button onClick={() => receive(p)} disabled={!!p.received_at || p.status === 'cancelled'} className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-[#111] rounded-lg hover:opacity-90 disabled:opacity-40"><PackageCheck className="w-3.5 h-3.5" /> {p.received_at ? 'Received' : recvPct(p) > 0 ? `Receive more (${recvPct(p).toFixed(0)}% in)` : 'Receive into stock'}</button>
                 <button onClick={() => removeOrder(p)} className="ml-auto p-1 text-gray-400 hover:text-red-600" title="Delete (to Recycle Bin)"><Trash2 className="w-4 h-4" /></button>
               </div>
             </div>); })}
@@ -327,20 +335,21 @@ export default function NigeriaPurchases() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setRecv(null)}>
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-t-2xl sm:rounded-xl shadow-xl w-full max-w-2xl max-h-[92vh] overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-3"><h3 className="font-semibold text-gray-900">Receive {recv.p.number} into Stock NG</h3><button onClick={() => setRecv(null)} className="p-1 text-gray-400"><X className="w-5 h-5" /></button></div>
-            <p className="text-sm text-gray-600 mb-3">Check what actually arrived. Change a quantity if pieces are missing or extra — only the received quantity goes into stock, at the order's price per piece.</p>
+            <p className="text-sm text-gray-600 mb-3">Type what arrived in this container. "Receiving now" is pre-filled with what is still to come; lower it if only part came — you can receive the rest later. Only the received quantity goes into stock, at the order's price per piece.</p>
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div><label className="text-xs text-gray-500">Arrival date in Nigeria</label><input type="date" className={input} value={recv.date} onChange={(e) => setRecv({ ...recv, date: e.target.value })} /></div>
               <div><label className="text-xs text-gray-500">Note (damage, missing bags…)</label><input className={input} value={recv.note} onChange={(e) => setRecv({ ...recv, note: e.target.value })} /></div>
             </div>
             <table className="w-full text-sm">
-              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item</th><th className="text-right py-1">Ordered</th><th className="text-right py-1 w-32">Received</th><th className="text-right py-1">Difference</th><th className="text-right py-1">Cost RMB</th></tr></thead>
+              <thead><tr className="text-xs text-gray-500 uppercase"><th className="text-left py-1">Item</th><th className="text-right py-1">Ordered</th><th className="text-right py-1">Received before</th><th className="text-right py-1 w-32">Receiving now</th><th className="text-right py-1">Still to come</th><th className="text-right py-1">Cost RMB</th></tr></thead>
               <tbody>
-                {lines.filter((l) => l.purchase_id === recv.p.id).map((l) => { const it = itemOf(l.item_id); const q = parseFloat(recv.qty[l.id as string] || ''); const d = isFinite(q) ? q - l.quantity : NaN; return (
+                {lines.filter((l) => l.purchase_id === recv.p.id).map((l) => { const it = itemOf(l.item_id); const got = gotOf(recv.p, l.item_id); const q = parseFloat(recv.qty[l.id as string] || ''); const left = isFinite(q) ? l.quantity - got - q : l.quantity - got; return (
                   <tr key={l.id} className="border-t border-gray-100">
                     <td className="py-1.5">{it ? label(it) : ''} <span className="text-xs text-gray-400">{it?.unit}</span></td>
                     <td className="py-1.5 text-right font-mono">{n2(l.quantity)}</td>
+                    <td className="py-1.5 text-right font-mono text-gray-500">{got ? n2(got) : ''}</td>
                     <td className="py-1.5 text-right"><input type="number" inputMode="decimal" className="w-28 px-2 py-1 border border-gray-300 rounded-lg text-sm text-right" value={recv.qty[l.id as string] || ''} onChange={(e) => setRecv({ ...recv, qty: { ...recv.qty, [l.id as string]: e.target.value } })} /></td>
-                    <td className={`py-1.5 text-right font-mono ${d < 0 ? 'text-red-600' : d > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{isFinite(d) && d !== 0 ? (d > 0 ? '+' : '') + n2(d) : ''}</td>
+                    <td className={`py-1.5 text-right font-mono ${left > 0.0001 ? 'text-amber-700' : left < -0.0001 ? 'text-red-600' : 'text-gray-400'}`}>{left > 0.0001 ? n2(left) : left < -0.0001 ? `+${n2(-left)} extra` : '✓'}</td>
                     <td className="py-1.5 text-right font-mono">{isFinite(q) ? n2(q * l.unit_price) : ''}</td>
                   </tr>); })}
               </tbody>
