@@ -34,6 +34,9 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'busy-sales-payments', label: 'Sales Payment' },
     { id: 'partner-payouts', label: 'Partner Payouts' },
   ]},
+  { group: 'NG (Nigeria)', items: [
+    { id: 'ng-items', label: 'Items NG' },
+  ]},
   { group: 'Other', items: [
     { id: 'reports', label: 'Reports' },
     { id: 'hunt', label: 'Hunt' },
@@ -66,4 +69,5 @@ export const PRESETS: { label: string; modules: string[] }[] = [
   { label: 'BLINE Shop (CN, own books)', modules: SHOP_MODULES },
   { label: 'Warehouse only', modules: ['warehouse'] },
   { label: 'Factory only', modules: ['factory-problems', 'factory-my-data', 'factory-pattern', 'factory-mechanical', 'factory-other'] },
+  { label: 'NG only (Nigeria partner)', modules: ['ng-items'] },
 ];
