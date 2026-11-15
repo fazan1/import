@@ -120,7 +120,7 @@ export default function NigeriaTrade() {
           <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
             <th className="text-left px-4 py-2">Product</th><th className="text-left px-4 py-2">Specification</th><th className="text-left px-4 py-2">Finish</th>
             <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">Cost / unit (RMB)</th>
-            <th className="text-right px-4 py-2">Sell / unit (₦)</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
+            <th className="text-right px-4 py-2">Selling price (₦)</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
           </tr></thead>
           <tbody>
             {shown.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
@@ -153,11 +153,11 @@ export default function NigeriaTrade() {
               <div className="col-span-2"><label className="text-xs text-gray-500">Product</label><input className={input} value={edit.name || ''} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Hex Bolt + Nut" autoFocus /></div>
               <div><label className="text-xs text-gray-500">Specification</label><input className={input} value={edit.specification || ''} onChange={(e) => setEdit({ ...edit, specification: e.target.value })} placeholder="M12x30" /></div>
               <div><label className="text-xs text-gray-500">Finish</label><input className={input} value={edit.finish || ''} onChange={(e) => setEdit({ ...edit, finish: e.target.value })} placeholder="ZP / HDG" /></div>
-              <div><label className="text-xs text-gray-500">Sold per</label><select className={input} value={edit.unit || 'pcs'} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u === 'bag' ? `bag (${KG_PER_BAG} kg)` : u}</option>)}</select></div>
+              <div><label className="text-xs text-gray-500">Unit (counted in)</label><select className={input} value={edit.unit || 'pcs'} onChange={(e) => setEdit({ ...edit, unit: e.target.value })}>{UNITS.map((u) => <option key={u} value={u}>{u === 'bag' ? `bag (${KG_PER_BAG} kg)` : u}</option>)}</select></div>
               <div><label className="text-xs text-gray-500">Pieces per ton</label><input type="number" inputMode="decimal" className={input} value={edit.pcs_per_ton ?? ''} onChange={(e) => setEdit({ ...edit, pcs_per_ton: e.target.value === '' ? null : Number(e.target.value) })} placeholder="19600" /></div>
+              <div><label className="text-xs text-gray-500">Selling price (₦ per {edit.unit || 'pcs'})</label><input type="number" inputMode="decimal" className={input} value={edit.sell_naira ?? ''} onChange={(e) => setEdit({ ...edit, sell_naira: e.target.value === '' ? null : Number(e.target.value) })} /></div>
               <div><label className="text-xs text-gray-500">Price per ton (RMB) — from the proforma</label><input type="number" inputMode="decimal" className={input} value={edit.price_per_ton || ''} onChange={(e) => setEdit({ ...edit, price_per_ton: e.target.value })} placeholder="5270" /></div>
               <div><label className="text-xs text-gray-500">Cost per {edit.unit || 'pcs'} (RMB)</label><input type="number" inputMode="decimal" className={input} value={derivedCost != null ? String(Math.round(derivedCost * 10000) / 10000) : (edit.cost_rmb || '')} onChange={(e) => setEdit({ ...edit, cost_rmb: Number(e.target.value) || 0, price_per_ton: '' })} /><p className="text-[11px] text-gray-500 mt-1">{derivedCost != null ? 'worked out from the ton price' : 'or type it directly'}</p></div>
-              <div><label className="text-xs text-gray-500">Selling price per {edit.unit || 'pcs'} (₦, optional)</label><input type="number" inputMode="decimal" className={input} value={edit.sell_naira ?? ''} onChange={(e) => setEdit({ ...edit, sell_naira: e.target.value === '' ? null : Number(e.target.value) })} /></div>
               <div className="col-span-2"><label className="text-xs text-gray-500">Note</label><input className={input} value={edit.note || ''} onChange={(e) => setEdit({ ...edit, note: e.target.value })} placeholder="25 kg 2-layer PP woven bag" /></div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
