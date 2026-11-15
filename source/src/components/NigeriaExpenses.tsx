@@ -22,9 +22,10 @@ const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(
 const showDate = (d: string) => { const [y, m, day] = d.slice(0, 10).split('-'); return `${day}/${m}/${y}`; };
 const monthName = (ym: string) => new Date(ym + '-01T00:00:00').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 
-/** amount of an expense in RMB and in Naira at its rate (falls back to the default rate) */
+/** amount of an expense in RMB and in Naira. The CURRENT default rate rules (changing it re-values every entry);
+    an entry's own saved rate is only used when no default rate is saved yet. */
 export function expenseBoth(e: { amount: number; currency: string; rate: number | null }, defRate: number) {
-  const r = e.rate || defRate || 0;
+  const r = defRate || e.rate || 0;
   if (e.currency === 'RMB') return { rmb: e.amount, ngn: r ? e.amount * r : NaN };
   return { ngn: e.amount, rmb: r ? e.amount / r : NaN };
 }
@@ -143,7 +144,7 @@ export default function NigeriaExpenses() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-end gap-3">
         <div><label className="text-xs text-gray-500">Default rate — Naira for 1 RMB</label><input type="number" inputMode="decimal" className={input + ' w-40'} value={rateBox} onChange={(e) => setRateBox(e.target.value)} placeholder="210" /></div>
         <button onClick={saveRate} className="px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50">Save rate</button>
-        <p className="text-xs text-gray-500">{defRate ? `1 RMB = ₦${defRate} · ₦1,000,000 = ${n2(1000000 / defRate)} RMB` : 'No rate yet — type it once; every entry and the overview use it.'}</p>
+        <p className="text-xs text-gray-500">{defRate ? `1 RMB = ₦${defRate} · ₦1,000,000 = ${n2(1000000 / defRate)} RMB · changing it re-values every expense and the landed costs; sales keep the rate of their day` : 'No rate yet — type it once; every entry and the overview use it.'}</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
