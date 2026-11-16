@@ -118,8 +118,8 @@ export default function NigeriaTrade() {
 
   function printList() {
     ngPrint('Items NG', `${shown.length} items · cost per unit in RMB · stock in each item's unit`, [{
-      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'China cost (RMB)', 'Landed / unit (RMB)', 'Landed ₦', 'Selling price (₦)', 'Margin', 'Stock'], right: [4, 5, 6, 7, 8, 9, 10],
-      rows: shown.map((i) => { const lc = landed[i.id]?.cost ?? i.cost_rmb; return [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), n4(lc), rate ? n2(lc * rate) : '', n2(i.sell_naira), i.sell_naira && rate ? `${(((i.sell_naira - lc * rate) / i.sell_naira) * 100).toFixed(0)}%` : '', `${n2(onHand[i.id] || 0)} ${i.unit}`]; }),
+      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'China cost (RMB)', 'China cost ₦', '+ Duty ₦', '= Landed ₦', 'Selling price (₦)', 'Margin', 'Stock'], right: [4, 5, 6, 7, 8, 9, 10, 11],
+      rows: shown.map((i) => { const lc = landed[i.id]?.cost ?? i.cost_rmb; const d = landed[i.id]?.perPiece || 0; return [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), rate ? n2((lc - d) * rate) : '', rate && d ? n2(d * rate) : '', rate ? n2(lc * rate) : '', n2(i.sell_naira), i.sell_naira && rate ? `${(((i.sell_naira - lc * rate) / i.sell_naira) * 100).toFixed(0)}%` : '', `${n2(onHand[i.id] || 0)} ${i.unit}`]; }),
     }]);
   }
 
@@ -148,14 +148,14 @@ export default function NigeriaTrade() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm min-w-[980px]">
+        <table className="w-full text-sm min-w-[1060px]">
           <thead><tr className="bg-gray-50 text-xs text-gray-500 uppercase">
             <th className="text-left px-4 py-2">Product</th><th className="text-left px-4 py-2">Specification</th><th className="text-left px-4 py-2">Finish</th>
-            <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">China cost (RMB)</th><th className="text-right px-4 py-2">Landed / unit (RMB)</th><th className="text-right px-4 py-2">Landed ₦</th>
+            <th className="text-left px-4 py-2">Unit</th><th className="text-right px-4 py-2">Pcs / ton</th><th className="text-right px-4 py-2">China cost (RMB)</th><th className="text-right px-4 py-2">China cost ₦</th><th className="text-right px-4 py-2">+ Duty ₦</th><th className="text-right px-4 py-2">= Landed ₦</th>
             <th className="text-right px-4 py-2">Selling price (₦)</th><th className="text-right px-4 py-2">Margin</th><th className="text-right px-4 py-2">Stock</th><th className="px-4 py-2"></th>
           </tr></thead>
           <tbody>
-            {shown.length === 0 && <tr><td colSpan={12} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
+            {shown.length === 0 && <tr><td colSpan={13} className="px-4 py-8 text-center text-gray-500">{items.length === 0 ? 'No items yet — press "New item" and type the first line of the proforma.' : 'Nothing matches.'}</td></tr>}
             {shown.map((i) => (
               <tr key={i.id} className={`border-t border-gray-100 ${i.is_active ? '' : 'opacity-50'}`}>
                 <td className="px-4 py-2 font-medium">{i.name}</td>
@@ -164,8 +164,9 @@ export default function NigeriaTrade() {
                 <td className="px-4 py-2">{i.unit}</td>
                 <td className="px-4 py-2 text-right">{n2(i.pcs_per_ton)}</td>
                 <td className="px-4 py-2 text-right font-mono">{n4(i.cost_rmb)}</td>
-                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: +${(landed[i.id].up * 100).toFixed(1)}% duty & expenses` : 'no shipment yet'}>{n4(landed[i.id]?.cost ?? i.cost_rmb)}{landed[i.id]?.pending ? <span className="block text-[10px] text-amber-700">goods still arriving — duty not applied yet</span> : landed[i.id]?.perPiece ? <span className="block text-[10px] text-gray-400">+{landed[i.id].perPiece.toFixed(4)} duty</span> : null}</td>
-                <td className="px-4 py-2 text-right font-mono">{rate ? n2((landed[i.id]?.cost ?? i.cost_rmb) * rate) : '—'}</td>
+                <td className="px-4 py-2 text-right font-mono">{rate ? n2(((landed[i.id]?.cost ?? i.cost_rmb) - (landed[i.id]?.perPiece || 0)) * rate) : '—'}</td>
+                <td className="px-4 py-2 text-right font-mono" title={landed[i.id]?.ref ? `${landed[i.id].ref}: duty by weight` : 'no shipment yet'}>{rate && landed[i.id]?.perPiece ? n2(landed[i.id].perPiece * rate) : landed[i.id]?.pending ? <span className="text-[11px] text-amber-700">arriving</span> : <span className="text-gray-400">—</span>}</td>
+                <td className="px-4 py-2 text-right font-mono font-semibold">{rate ? n2((landed[i.id]?.cost ?? i.cost_rmb) * rate) : '—'}</td>
                 <td className="px-4 py-2 text-right font-mono">{n2(i.sell_naira)}</td>
                 <td className={`px-4 py-2 text-right font-mono ${i.sell_naira && rate && i.sell_naira < (landed[i.id]?.cost ?? i.cost_rmb) * rate ? 'text-red-600' : 'text-gray-700'}`}>{i.sell_naira && rate ? `${(((i.sell_naira - (landed[i.id]?.cost ?? i.cost_rmb) * rate) / i.sell_naira) * 100).toFixed(0)}%` : ''}</td>
                 <td className={`px-4 py-2 text-right font-mono ${(onHand[i.id] || 0) < 0 ? 'text-red-600' : ''}`}>{n2(onHand[i.id] || 0)} <span className="text-xs text-gray-400">{i.unit}</span></td>
