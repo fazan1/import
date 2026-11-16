@@ -121,9 +121,9 @@ export default function NigeriaStock() {
 
   function printPage() {
     if (tab === 'stock') ngPrint('Stock NG — on hand', `${rows.length} items · value at average cost in RMB`, [{
-      head: ['Item', 'Unit', 'On hand', 'Cost (RMB)', 'Landed ₦ / unit', 'Value at cost ₦', 'Sell ₦ / unit', 'Value at selling ₦'], right: [2, 3, 4, 5, 6, 7],
-      rows: rows.map((r) => [label(r.i), r.i.unit, n2(r.qty), r.avg.toLocaleString('en-US', { maximumFractionDigits: 4 }), rate ? n2(r.landedNgn) : '', rate ? n2(r.costNgn) : '', r.i.sell_naira ? n2(r.i.sell_naira) : '', isFinite(r.sellNgn) ? n2(r.sellNgn) : '']),
-      total: ['Total', '', '', `${n2(totValue)} RMB`, '', n2(totCostNgn), '', n2(totSellNgn)],
+      head: ['Item', 'On hand', 'Landed ₦ / unit', 'Value at cost ₦', 'Sell ₦ / unit', 'Value at selling ₦'], right: [1, 2, 3, 4, 5],
+      rows: rows.map((r) => [label(r.i), `${n2(r.qty)} ${r.i.unit}`, rate ? n2(r.landedNgn) : '', rate ? n2(r.costNgn) : '', r.i.sell_naira ? n2(r.i.sell_naira) : '', isFinite(r.sellNgn) ? n2(r.sellNgn) : '']),
+      total: ['Total', '', '', n2(totCostNgn), '', n2(totSellNgn)],
     }], `Profit in the stock if all sold at the selling price: ₦${n2(totSellNgn - totCostNgn)}`);
     else ngPrint('Stock NG — movements', `${moves.length} movements, newest first`, [{
       head: ['Date', 'Type', 'Item', 'Quantity', 'Cost RMB', 'Sale ₦', 'Reference / note'], right: [3, 4, 5],

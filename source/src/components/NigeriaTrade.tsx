@@ -117,9 +117,9 @@ export default function NigeriaTrade() {
   }
 
   function printList() {
-    ngPrint('Items NG', `${shown.length} items · cost per unit in RMB · stock in each item's unit`, [{
-      head: ['Product', 'Specification', 'Finish', 'Unit', 'Pcs / ton', 'China cost (RMB)', 'China cost ₦', '+ Duty ₦', '= Landed ₦', 'Selling price (₦)', 'Margin', 'Stock'], right: [4, 5, 6, 7, 8, 9, 10, 11],
-      rows: shown.map((i) => { const lc = landed[i.id]?.cost ?? i.cost_rmb; const d = landed[i.id]?.perPiece || 0; return [i.name, i.specification || '', i.finish || '', i.unit, n2(i.pcs_per_ton), n4(i.cost_rmb), rate ? n2((lc - d) * rate) : '', rate && d ? n2(d * rate) : '', rate ? n2(lc * rate) : '', n2(i.sell_naira), i.sell_naira && rate ? `${(((i.sell_naira - lc * rate) / i.sell_naira) * 100).toFixed(0)}%` : '', `${n2(onHand[i.id] || 0)} ${i.unit}`]; }),
+    ngPrint('Items NG', `${shown.length} items · cost per unit in Naira (China cost + duty by weight)${rate ? ` · rate ₦${rate} / RMB` : ''}`, [{
+      head: ['Item', 'China cost ₦', '+ Duty ₦', '= Landed ₦', 'Selling ₦', 'Margin', 'Stock'], right: [1, 2, 3, 4, 5, 6],
+      rows: shown.map((i) => { const lc = landed[i.id]?.cost ?? i.cost_rmb; const d = landed[i.id]?.perPiece || 0; return [[i.name, i.specification, i.finish].filter(Boolean).join(' '), rate ? n2((lc - d) * rate) : '', rate && d ? n2(d * rate) : '', rate ? n2(lc * rate) : '', n2(i.sell_naira), i.sell_naira && rate ? `${(((i.sell_naira - lc * rate) / i.sell_naira) * 100).toFixed(0)}%` : '', `${n2(onHand[i.id] || 0)} ${i.unit}`]; }),
     }]);
   }
 

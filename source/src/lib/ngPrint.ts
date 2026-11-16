@@ -12,8 +12,8 @@ export function ngPrint(title: string, sub: string, tables: PrintTable[], note?:
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"><title>${esc(title)}</title><style>
     body{font-family:'IBM Plex Sans',Arial,sans-serif;color:#111;margin:0;padding:26px;font-size:15.5px}h1{font-size:28px;margin:0;font-weight:700}.sub{color:#111;font-size:16px;font-weight:600;margin:4px 0 16px}
     h3{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:#111;font-weight:700;margin:20px 0 8px;font-family:'IBM Plex Mono',monospace}
-    table{width:100%;border-collapse:collapse;font-size:15px;page-break-inside:auto}th{background:#000;color:#fff;text-align:left;padding:10px 8px;font-weight:700;font-size:14px}
-    td{padding:8px 8px;border-bottom:1px solid #ccc;vertical-align:top;color:#000}.r{text-align:right;font-family:'IBM Plex Mono',monospace;white-space:nowrap}th.r{text-align:right}
+    table{width:100%;border-collapse:collapse;font-size:15px;page-break-inside:auto;table-layout:auto;word-break:break-word}th{background:#000;color:#fff;text-align:left;padding:10px 8px;font-weight:700;font-size:14px}
+    td{padding:8px 8px;border-bottom:1px solid #ccc;vertical-align:top;color:#000}.r{text-align:right;font-family:'IBM Plex Mono',monospace}th.r{text-align:right}
     tr.tot td{font-weight:700;border-top:2px solid #111;border-bottom:0}.note{margin-top:14px;font-size:14px;color:#111}.foot{margin-top:24px;font-size:13px;color:#333;display:flex;justify-content:space-between}
     .bar{position:fixed;top:0;right:0;padding:8px;background:#fff}.bar button{font:inherit;padding:6px 12px;border:1px solid #111;background:#111;color:#fff;border-radius:6px;cursor:pointer}@page{size:A4 landscape;margin:12mm}@media print{body{padding:0}.bar{display:none}}
   </style></head><body><div class="bar"><button onclick="window.print()">Print / Save as PDF</button></div>
