@@ -36,7 +36,7 @@ export default function NigeriaOverview() {
     const [it, mv, ex, pu, pa, se, sp] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, unit, pcs_per_ton, cost_rmb, is_active').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('id, item_id, kind, entry_date, quantity, cost_rmb, sale_naira, rate, reference').order('entry_date', { ascending: false }).order('created_at', { ascending: false })),
-      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference, item_id')),
+      fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference')),
       fetchAllPages<NgPurchase>(() => supabase.from('ng_purchases').select('id, number, status, total_rmb, order_date, received_at')),
       fetchAllPages<NgPayment>(() => supabase.from('ng_payments').select('purchase_id, amount_rmb, pay_date, paid_amount, paid_currency')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),

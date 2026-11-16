@@ -51,7 +51,7 @@ export default function NigeriaTrade() {
     const [it, st, ex, se, pu] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('*').order('name').order('specification')),
       fetchAllPages<NgStock>(() => supabase.from('ng_stock').select('id, item_id, kind, quantity, cost_rmb, reference').order('entry_date', { ascending: false })),
-      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference, item_id')),
+      fetchAllPages<NgExp>(() => supabase.from('ng_expenses').select('amount, currency, rate, reference')),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
       fetchAllPages<{ number: string; received_at: string | null; status: string }>(() => supabase.from('ng_purchases').select('number, received_at, status')),
     ]);

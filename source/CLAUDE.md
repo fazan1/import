@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js at the repo root (Vercel functions: guide-page ask box; nightly backup).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V224)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V225)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -234,3 +234,4 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v222 EN|IG red switch also in the orange NG banner (top of every NG page), besides the fixed corner one.
   v223 NG banner shortened to 'NG — Nigeria' + the EN|IG switch (owner).
   v224 Settings -> Users: 'NG (Nigeria) only' option in the book list (BookPick) so the partner's login can be locked into NG.
+  v225 FIX (owner: 'landed both same value'): NG pages still selected ng_expenses.item_id (column from the removed per-item duty idea, never created on the live DB) -> the expenses query failed silently -> no duty in the landed cost. Selects trimmed to amount, currency, rate, reference (+ entry_date, category).
