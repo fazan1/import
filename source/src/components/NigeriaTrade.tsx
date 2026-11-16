@@ -180,7 +180,7 @@ export default function NigeriaTrade() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-gray-500">Landed = China cost per piece + duty on that piece. Duty is spread BY WEIGHT: the shipment's duty & expenses ÷ its kg, × the weight of each piece (1000 kg ÷ pieces per ton).</p>
+      <p className="text-xs text-gray-500">Landed = China cost per piece + duty on that piece (the shipment's duty & expenses spread by weight). An item received on several shipments is costed at the weighted average of all its receipts.</p>
 
       {edit && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setEdit(null)}>

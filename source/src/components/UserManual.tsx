@@ -143,7 +143,7 @@ const SECTIONS: Section[] = [
       'Overview NG — the whole picture: ordered / paid / outstanding to China, duty, stock at landed cost, sales, gross profit, general expenses, net; profit by shipment; partner share % → due / paid / balance; by month. Print / PDF and Copy summary.',
       'Month-end for NG: all sales typed, expenses typed, partner payout recorded, Overview → Copy summary to the group.',
     ],
-    notes: ['Landed cost of an item = its China cost × (1 + duty & expenses of its shipment ÷ goods of that shipment). Sales profit and stock value use it.', 'Never press "Receive into stock" twice for the same goods; a received order shows "Received" and is locked.'],
+    notes: ['Landed cost of a piece = its China cost + its share of the shipment\'s duty & expenses, spread by weight. An item that came on several shipments is costed at the weighted average of all its receipts (old stock and new mixed in proportion). Duty counts only once the order is fully received.', 'Never press "Receive into stock" twice for the same goods; a received order shows "Received" and is locked.'],
   },
   {
     id: 'backup', title: 'Backup — keeping the data safe', when: 'Automatic every night + manual any time',

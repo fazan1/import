@@ -24,24 +24,33 @@ export function pendingRefs(purchases: { number: string; received_at: string | n
 }
 
 export function landedCosts(items: LandedItem[], ins: LandedIn[], exps: LandedExp[], rate: number, pending: Set<string> = new Set()): Record<string, Landed> {
+  /* WEIGHTED AVERAGE across shipments (owner, Nov 2026): an item that came in on several shipments is costed at the
+     average of all its receipts, weighted by quantity: Σ(qty × (China cost of that receipt + duty per piece of that
+     shipment)) ÷ Σ qty. A shipment still arriving (pending) counts at China cost only until it is fully received. */
   const exByRef: Record<string, number> = {};
   exps.filter((e) => e.reference).forEach((e) => { const b = expenseBoth(e, rate); if (isFinite(b.rmb)) exByRef[e.reference!] = (exByRef[e.reference!] || 0) + b.rmb; });
   const kgOf: Record<string, number> = {}; items.forEach((i) => { kgOf[i.id] = kgPerUnit(i); });
-  const kgByRef: Record<string, number> = {}, pcsByRef: Record<string, number> = {}, valByItemRef: Record<string, { qty: number; value: number }> = {};
-  ins.filter((m) => m.kind === 'in' && m.reference).forEach((m) => { kgByRef[m.reference!] = (kgByRef[m.reference!] || 0) + m.quantity * (kgOf[m.item_id] || 0); pcsByRef[m.reference!] = (pcsByRef[m.reference!] || 0) + m.quantity; const k = m.reference! + '|' + m.item_id; const x = (valByItemRef[k] ||= { qty: 0, value: 0 }); x.qty += m.quantity; x.value += m.cost_rmb || 0; });
+  const kgByRef: Record<string, number> = {}, pcsByRef: Record<string, number> = {};
+  const recv: Record<string, Record<string, { qty: number; value: number }>> = {};   // item -> ref -> received
+  ins.filter((m) => m.kind === 'in' && m.reference && m.quantity > 0).forEach((m) => {
+    kgByRef[m.reference!] = (kgByRef[m.reference!] || 0) + m.quantity * (kgOf[m.item_id] || 0); pcsByRef[m.reference!] = (pcsByRef[m.reference!] || 0) + m.quantity;
+    const r = (recv[m.item_id] ||= {}); const x = (r[m.reference!] ||= { qty: 0, value: 0 }); x.qty += m.quantity; x.value += m.cost_rmb || 0;
+  });
+  const perKgOf = (ref: string) => (kgByRef[ref] > 0 ? (exByRef[ref] || 0) / kgByRef[ref] : 0);
   const out: Record<string, Landed> = {};
   items.forEach((i) => {
-    const li = ins.find((m) => m.item_id === i.id && m.kind === 'in'); // ins are newest first
-    const ref = li?.reference || null; const kg = kgOf[i.id] || 0;
-    if (!ref || !pcsByRef[ref]) { out[i.id] = { cost: i.cost_rmb, up: 0, ref, perPiece: 0, kgPerUnit: kg, perKg: 0, pending: false }; return; }
-    const mineEarly = valByItemRef[ref + '|' + i.id]; const baseEarly = mineEarly && mineEarly.qty > 0 ? mineEarly.value / mineEarly.qty : i.cost_rmb;
-    if (pending.has(ref)) { out[i.id] = { cost: baseEarly, up: 0, ref, perPiece: 0, kgPerUnit: kg, perKg: 0, pending: true }; return; }   // goods still arriving: duty not applied yet
-    const ex = exByRef[ref] || 0;
-    // by weight when the shipment's weight is known; items without a weight fall back to an equal share per piece
-    const perKg = kgByRef[ref] > 0 ? ex / kgByRef[ref] : 0;
-    const perPiece = kg > 0 && kgByRef[ref] > 0 ? perKg * kg : ex / pcsByRef[ref];
-    const mine = valByItemRef[ref + '|' + i.id]; const base = mine && mine.qty > 0 ? mine.value / mine.qty : i.cost_rmb;
-    out[i.id] = { cost: base + perPiece, up: base > 0 ? perPiece / base : 0, ref, perPiece, kgPerUnit: kg, perKg, pending: false };
+    const kg = kgOf[i.id] || 0; const refs = recv[i.id] ? Object.keys(recv[i.id]) : [];
+    const lastIn = ins.find((m) => m.item_id === i.id && m.kind === 'in'); const lastRef = lastIn?.reference || null;
+    if (!refs.length) { out[i.id] = { cost: i.cost_rmb, up: 0, ref: lastRef, perPiece: 0, kgPerUnit: kg, perKg: 0, pending: false }; return; }
+    let qty = 0, goods = 0, duty = 0, isPending = false;
+    refs.forEach((ref) => {
+      const x = recv[i.id][ref]; qty += x.qty; goods += x.value;
+      if (pending.has(ref)) { isPending = true; return; }
+      const perPiece = kg > 0 && kgByRef[ref] > 0 ? perKgOf(ref) * kg : (pcsByRef[ref] > 0 ? (exByRef[ref] || 0) / pcsByRef[ref] : 0);
+      duty += perPiece * x.qty;
+    });
+    const base = goods / qty, perPiece = duty / qty;
+    out[i.id] = { cost: base + perPiece, up: base > 0 ? perPiece / base : 0, ref: refs.length > 1 ? `${refs.length} shipments (avg)` : lastRef, perPiece, kgPerUnit: kg, perKg: lastRef ? perKgOf(lastRef) : 0, pending: isPending };
   });
   return out;
 }
