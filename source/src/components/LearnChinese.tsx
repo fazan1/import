@@ -130,13 +130,14 @@ export default function LearnChinese() {
   const [lessons, setLessons] = useState<Lesson[] | null>(null);
   const [err, setErr] = useState('');
   const [prog, setProg] = useState<Record<number, Prog>>(loadProg);
-  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz'; n: number }>({ page: 'home', n: 1 });
+  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz' | 'progress'; n: number }>({ page: 'home', n: 1 });
   const [attempt, setAttempt] = useState(0);
   const [mist, setMist] = useState<Q[]>(loadMist);
   const [mode, setMode] = useState<Mode>('lesson');
   const [preset, setPreset] = useState<Q[] | undefined>(undefined);
   const [srs, setSrs] = useState<Record<string, { box: number; due: string }>>(() => loadJ(SKEY, {}));
   const [days, setDays] = useState<Record<string, number>>(() => loadJ(DKEY, {}));
+  const [goal, setGoal] = useState<number>(() => loadJ('learn-chinese-goal-v1', 40));
   const [extra, setExtra] = useState<Record<number, Record<string, number>>>(() => loadJ(XKEY, {}));
   const practice = mode !== 'lesson';
 
@@ -172,7 +173,7 @@ export default function LearnChinese() {
   if (!lessons) return <div className="p-4 text-neutral-600">Loading…</div>;
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed;
   const lesson = lessons.find((l) => l.number === route.n) || lessons[0];
-  const go = (page: 'home' | 'lesson' | 'quiz', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
+  const go = (page: 'home' | 'lesson' | 'quiz' | 'progress', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
 
   const finish = (n: number, pct: number, sec: Sec, missed: Q[], got: Q[]) => {
     const gotIds = new Set(got.map(qid));
@@ -210,6 +211,28 @@ export default function LearnChinese() {
   const dueCards = cards.filter((c) => !srs[c.card!] || srs[c.card!].due <= today);
   const known = cards.filter((c) => (srs[c.card!]?.box || 0) >= 3).length;
   const reviewSet = () => shuffle([...shuffle(dueCards.filter((c) => srs[c.card!])), ...dueCards.filter((c) => !srs[c.card!])].slice(0, 20));
+  // ---- progress figures
+  const mastery = Math.round(lessons.reduce((a, l) => a + (prog[l.number]?.best || 0), 0) / lessons.length);
+  const LEVELS = ['Starter', 'Trader basics', 'Negotiator', 'Deal maker', 'Business speaker'];
+  const level = LEVELS[doneN >= lessons.length ? 4 : Math.min(3, Math.floor(doneN / 4))];
+  const toNext = doneN >= lessons.length ? 0 : (Math.floor(doneN / 4) + 1) * 4 - doneN;
+  const todayN = days[today] || 0;
+  const dayKeys = Object.keys(days).sort();
+  let bestStreak = 0; { let run = 0; let prev = ''; dayKeys.forEach((k) => { const d = new Date(prev + 'T00:00:00'); d.setDate(d.getDate() + 1); run = prev && dayStr(d) === k ? run + 1 : 1; bestStreak = Math.max(bestStreak, run); prev = k; }); }
+  const totalAns = dayKeys.reduce((a, k) => a + days[k], 0);
+  const last14 = Array.from({ length: 14 }, (_, k) => { const d = new Date(); d.setDate(d.getDate() - (13 - k)); return { k: dayStr(d), n: days[dayStr(d)] || 0, lab: d.getDate() }; });
+  const max14 = Math.max(goal, ...last14.map((x) => x.n));
+  const exAvg = (m: string) => { const v = Object.values(extra).map((x) => x[m]).filter((x) => x !== undefined); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; };
+  const skills: [string, number | null][] = [...Object.entries(SECNAME).map(([k, nm]) => [nm, secTot[k] && secTot[k][1] ? Math.round((secTot[k][0] / secTot[k][1]) * 100) : null] as [string, number | null]), ['Listening', exAvg('listen')], ['Speaking', exAvg('speak')], ['Tones', exAvg('tone')]];
+  const tried = skills.filter((x) => x[1] !== null) as [string, number][];
+  const weakSkill = tried.length ? [...tried].sort((a, b) => a[1] - b[1])[0] : null;
+  const mem = { fresh: cards.filter((c) => !srs[c.card!]).length, learning: cards.filter((c) => srs[c.card!] && srs[c.card!].box < 3).length, known };
+  const weakLesson = [...scored].sort((a, b) => prog[a.number].best - prog[b.number].best)[0];
+  const changeGoal = (d: number) => { const g = Math.max(10, Math.min(200, goal + d)); setGoal(g); saveJ('learn-chinese-goal-v1', g); };
+  const progressText = () => [`*My Chinese progress* — ${level}`, `Lessons passed: ${doneN} of ${lessons.length} · course mastery ${mastery}%`, `Streak: ${streak} days (best ${bestStreak}) · days studied ${dayKeys.length} · answers ${totalAns}`, `Today: ${todayN} of ${goal} answers`, `Memory: ${mem.known} known well, ${mem.learning} learning, ${mem.fresh} new`, '', '*Skills*', ...skills.map(([n, v]) => `${n}: ${v === null ? 'not tried' : v + '%'}`), '', '*Lessons*', ...lessons.filter((l) => prog[l.number]).map((l) => `${l.number}. ${l.title}: best ${prog[l.number].best}% (${prog[l.number].tries} tries)${prog[l.number].passed ? ' passed' : ''}`)].join('\n');
+  const copyProgress = async () => { try { await navigator.clipboard.writeText(progressText()); alert('Progress copied. Paste it in WhatsApp.'); } catch { alert(progressText()); } };
+  const resetAll = () => { if (!confirm('Delete ALL Learn Chinese progress on this device? Marks, review, mistakes and streak will be gone.')) return; if (!confirm('Are you sure? This cannot be undone.')) return; [KEY, MKEY, SKEY, DKEY, XKEY].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } }); setProg({}); setMist([]); setSrs({}); setDays({}); setExtra({}); go('home'); };
+  const Bar = ({ v, color = 'bg-green-600' }: { v: number; color?: string }) => <div className="h-2.5 bg-[#f4f3f1] rounded"><div className={`h-full rounded ${color}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></div>;
   const nextLesson = lessons.find((l) => !prog[l.number]?.passed);
   const listenQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 10).map((e) => ({ kind: 'listen', title: 'Listening practice', n: l.number, ask: 'Listen, then type what you hear', sub: 'Type it in pinyin (tone marks not needed)', answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
   const speakQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 8).map((e) => ({ kind: 'speak', title: 'Speaking practice', n: l.number, ask: e.pinyin, sub: e.meaning, answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
@@ -228,6 +251,9 @@ export default function LearnChinese() {
             <div className="flex items-end justify-between"><div><div className="font-mono text-[11px] tracking-[0.14em] uppercase text-neutral-600 font-semibold">My progress</div><div className="text-3xl font-bold">{doneN} <span className="text-base font-normal text-neutral-600">of {lessons.length} lessons passed</span></div></div><div className="text-right"><div className="text-3xl font-bold text-[#e8552a]">{avg}%</div><div className="text-xs text-neutral-600">average best mark</div></div></div>
             <div className="h-2.5 bg-[#f4f3f1] rounded mt-2"><div className="h-full bg-green-600 rounded" style={{ width: `${(doneN / lessons.length) * 100}%` }} /></div>
             {!!Object.keys(secTot).length && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">{Object.entries(SECNAME).map(([k, nm]) => { const t = secTot[k]; const pc = t && t[1] ? Math.round((t[0] / t[1]) * 100) : null; return <div key={k} className="bg-[#f4f3f1] rounded p-2"><div className="text-[11px] text-neutral-600">{nm}</div><div className={`font-bold ${pc !== null && pc < PASS ? 'text-[#e8552a]' : ''}`}>{pc === null ? '–' : pc + '%'}</div></div>; })}</div>}
+            <div className="mt-3"><div className="flex justify-between text-sm"><span>Level: <b>{level}</b>{toNext > 0 && <span className="text-neutral-600"> · {toNext} more {toNext === 1 ? 'lesson' : 'lessons'} to the next level</span>}</span></div></div>
+            <div className="mt-2"><div className="flex justify-between text-sm"><span>Today's goal</span><b>{todayN} of {goal} answers{todayN >= goal ? ' — done' : ''}</b></div><Bar v={(todayN / goal) * 100} color="bg-[#e8552a]" /></div>
+            <button onClick={() => go('progress')} className="mt-3 w-full border border-[#111] rounded-lg py-2 font-semibold">Full progress report</button>
             <div className="text-sm text-neutral-700 mt-3">Study streak: <b>{streak} {streak === 1 ? 'day' : 'days'}</b> · answers today: <b>{days[today] || 0}</b>{cards.length > 0 && <> · words and sentences known well: <b>{known} of {cards.length}</b></>}</div>
           </div>
           <div className="border-2 border-[#111] rounded-lg bg-white p-3 mb-4">
@@ -331,6 +357,71 @@ export default function LearnChinese() {
             {([['listen', 'Listening', 'Hear a sentence, type it', listenQs], ['speak', 'Speaking', 'Say it, the phone checks you', speakQs], ['tone', 'Tones', 'Pick the right tone', toneQs]] as [Mode, string, string, (l: Lesson) => Q[]][]).map(([m, nm, d, mk]) => (
               <button key={m} onClick={() => start(m, mk(lesson), lesson.number)} className="border border-[#111] rounded-lg p-3 text-left bg-white"><b>{nm}</b><span className="block text-xs text-neutral-600">{d}</span><span className="block text-xs font-mono mt-1">{extra[lesson.number]?.[m] !== undefined ? `best ${extra[lesson.number][m]}%` : 'not tried'}</span></button>
             ))}
+          </div>
+        </>
+      )}
+
+      {route.page === 'progress' && (
+        <>
+          <button onClick={() => go('home')} className="flex items-center gap-1 text-sm mb-3"><ArrowLeft className="w-4 h-4" /> All lessons</button>
+          <h1 className="text-2xl font-bold">My progress</h1>
+          <p className="text-neutral-600 text-sm">Level: <b className="text-[#111]">{level}</b>{toNext > 0 ? ` · ${toNext} more ${toNext === 1 ? 'lesson' : 'lessons'} to the next level` : ' · course complete'}</p>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
+            {([['Lessons passed', `${doneN} / ${lessons.length}`], ['Course mastery', `${mastery}%`], ['Study streak', `${streak} ${streak === 1 ? 'day' : 'days'}`], ['Best streak', `${bestStreak} ${bestStreak === 1 ? 'day' : 'days'}`], ['Days studied', `${dayKeys.length}`], ['Answers given', `${totalAns}`]] as [string, string][]).map(([a, b]) => <div key={a} className="border border-neutral-300 rounded-lg bg-white p-3"><div className="text-xs text-neutral-600">{a}</div><div className="text-2xl font-bold">{b}</div></div>)}
+          </div>
+
+          <H>Course</H>
+          <div className="border border-neutral-300 rounded-lg bg-white p-3 space-y-3">
+            <div><div className="flex justify-between text-sm"><span>Lessons passed</span><b>{Math.round((doneN / lessons.length) * 100)}%</b></div><Bar v={(doneN / lessons.length) * 100} /></div>
+            <div><div className="flex justify-between text-sm"><span>Course mastery (average best mark over all 16)</span><b>{mastery}%</b></div><Bar v={mastery} color="bg-[#111]" /></div>
+            <div className="flex gap-1">{lessons.map((l) => <div key={l.number} title={`Lesson ${l.number}`} className={`flex-1 h-7 rounded text-[10px] font-mono flex items-center justify-center ${prog[l.number]?.passed ? 'bg-green-600 text-white' : prog[l.number] ? 'bg-[#e8552a] text-white' : unlocked(l.number) ? 'bg-neutral-300' : 'bg-[#f4f3f1] text-neutral-400'}`}>{l.number}</div>)}</div>
+            <div className="text-xs text-neutral-600">Green = passed · orange = tried, not passed · grey = open · pale = locked</div>
+          </div>
+
+          <H>Today's goal</H>
+          <div className="border border-neutral-300 rounded-lg bg-white p-3">
+            <div className="flex items-center justify-between"><div><b className="text-2xl">{todayN}</b> <span className="text-neutral-600">of {goal} answers</span></div><div className="flex items-center gap-2"><button onClick={() => changeGoal(-10)} className="w-9 h-9 rounded-full border border-[#111] font-bold">−</button><span className="font-mono w-10 text-center">{goal}</span><button onClick={() => changeGoal(10)} className="w-9 h-9 rounded-full border border-[#111] font-bold">+</button></div></div>
+            <div className="mt-2"><Bar v={(todayN / goal) * 100} color="bg-[#e8552a]" /></div>
+            <div className="text-xs text-neutral-600 mt-1">{todayN >= goal ? 'Goal reached today.' : `${goal - todayN} more to reach today's goal.`} Use − and + to change the goal.</div>
+          </div>
+
+          <H>Last 14 days</H>
+          <div className="border border-neutral-300 rounded-lg bg-white p-3">
+            <div className="flex items-end gap-1 h-28">{last14.map((d) => <div key={d.k} className="flex-1 flex flex-col items-center justify-end h-full"><div className="text-[10px] font-mono text-neutral-600">{d.n || ''}</div><div className={`w-full rounded-t ${d.n >= goal ? 'bg-green-600' : d.n ? 'bg-[#e8552a]' : 'bg-[#f4f3f1]'}`} style={{ height: `${d.n ? Math.max(6, (d.n / max14) * 80) : 3}%` }} /><div className={`text-[10px] font-mono mt-1 ${d.k === today ? 'font-bold' : 'text-neutral-500'}`}>{d.lab}</div></div>)}</div>
+            <div className="text-xs text-neutral-600 mt-1">Answers per day · green = goal reached</div>
+          </div>
+
+          <H>Skills</H>
+          <div className="border border-neutral-300 rounded-lg bg-white p-3 space-y-2.5">
+            {skills.map(([n, v]) => <div key={n}><div className="flex justify-between text-sm"><span>{n}</span><b className={v !== null && v < PASS ? 'text-[#e8552a]' : ''}>{v === null ? 'not tried' : v + '%'}</b></div><Bar v={v || 0} color={v !== null && v < PASS ? 'bg-[#e8552a]' : 'bg-green-600'} /></div>)}
+            {weakSkill && weakSkill[1] < 90 && <div className="text-sm bg-[#f4f3f1] rounded p-2">Work on next: <b>{weakSkill[0]}</b> ({weakSkill[1]}%) — it is your weakest skill.</div>}
+          </div>
+
+          <H>Memory — words and sentences</H>
+          <div className="border border-neutral-300 rounded-lg bg-white p-3">
+            {cards.length ? <>
+              <div className="flex h-4 rounded overflow-hidden bg-[#f4f3f1]"><div className="bg-green-600" style={{ width: `${(mem.known / cards.length) * 100}%` }} /><div className="bg-[#e8552a]" style={{ width: `${(mem.learning / cards.length) * 100}%` }} /></div>
+              <div className="grid grid-cols-3 gap-2 mt-2 text-sm"><div><b className="text-green-700">{mem.known}</b> known well</div><div><b className="text-[#e8552a]">{mem.learning}</b> learning</div><div><b>{mem.fresh}</b> new</div></div>
+              <div className="text-xs text-neutral-600 mt-1">{dueCards.length} due for review today · "known well" = answered right 3 reviews in a row</div>
+            </> : <div className="text-sm text-neutral-600">Starts after your first lesson quiz.</div>}
+          </div>
+
+          <H>Lesson by lesson</H>
+          <div className="border border-neutral-300 rounded-lg bg-white divide-y">
+            {lessons.map((l) => { const p = prog[l.number]; const x = extra[l.number] || {}; return (
+              <div key={l.number} className={`p-2.5 ${!unlocked(l.number) ? 'opacity-50' : ''}`}>
+                <div className="flex justify-between gap-2 text-sm"><span className="font-semibold">{l.number}. {l.title}</span><span className="font-mono shrink-0">{p ? `${p.best}%` : unlocked(l.number) ? 'open' : 'locked'}{p?.passed ? ' ✓' : ''}</span></div>
+                {p && <><div className="mt-1"><Bar v={p.best} color={p.passed ? 'bg-green-600' : 'bg-[#e8552a]'} /></div>
+                  <div className="text-[11px] font-mono text-neutral-600 mt-1">{p.tries} {p.tries === 1 ? 'try' : 'tries'}{p.hist?.length ? ` · marks: ${p.hist.join(' → ')}` : ''}</div>
+                  <div className="text-[11px] font-mono text-neutral-600">Listening {x.listen ?? '–'}{x.listen !== undefined ? '%' : ''} · Speaking {x.speak ?? '–'}{x.speak !== undefined ? '%' : ''} · Tones {x.tone ?? '–'}{x.tone !== undefined ? '%' : ''}</div></>}
+              </div>); })}
+          </div>
+          {weakLesson && prog[weakLesson.number].best < 90 && <div className="text-sm bg-white border border-neutral-300 rounded-lg p-3 mt-3">Lesson to strengthen: <b>{weakLesson.number}. {weakLesson.title}</b> (best {prog[weakLesson.number].best}%). <button onClick={() => go('lesson', weakLesson.number)} className="underline text-[#e8552a] font-semibold">Open it</button></div>}
+
+          <div className="grid gap-2 mt-5">
+            <button onClick={copyProgress} className="bg-[#111] text-white font-bold rounded-lg py-3">Copy my progress</button>
+            <button onClick={resetAll} className="border border-red-600 text-red-700 rounded-lg py-2.5 text-sm">Reset all progress on this device</button>
           </div>
         </>
       )}
