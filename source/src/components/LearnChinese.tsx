@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, Lock, RotateCcw, Volume2, X } from 'lucide-react';
+import { ArrowLeft, Check, Lock, Mic, RotateCcw, Volume2, X } from 'lucide-react';
 
 /* Learn Chinese (Tools). The ONLY data source is /chinese_lessons.json (shown as it is, never rewritten).
    Progress and scores live in this browser (localStorage). */
@@ -18,13 +18,31 @@ interface Lesson {
 }
 type Sec = Record<string, [number, number]>;
 interface Prog { best: number; passed: boolean; tries: number; last: string; sec?: Sec; hist?: number[] }
-type Q = { kind: 'meaning' | 'fillGap' | 'wordOrder' | 'translate'; title: string; ask: string; sub?: string; answer: string; words?: string[]; chinese?: string; n?: number };
+type Kind = 'meaning' | 'fillGap' | 'wordOrder' | 'translate' | 'listen' | 'speak' | 'tone';
+type Q = { kind: Kind; title: string; ask: string; sub?: string; answer: string; words?: string[]; chinese?: string; n?: number; card?: string; opts?: string[]; mean?: string };
+type Mode = 'lesson' | 'mistakes' | 'review' | 'listen' | 'speak' | 'tone';
 const MKEY = 'learn-chinese-mistakes-v1';
 const qid = (q: Q) => `${q.n}|${q.kind}|${q.ask}|${q.answer}`;
 const loadMist = (): Q[] => { try { return JSON.parse(localStorage.getItem(MKEY) || '[]'); } catch { return []; } };
 const saveMist = (m: Q[]) => { try { localStorage.setItem(MKEY, JSON.stringify(m)); } catch { /* ignore */ } };
 const SECNAME: Record<string, string> = { meaning: 'Meaning', fillGap: 'Fill the gap', wordOrder: 'Word order', translate: 'Translate' };
+const ALLNAME: Record<string, string> = { ...SECNAME, listen: 'Listening', speak: 'Speaking', tone: 'Tones' };
+const MODENAME: Record<Mode, string> = { lesson: 'Lesson quiz', mistakes: 'Practice my mistakes', review: 'Daily review', listen: 'Listening practice', speak: 'Speaking practice', tone: 'Tone practice' };
 const KEY = 'learn-chinese-progress-v1';
+/* Daily review (spaced repetition): each word / sentence sits in a box; right = next box (comes back later), wrong = back to the start. */
+const SKEY = 'learn-chinese-srs-v1', DKEY = 'learn-chinese-days-v1', XKEY = 'learn-chinese-extra-v1';
+const GAP = [0, 1, 2, 4, 8, 16, 32];
+const dayStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const addDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return dayStr(d); };
+const loadJ = <T,>(k: string, d: T): T => { try { return JSON.parse(localStorage.getItem(k) || '') as T; } catch { return d; } };
+const saveJ = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } };
+const shuffle = <T,>(a: T[]) => { const b = [...a]; for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+/* Tones: read the tone from the mark on the vowel; make three wrong choices by changing that mark. */
+const TONE: Record<string, string> = { a: 'āáǎà', e: 'ēéěè', i: 'īíǐì', o: 'ōóǒò', u: 'ūúǔù', 'ü': 'ǖǘǚǜ' };
+const TONETXT = ['1st tone: high and flat', '2nd tone: rises, like asking “what?”', '3rd tone: dips low, then rises', '4th tone: falls sharply, like a command'];
+const toneAt = (p: string): { i: number; base: string; t: number } | null => { for (let i = 0; i < p.length; i++) for (const [b, set] of Object.entries(TONE)) { const t = set.indexOf(p[i]); if (t >= 0) return { i, base: b, t }; } return null; };
+const toneless = (p: string) => p.normalize('NFD').replace(/[\u0300\u0301\u0304\u030c]/g, '').normalize('NFC');
+const hanOnly = (t: string) => t.replace(/[^\u4e00-\u9fff]/g, '').replace(/[她它]/g, '他');
 const PASS = 80;
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -115,11 +133,22 @@ export default function LearnChinese() {
   const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz'; n: number }>({ page: 'home', n: 1 });
   const [attempt, setAttempt] = useState(0);
   const [mist, setMist] = useState<Q[]>(loadMist);
-  const [practice, setPractice] = useState(false);
+  const [mode, setMode] = useState<Mode>('lesson');
+  const [preset, setPreset] = useState<Q[] | undefined>(undefined);
+  const [srs, setSrs] = useState<Record<string, { box: number; due: string }>>(() => loadJ(SKEY, {}));
+  const [days, setDays] = useState<Record<string, number>>(() => loadJ(DKEY, {}));
+  const [extra, setExtra] = useState<Record<number, Record<string, number>>>(() => loadJ(XKEY, {}));
+  const practice = mode !== 'lesson';
 
   useEffect(() => {
     fetch('/chinese_lessons.json').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then((d) => setLessons(d.lessons)).catch((e) => setErr('Could not load the lessons file: ' + e.message));
+      .then((d) => {
+        (d.lessons as Lesson[]).forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => {
+          const alts = w.meaning.replace(/\([^)]*\)/g, '').split(',').map((x) => x.trim().toLowerCase()).filter((x) => /^[a-z]+$/.test(x));
+          if (alts.length > 1) { const c = ENG[alts[0]] ?? alts[0]; alts.slice(1).forEach((a) => { if (!(a in ENG) && a !== c) ENG[a] = c; }); }
+        }));
+        setLessons(d.lessons);
+      }).catch((e) => setErr('Could not load the lessons file: ' + e.message));
     try { window.speechSynthesis?.getVoices(); } catch { /* ignore */ }
   }, []);
   useEffect(() => { window.scrollTo(0, 0); }, [route]);
@@ -143,13 +172,23 @@ export default function LearnChinese() {
   if (!lessons) return <div className="p-4 text-neutral-600">Loading…</div>;
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed;
   const lesson = lessons.find((l) => l.number === route.n) || lessons[0];
-  const go = (page: 'home' | 'lesson' | 'quiz', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setPractice(false); setRoute({ page, n }); };
+  const go = (page: 'home' | 'lesson' | 'quiz', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
 
   const finish = (n: number, pct: number, sec: Sec, missed: Q[], got: Q[]) => {
     const gotIds = new Set(got.map(qid));
     const m = [...mist.filter((x) => !gotIds.has(qid(x))), ...missed.filter((x) => !mist.some((y) => qid(y) === qid(x)))];
+    if (mode === 'review') {
+      const nx = { ...srs };
+      got.forEach((q) => { if (q.card) { const b = Math.min((nx[q.card]?.box || 0) + 1, GAP.length - 1); nx[q.card] = { box: b, due: addDays(GAP[b]) }; } });
+      missed.forEach((q) => { if (q.card) nx[q.card] = { box: 0, due: dayStr() }; });
+      setSrs(nx); saveJ(SKEY, nx); return;
+    }
+    if (mode === 'listen' || mode === 'speak' || mode === 'tone') {
+      const nx = { ...extra, [n]: { ...(extra[n] || {}), [mode]: Math.max(extra[n]?.[mode] || 0, pct) } };
+      setExtra(nx); saveJ(XKEY, nx); return;
+    }
     setMist(m); saveMist(m);
-    if (practice) return;
+    if (mode === 'mistakes') return;
     const old = prog[n];
     const next = { ...prog, [n]: { best: Math.max(old?.best || 0, pct), passed: !!old?.passed || pct >= PASS, tries: (old?.tries || 0) + 1, last: new Date().toISOString(), sec, hist: [...(old?.hist || []), pct].slice(-10) } };
     setProg(next); saveProg(next);
@@ -159,7 +198,25 @@ export default function LearnChinese() {
   const avg = scored.length ? Math.round(scored.reduce((a, l) => a + prog[l.number].best, 0) / scored.length) : 0;
   const secTot: Sec = {};
   scored.forEach((l) => Object.entries(prog[l.number].sec || {}).forEach(([k, [c, t]]) => { const o = secTot[k] || [0, 0]; secTot[k] = [o[0] + c, o[1] + t]; }));
-  const startPractice = () => { setPractice(true); setAttempt((a) => a + 1); setRoute({ page: 'quiz', n: 0 }); };
+  const start = (m: Mode, qs: Q[], n = 0) => { if (!qs.length) { alert('Nothing to practise here yet.'); return; } setMode(m); setPreset(qs); setAttempt((a) => a + 1); setRoute({ page: 'quiz', n }); };
+  const startPractice = () => start('mistakes', mist);
+  const bump = () => { const t = dayStr(); setDays((d) => { const nx = { ...d, [t]: (d[t] || 0) + 1 }; saveJ(DKEY, nx); return nx; }); };
+  let streak = 0; { const d = new Date(); if (!days[dayStr(d)]) d.setDate(d.getDate() - 1); while (days[dayStr(d)]) { streak++; d.setDate(d.getDate() - 1); } }
+  // daily review cards: words and example sentences of every lesson whose quiz has been tried
+  const cards: Q[] = lessons.filter((l) => prog[l.number]).flatMap((l) => [
+    ...[...l.words, ...(l.extraWords || [])].map((w) => ({ t: 'w', w })), ...(l.examples || []).map((w) => ({ t: 'e', w })),
+  ].map(({ t, w }) => ({ kind: 'translate' as Kind, title: 'Daily review', n: l.number, card: `${l.number}|${t}|${w.pinyin}`, ask: w.meaning, sub: 'Type it in pinyin (tone marks not needed)', answer: w.pinyin, chinese: w.chinese })));
+  const today = dayStr();
+  const dueCards = cards.filter((c) => !srs[c.card!] || srs[c.card!].due <= today);
+  const known = cards.filter((c) => (srs[c.card!]?.box || 0) >= 3).length;
+  const reviewSet = () => shuffle([...shuffle(dueCards.filter((c) => srs[c.card!])), ...dueCards.filter((c) => !srs[c.card!])].slice(0, 20));
+  const nextLesson = lessons.find((l) => !prog[l.number]?.passed);
+  const listenQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 10).map((e) => ({ kind: 'listen', title: 'Listening practice', n: l.number, ask: 'Listen, then type what you hear', sub: 'Type it in pinyin (tone marks not needed)', answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
+  const speakQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 8).map((e) => ({ kind: 'speak', title: 'Speaking practice', n: l.number, ask: e.pinyin, sub: e.meaning, answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
+  const toneQs = (l: Lesson): Q[] => shuffle([...l.words, ...(l.extraWords || [])].filter((w) => !w.pinyin.includes(',') && toneAt(w.pinyin))).slice(0, 12).map((w) => {
+    const at = toneAt(w.pinyin)!; const opts = shuffle([0, 1, 2, 3].map((t) => w.pinyin.slice(0, at.i) + TONE[at.base][t] + w.pinyin.slice(at.i + 1)));
+    return { kind: 'tone', title: 'Tone practice', n: l.number, ask: `${toneless(w.pinyin)} — ${w.meaning}`, sub: 'Listen, then pick the right tone', answer: w.pinyin, chinese: w.chinese, opts, mean: w.meaning };
+  });
 
   return (
     <div className="max-w-3xl mx-auto p-3 sm:p-6 text-[#111]">
@@ -171,7 +228,15 @@ export default function LearnChinese() {
             <div className="flex items-end justify-between"><div><div className="font-mono text-[11px] tracking-[0.14em] uppercase text-neutral-600 font-semibold">My progress</div><div className="text-3xl font-bold">{doneN} <span className="text-base font-normal text-neutral-600">of {lessons.length} lessons passed</span></div></div><div className="text-right"><div className="text-3xl font-bold text-[#e8552a]">{avg}%</div><div className="text-xs text-neutral-600">average best mark</div></div></div>
             <div className="h-2.5 bg-[#f4f3f1] rounded mt-2"><div className="h-full bg-green-600 rounded" style={{ width: `${(doneN / lessons.length) * 100}%` }} /></div>
             {!!Object.keys(secTot).length && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">{Object.entries(SECNAME).map(([k, nm]) => { const t = secTot[k]; const pc = t && t[1] ? Math.round((t[0] / t[1]) * 100) : null; return <div key={k} className="bg-[#f4f3f1] rounded p-2"><div className="text-[11px] text-neutral-600">{nm}</div><div className={`font-bold ${pc !== null && pc < PASS ? 'text-[#e8552a]' : ''}`}>{pc === null ? '–' : pc + '%'}</div></div>; })}</div>}
-            {!!mist.length && <button onClick={startPractice} className="mt-3 w-full bg-[#111] text-white font-bold rounded-lg py-2.5">Practice my mistakes ({mist.length})</button>}
+            <div className="text-sm text-neutral-700 mt-3">Study streak: <b>{streak} {streak === 1 ? 'day' : 'days'}</b> · answers today: <b>{days[today] || 0}</b>{cards.length > 0 && <> · words and sentences known well: <b>{known} of {cards.length}</b></>}</div>
+          </div>
+          <div className="border-2 border-[#111] rounded-lg bg-white p-3 mb-4">
+            <div className="font-mono text-[11px] tracking-[0.14em] uppercase text-neutral-600 font-semibold mb-2">Today's plan — do these in order</div>
+            <div className="grid gap-2">
+              <button disabled={!dueCards.length} onClick={() => start('review', reviewSet())} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#f4f3f1] disabled:opacity-50"><span className="w-7 h-7 rounded-full bg-[#111] text-white text-sm font-bold flex items-center justify-center shrink-0">1</span><span className="flex-1"><b>Daily review</b><span className="block text-xs text-neutral-600">{dueCards.length ? `${dueCards.length} words and sentences are due today (20 at a time)` : cards.length ? 'Nothing due today — well done' : 'Opens after your first lesson quiz'}</span></span></button>
+              <button disabled={!mist.length} onClick={startPractice} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#f4f3f1] disabled:opacity-50"><span className="w-7 h-7 rounded-full bg-[#111] text-white text-sm font-bold flex items-center justify-center shrink-0">2</span><span className="flex-1"><b>Practice my mistakes</b><span className="block text-xs text-neutral-600">{mist.length ? `${mist.length} questions you got wrong before` : 'No mistakes waiting'}</span></span></button>
+              {nextLesson && <button onClick={() => go('lesson', nextLesson.number)} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#e8552a] text-white"><span className="w-7 h-7 rounded-full bg-white text-[#111] text-sm font-bold flex items-center justify-center shrink-0">3</span><span className="flex-1"><b>{prog[nextLesson.number] ? 'Repeat' : 'Start'} Lesson {nextLesson.number}: {nextLesson.title}</b><span className="block text-xs opacity-90">Study it, then take the quiz</span></span></button>}
+            </div>
           </div>
           <div className="grid gap-2">
             {lessons.map((l) => {
@@ -261,17 +326,23 @@ export default function LearnChinese() {
           </>}
 
           <button onClick={() => go('quiz')} className="mt-6 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5 text-base">Take the quiz</button>
+          <H>Extra practice — ear, mouth and tones (does not change the quiz mark)</H>
+          <div className="grid sm:grid-cols-3 gap-2">
+            {([['listen', 'Listening', 'Hear a sentence, type it', listenQs], ['speak', 'Speaking', 'Say it, the phone checks you', speakQs], ['tone', 'Tones', 'Pick the right tone', toneQs]] as [Mode, string, string, (l: Lesson) => Q[]][]).map(([m, nm, d, mk]) => (
+              <button key={m} onClick={() => start(m, mk(lesson), lesson.number)} className="border border-[#111] rounded-lg p-3 text-left bg-white"><b>{nm}</b><span className="block text-xs text-neutral-600">{d}</span><span className="block text-xs font-mono mt-1">{extra[lesson.number]?.[m] !== undefined ? `best ${extra[lesson.number][m]}%` : 'not tried'}</span></button>
+            ))}
+          </div>
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? mist : undefined} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
-        onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => practice ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} onAnswer={bump} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
+        onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => (mode === 'mistakes' || mode === 'review') ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, mode, onAnswer, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; mode: Mode; onAnswer: () => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   const qs: Q[] = useMemo(() => {
     if (preset) return preset;
@@ -290,6 +361,10 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
   const [score, setScore] = useState(0);
   const [saved, setSaved] = useState(false);
   const [res, setRes] = useState<{ q: Q; ok: boolean }[]>([]);
+  const [hearing, setHearing] = useState(false);
+  const [spTry, setSpTry] = useState(0);
+  const [spMsg, setSpMsg] = useState('');
+  useEffect(() => { const c = qs[i]; if (c && (c.kind === 'listen' || c.kind === 'tone') && c.chinese) speak(c.chinese); }, [i]); // eslint-disable-line
 
   const done = i >= qs.length;
   useEffect(() => { if (done && !saved) { setSaved(true); const sec: Sec = {}; res.forEach((r) => { const o = sec[r.q.kind] || [0, 0]; sec[r.q.kind] = [o[0] + (r.ok ? 1 : 0), o[1] + 1]; });
@@ -303,13 +378,13 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
       <div className="text-center py-8">
         <div className={`text-6xl font-bold ${pass ? 'text-green-600' : 'text-[#e8552a]'}`}>{pct}%</div>
         <div className="text-neutral-600 mt-1">{score} of {qs.length} correct</div>
-        <div className="text-xl font-bold mt-4">{preset ? 'Practice finished' : pass ? (hasNext ? `Well done! Lesson ${lesson.number + 1} is unlocked.` : 'Well done! Course complete.') : 'Repeat this lesson'}</div>
+        <div className="text-xl font-bold mt-4">{preset ? `${MODENAME[mode]} finished` : pass ? (hasNext ? `Well done! Lesson ${lesson.number + 1} is unlocked.` : 'Well done! Course complete.') : 'Repeat this lesson'}</div>
         {!pass && !preset && <p className="text-sm text-neutral-600 mt-1">You need {PASS}% to open the next lesson.</p>}
-        <div className="grid grid-cols-2 gap-2 mt-4 max-w-sm mx-auto text-left">{Object.entries(SECNAME).map(([k, nm]) => { const r = res.filter((x) => x.q.kind === k); return r.length ? <div key={k} className="bg-[#f4f3f1] rounded p-2 text-sm"><div className="text-xs text-neutral-600">{nm}</div><b>{r.filter((x) => x.ok).length} / {r.length}</b></div> : null; })}</div>
+        <div className="grid grid-cols-2 gap-2 mt-4 max-w-sm mx-auto text-left">{Object.entries(ALLNAME).map(([k, nm]) => { const r = res.filter((x) => x.q.kind === k); return r.length ? <div key={k} className="bg-[#f4f3f1] rounded p-2 text-sm"><div className="text-xs text-neutral-600">{nm}</div><b>{r.filter((x) => x.ok).length} / {r.length}</b></div> : null; })}</div>
         {res.some((r) => !r.ok) && <div className="mt-4 text-left max-w-md mx-auto border border-neutral-300 rounded-lg bg-white"><div className="p-2 font-mono text-[11px] tracking-[0.14em] uppercase font-semibold text-neutral-600">To revise</div>{res.filter((r) => !r.ok).map((r, k) => <div key={k} className="px-3 py-2 border-t text-sm"><div className="text-neutral-600">{r.q.ask}</div><div className="font-mono font-semibold">{r.q.kind === 'fillGap' ? r.q.ask.replace(/_+/, r.q.answer) : r.q.answer}</div></div>)}</div>}
         <div className="grid gap-2 mt-6 max-w-xs mx-auto">
           {pass && hasNext && !preset && <button onClick={onNext} className="bg-[#e8552a] text-white font-bold rounded-lg py-3">Next lesson</button>}
-          <button onClick={onLesson} className="border border-[#111] rounded-lg py-3 flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {preset ? 'Back to lessons' : pass ? 'Review this lesson' : 'Repeat this lesson'}</button>
+          <button onClick={onLesson} className="border border-[#111] rounded-lg py-3 flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {preset ? (mode === 'mistakes' || mode === 'review' ? 'Back to lessons' : 'Back to the lesson') : pass ? 'Review this lesson' : 'Repeat this lesson'}</button>
           <button onClick={onHome} className="border border-neutral-300 rounded-lg py-3">All lessons</button>
         </div>
       </div>
@@ -319,22 +394,45 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
   const q = qs[i];
   const full = q.kind === 'fillGap' ? q.ask.replace(/_+/, q.answer) : q.answer;
   const zh = q.chinese || chineseOf.get(norm(full));
-  const shownPinyin = q.kind === 'meaning' ? q.ask : full;
+  const shownPinyin = q.kind === 'meaning' || q.kind === 'speak' ? q.ask : full;
 
-  const mark = (ok: boolean) => { setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok }]); if (ok) setScore((s) => s + 1); };
+  const mark = (ok: boolean) => { onAnswer(); setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok }]); if (ok) setScore((s) => s + 1); };
   const check = () => {
     if (q.kind === 'wordOrder') mark(norm(picked.map((k) => q.words![k]).join('')) === norm(q.answer));
     else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer).ok);
     else mark(norm(val) === norm(q.answer));
   };
-  const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); };
+  const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); setSpTry(0); setSpMsg(''); };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const listenToMe = () => {
+    if (!SR || hearing) return;
+    try {
+      const r = new SR(); r.lang = 'zh-CN'; r.maxAlternatives = 5; r.interimResults = false; setHearing(true); setSpMsg('');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      r.onresult = (e: any) => {
+        const alts: string[] = Array.from(e.results[0] as ArrayLike<{ transcript: string }>).map((a) => a.transcript);
+        const ok = alts.some((a) => hanOnly(a) === hanOnly(q.chinese || ''));
+        setVal(alts[0] || '');
+        if (ok || spTry >= 2) mark(ok); else { setSpTry(spTry + 1); setSpMsg(`The phone heard “${alts[0] || '…'}”. Listen once more and try again (${2 - spTry} ${2 - spTry === 1 ? 'try' : 'tries'} left).`); }
+      };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      r.onerror = (e: any) => { setSpMsg(e.error === 'not-allowed' ? 'The microphone is blocked. Allow the microphone for this site in the browser settings.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the button and speak.' : 'The phone could not listen (' + e.error + '). Try again.'); };
+      r.onend = () => setHearing(false);
+      r.start();
+    } catch { setHearing(false); setSpMsg('The phone could not start listening.'); }
+  };
   const typed = q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val;
   const bd = breakdown(shownPinyin, meaningOf);
+  const tn = q.kind === 'tone' ? toneAt(q.answer) : null;
   const fb = state === 'wrong'
-    ? (q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
+    ? (q.kind === 'tone' ? { notes: [`You chose “${val}”. The right one is “${q.answer}”.`], marks: [] as { w: string; ok: boolean }[] }
+      : q.kind === 'speak' ? { notes: [val ? `The phone heard “${val}”.` : 'The phone did not catch it.', 'Play the sentence, copy the sound slowly, then say it at normal speed.'], marks: [] as { w: string; ok: boolean }[] }
+      : q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
       ? { notes: [val.trim() ? `You wrote “${val.trim()}”, but the missing word is “${q.answer}”${meaningOf.get(norm(q.answer)) ? ` (${q.answer} = ${meaningOf.get(norm(q.answer))})` : ''}.` : 'You did not type an answer.'], marks: full.split(/\s+/).map((w) => ({ w, ok: norm(w) !== norm(q.answer) })) }
       : explain(typed, q.answer, meaningOf))
     : null;
+  const noCheck = q.kind === 'tone' || q.kind === 'speak';
   const canCheck = q.kind === 'wordOrder' ? picked.length === q.words!.length : val.trim().length > 0;
   const answered = state !== 'ask';
 
@@ -346,12 +444,22 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
 
       <div className="border border-neutral-300 rounded-lg bg-white p-4 mt-2">
         <div className="flex items-center gap-3">
-          <div className={`flex-1 ${q.kind === 'meaning' || q.kind === 'fillGap' ? 'font-mono text-xl' : 'text-xl font-semibold'}`}>{q.ask}</div>
-          {q.kind === 'meaning' && <Spk text={q.chinese} />}
+          <div className={`flex-1 ${q.kind === 'meaning' || q.kind === 'fillGap' || q.kind === 'speak' ? 'font-mono text-xl' : 'text-xl font-semibold'}`}>{q.ask}{q.kind === 'speak' && <span className="block text-2xl font-sans mt-1">{q.chinese}</span>}</div>
+          {(q.kind === 'meaning' || q.kind === 'speak' || q.kind === 'tone') && <Spk text={q.chinese} />}
+          {q.kind === 'listen' && <button onClick={() => speak(q.chinese || '')} className="shrink-0 w-14 h-14 rounded-full bg-[#e8552a] text-white flex items-center justify-center" aria-label="Play"><Volume2 className="w-6 h-6" /></button>}
         </div>
         {q.sub && <div className="text-sm text-neutral-600 mt-1">{q.sub}</div>}
 
-        {q.kind === 'wordOrder' ? (
+        {q.kind === 'tone' ? (
+          <div className="grid grid-cols-2 gap-2 mt-4">{q.opts!.map((o) => <button key={o} disabled={answered} onClick={() => { setVal(o); mark(o === q.answer); }} className={`py-3 rounded-lg border font-mono text-xl ${answered && o === q.answer ? 'bg-green-600 text-white border-green-600' : answered && o === val ? 'bg-red-600 text-white border-red-600' : 'border-[#111] bg-[#f4f3f1]'}`}>{o}</button>)}</div>
+        ) : q.kind === 'speak' ? (
+          <div className="mt-4">
+            {!SR ? <div className="text-sm text-red-700">This browser cannot listen to your voice. Use Chrome on Android or Safari on iPhone. You can still listen and repeat out loud.</div>
+              : !answered && <button onClick={listenToMe} disabled={hearing} className={`w-full rounded-lg py-4 font-bold text-white flex items-center justify-center gap-2 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#111]'}`}><Mic className="w-5 h-5" /> {hearing ? 'Listening… speak now' : 'Tap and say it in Chinese'}</button>}
+            {spMsg && !answered && <div className="text-sm text-[#b3261e] mt-2">{spMsg}</div>}
+            {!answered && <button onClick={() => { setVal(''); mark(false); }} className="mt-2 w-full text-sm underline text-neutral-600">Skip this one</button>}
+          </div>
+        ) : q.kind === 'wordOrder' ? (
           <div className="mt-4">
             <div className="min-h-[52px] border-2 border-dashed border-neutral-300 rounded-lg p-2 flex flex-wrap gap-2">
               {picked.map((k, n) => <button key={n} disabled={answered} onClick={() => setPicked(picked.filter((_, m) => m !== n))} className="px-3 py-2 rounded-lg bg-[#111] text-white font-mono">{q.words![k]}</button>)}
@@ -366,13 +474,13 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
             className="mt-4 w-full border border-neutral-400 rounded-lg px-3 py-3 text-lg font-mono disabled:bg-[#f4f3f1]" />
         )}
 
-        {state === 'ask' && <button disabled={!canCheck} onClick={check} className="mt-4 w-full bg-[#111] text-white font-bold rounded-lg py-3 disabled:opacity-40">Check</button>}
+        {state === 'ask' && !noCheck && <button disabled={!canCheck} onClick={check} className="mt-4 w-full bg-[#111] text-white font-bold rounded-lg py-3 disabled:opacity-40">Check</button>}
 
         {answered && (
           <div className={`mt-4 rounded-lg p-3 ${state === 'right' ? 'bg-green-50 border border-green-600' : state === 'wrong' ? 'bg-red-50 border border-red-600' : 'bg-[#f4f3f1] border border-neutral-300'}`}>
             {state === 'right' && <div className="font-bold text-green-700 flex items-center gap-1"><Check className="w-4 h-4" /> Correct</div>}
             {state === 'wrong' && <div className="font-bold text-red-700 flex items-center gap-1"><X className="w-4 h-4" /> Not quite</div>}
-            {(state === 'wrong' || state === 'shown') && typed.trim() && <div className="mt-2"><div className="text-xs text-neutral-600">Your answer</div><div className={`font-mono ${state === 'wrong' && q.kind !== 'meaning' ? 'line-through text-red-700' : state === 'wrong' ? 'text-red-700' : ''}`}>{typed}</div></div>}
+            {(state === 'wrong' || state === 'shown') && typed.trim() && !noCheck && <div className="mt-2"><div className="text-xs text-neutral-600">Your answer</div><div className={`font-mono ${state === 'wrong' && q.kind !== 'meaning' ? 'line-through text-red-700' : state === 'wrong' ? 'text-red-700' : ''}`}>{typed}</div></div>}
             {fb && <div className="mt-2"><div className="text-xs text-neutral-600">Where it went wrong</div><ul className="list-disc pl-5 text-[15px] space-y-0.5">{fb.notes.map((n, k) => <li key={k}>{n}</li>)}</ul></div>}
             <div className="text-xs text-neutral-600 mt-2">{fb ? 'This is how it should be' : 'Correct answer'}</div>
             {q.kind === 'meaning'
@@ -380,6 +488,8 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
               : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb && fb.marks.length ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
             {q.kind === 'meaning' && zh && <div className="text-2xl mt-1">{zh}</div>}
             {state === 'right' && q.kind === 'meaning' && val.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '') !== q.answer.toLowerCase().replace(/[^a-z0-9 ]/g, '') && <div className="text-sm text-neutral-700 mt-2">Your meaning is right. You wrote “{val.trim()}”; the line above is how it is said in good English.</div>}
+            {q.mean && q.kind !== 'tone' && <div className="text-sm text-neutral-700 mt-1">Meaning: <b>{q.mean}</b></div>}
+            {tn && <div className="text-sm mt-2"><b className="font-mono">{q.answer}</b> is the {TONETXT[tn.t]}.</div>}
             {state !== 'shown' && bd.length > 0 && <div className="mt-3"><div className="text-xs text-neutral-600">{state === 'right' ? 'Why it is right — word by word' : 'Word by word'}</div><div className="flex flex-wrap gap-1.5 mt-1">{bd.map((x, k) => <span key={k} className="bg-white border border-neutral-300 rounded px-2 py-1 text-sm"><b className="font-mono">{x.w}</b> = {x.m}</span>)}</div></div>}
             {state === 'shown' && <div className="text-sm text-neutral-700 mt-2">Your words are different from the answer. If the meaning is the same, tap “I was right”.</div>}
             {state === 'shown'
