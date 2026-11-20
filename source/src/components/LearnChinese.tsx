@@ -31,6 +31,37 @@ const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 const loadProg = (): Record<number, Prog> => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
 const saveProg = (p: Record<number, Prog>) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ } };
 
+/* Compare the typed pinyin with the right answer word by word, and say in plain words where it went wrong. */
+function explain(user: string, answer: string, meaningOf: Map<string, string>): { notes: string[]; marks: { w: string; ok: boolean }[] } {
+  const toks = (t: string) => t.trim().split(/\s+/).filter((w) => norm(w));
+  const U = toks(user), A = toks(answer); const un = U.map(norm), an = A.map(norm);
+  const mean = (w: string) => { const m = meaningOf.get(norm(w)); return m ? ` (${w.replace(/[?.,!]/g, '')} = ${m})` : ''; };
+  const show = (w: string) => `“${w.replace(/[?.,!]/g, '')}”`;
+  const L: number[][] = Array.from({ length: U.length + 1 }, () => new Array(A.length + 1).fill(0));
+  for (let i = U.length - 1; i >= 0; i--) for (let j = A.length - 1; j >= 0; j--) L[i][j] = un[i] === an[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const marks = A.map((w) => ({ w, ok: false })); const notes: string[] = [];
+  if (!U.length) return { notes: ['You did not type an answer.'], marks };
+  if ([...un].sort().join(' ') === [...an].sort().join(' ')) {
+    A.forEach((_, j) => { marks[j].ok = un[j] === an[j]; });
+    return { notes: ['You used the right words, but in the wrong order. Look at the order below.'], marks };
+  }
+  let i = 0, j = 0; let bu: string[] = [], ba: string[] = [];
+  const flush = () => {
+    const n = Math.min(bu.length, ba.length);
+    for (let k = 0; k < n; k++) notes.push(`You wrote ${show(bu[k])}, but it should be ${show(ba[k])}${mean(ba[k])}.`);
+    for (let k = n; k < ba.length; k++) notes.push(`You left out ${show(ba[k])}${mean(ba[k])}.`);
+    for (let k = n; k < bu.length; k++) notes.push(`${show(bu[k])} does not belong in this sentence.`);
+    bu = []; ba = [];
+  };
+  while (i < U.length || j < A.length) {
+    if (i < U.length && j < A.length && un[i] === an[j]) { flush(); marks[j].ok = true; i++; j++; }
+    else if (j < A.length && (i >= U.length || L[i][j + 1] >= L[i + 1][j])) { ba.push(A[j]); j++; }
+    else { bu.push(U[i]); i++; }
+  }
+  flush();
+  return { notes, marks };
+}
+
 function speak(text: string) {
   try {
     const synth = window.speechSynthesis; if (!synth) { alert('This browser has no speech. Try Chrome or Safari.'); return; }
@@ -69,6 +100,12 @@ export default function LearnChinese() {
       [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.quizzes?.meaning || []).map((q) => ({ pinyin: q.prompt, chinese: q.chinese, meaning: '' }))]
         .forEach((x) => { if (x.chinese) m.set(norm(x.pinyin), x.chinese); });
     });
+    return m;
+  }, [lessons]);
+
+  const meaningOf = useMemo(() => {
+    const m = new Map<string, string>();
+    (lessons || []).forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => { if (!m.has(norm(w.pinyin))) m.set(norm(w.pinyin), w.meaning); }));
     return m;
   }, [lessons]);
 
@@ -197,14 +234,14 @@ export default function LearnChinese() {
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? mist : undefined} chineseOf={chineseOf} hasNext={route.n < lessons.length}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? mist : undefined} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
         onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => practice ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, chineseOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; chineseOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   const qs: Q[] = useMemo(() => {
     if (preset) return preset;
@@ -261,6 +298,12 @@ function Quiz({ lesson, preset, chineseOf, hasNext, onDone, onLesson, onHome, on
     else mark(norm(val) === norm(q.answer));
   };
   const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); };
+  const typed = q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val;
+  const fb = state === 'wrong' && q.kind !== 'meaning'
+    ? (q.kind === 'fillGap'
+      ? { notes: [val.trim() ? `You wrote “${val.trim()}”, but the missing word is “${q.answer}”${meaningOf.get(norm(q.answer)) ? ` (${q.answer} = ${meaningOf.get(norm(q.answer))})` : ''}.` : 'You did not type an answer.'], marks: full.split(/\s+/).map((w) => ({ w, ok: norm(w) !== norm(q.answer) })) }
+      : explain(typed, q.answer, meaningOf))
+    : null;
   const canCheck = q.kind === 'wordOrder' ? picked.length === q.words!.length : val.trim().length > 0;
   const answered = state !== 'ask';
 
@@ -298,10 +341,12 @@ function Quiz({ lesson, preset, chineseOf, hasNext, onDone, onLesson, onHome, on
           <div className={`mt-4 rounded-lg p-3 ${state === 'right' ? 'bg-green-50 border border-green-600' : state === 'wrong' ? 'bg-red-50 border border-red-600' : 'bg-[#f4f3f1] border border-neutral-300'}`}>
             {state === 'right' && <div className="font-bold text-green-700 flex items-center gap-1"><Check className="w-4 h-4" /> Correct</div>}
             {state === 'wrong' && <div className="font-bold text-red-700 flex items-center gap-1"><X className="w-4 h-4" /> Not quite</div>}
-            <div className="text-xs text-neutral-600 mt-1">Correct answer</div>
+            {(state === 'wrong' || state === 'shown') && typed.trim() && <div className="mt-2"><div className="text-xs text-neutral-600">Your answer</div><div className={`font-mono ${state === 'wrong' && q.kind !== 'meaning' ? 'line-through text-red-700' : ''}`}>{typed}</div></div>}
+            {fb && <div className="mt-2"><div className="text-xs text-neutral-600">Where it went wrong</div><ul className="list-disc pl-5 text-[15px] space-y-0.5">{fb.notes.map((n, k) => <li key={k}>{n}</li>)}</ul></div>}
+            <div className="text-xs text-neutral-600 mt-2">{fb ? 'This is how it should be' : 'Correct answer'}</div>
             {q.kind === 'meaning'
               ? <div className="text-lg font-semibold">{q.answer}</div>
-              : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
+              : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
             {q.kind === 'meaning' && zh && <div className="text-2xl mt-1">{zh}</div>}
             {state === 'shown'
               ? <div className="grid grid-cols-2 gap-2 mt-3"><button onClick={() => mark(true)} className="bg-green-600 text-white font-bold rounded-lg py-2.5">I was right</button><button onClick={() => mark(false)} className="bg-red-600 text-white font-bold rounded-lg py-2.5">I was wrong</button></div>
