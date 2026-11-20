@@ -67,6 +67,31 @@ const ENG: Record<string, string> = { has: 'have', had: 'have', is: 'be', are: '
 const engNorm = (t: string) => t.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[’']/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
   .map((w) => ENG[w] ?? w).join(' ').split(' ').filter((w) => !['a', 'an', 'the'].includes(w)).map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ');
 
+const FILL = ['it', 'to', 'there', 'will', 'going'];
+const engToks = (t: string) => t.replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean).flatMap((o) => engNorm(o).split(' ').filter(Boolean).map((n) => ({ o: o.replace(/[^A-Za-z0-9’']/g, ''), n }))).filter((x) => !FILL.includes(x.n));
+/* Meaning quiz: marked by the system. Right when the same idea words are there; otherwise say which ideas are missing or do not fit. */
+function checkMeaning(user: string, answer: string): { ok: boolean; notes: string[] } {
+  const U = engToks(user), A = engToks(answer);
+  const miss = A.filter((a) => !U.some((u) => u.n === a.n)), extra = U.filter((u) => !A.some((a) => a.n === u.n));
+  if (!miss.length && !extra.length && U.length) return { ok: true, notes: [] };
+  const uniq = (x: { o: string }[]) => [...new Set(x.map((y) => `“${y.o}”`))].join(', ');
+  const notes: string[] = [];
+  if (!U.length) notes.push('You did not type an answer.');
+  if (extra.length) notes.push(`You wrote ${uniq(extra)}, which is not in this sentence.`);
+  if (miss.length) notes.push(`Your answer is missing ${uniq(miss)}.`);
+  return { ok: false, notes };
+}
+/* Word-by-word meaning of a pinyin sentence, from the lesson word lists (two-word entries like "shénme shíhou" first). */
+function breakdown(sentence: string, meaningOf: Map<string, string>): { w: string; m: string }[] {
+  const T = sentence.replace(/_+/g, ' ').split(/\s+/).map((w) => w.replace(/[?.,!]/g, '')).filter(Boolean); const out: { w: string; m: string }[] = [];
+  for (let i = 0; i < T.length; i++) {
+    const two = i + 1 < T.length ? meaningOf.get(norm(T[i] + T[i + 1])) : undefined;
+    if (two && !meaningOf.get(norm(T[i]))) { out.push({ w: T[i] + ' ' + T[i + 1], m: two }); i++; continue; }
+    const m = meaningOf.get(norm(T[i])); if (m) out.push({ w: T[i], m });
+  }
+  return out;
+}
+
 function speak(text: string) {
   try {
     const synth = window.speechSynthesis; if (!synth) { alert('This browser has no speech. Try Chrome or Safari.'); return; }
@@ -299,13 +324,14 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
   const mark = (ok: boolean) => { setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok }]); if (ok) setScore((s) => s + 1); };
   const check = () => {
     if (q.kind === 'wordOrder') mark(norm(picked.map((k) => q.words![k]).join('')) === norm(q.answer));
-    else if (q.kind === 'meaning') { if (engNorm(val) === engNorm(q.answer)) mark(true); else setState('shown'); }
+    else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer).ok);
     else mark(norm(val) === norm(q.answer));
   };
   const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); };
   const typed = q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val;
-  const fb = state === 'wrong' && q.kind !== 'meaning'
-    ? (q.kind === 'fillGap'
+  const bd = breakdown(shownPinyin, meaningOf);
+  const fb = state === 'wrong'
+    ? (q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
       ? { notes: [val.trim() ? `You wrote “${val.trim()}”, but the missing word is “${q.answer}”${meaningOf.get(norm(q.answer)) ? ` (${q.answer} = ${meaningOf.get(norm(q.answer))})` : ''}.` : 'You did not type an answer.'], marks: full.split(/\s+/).map((w) => ({ w, ok: norm(w) !== norm(q.answer) })) }
       : explain(typed, q.answer, meaningOf))
     : null;
@@ -346,14 +372,15 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
           <div className={`mt-4 rounded-lg p-3 ${state === 'right' ? 'bg-green-50 border border-green-600' : state === 'wrong' ? 'bg-red-50 border border-red-600' : 'bg-[#f4f3f1] border border-neutral-300'}`}>
             {state === 'right' && <div className="font-bold text-green-700 flex items-center gap-1"><Check className="w-4 h-4" /> Correct</div>}
             {state === 'wrong' && <div className="font-bold text-red-700 flex items-center gap-1"><X className="w-4 h-4" /> Not quite</div>}
-            {(state === 'wrong' || state === 'shown') && typed.trim() && <div className="mt-2"><div className="text-xs text-neutral-600">Your answer</div><div className={`font-mono ${state === 'wrong' && q.kind !== 'meaning' ? 'line-through text-red-700' : ''}`}>{typed}</div></div>}
+            {(state === 'wrong' || state === 'shown') && typed.trim() && <div className="mt-2"><div className="text-xs text-neutral-600">Your answer</div><div className={`font-mono ${state === 'wrong' && q.kind !== 'meaning' ? 'line-through text-red-700' : state === 'wrong' ? 'text-red-700' : ''}`}>{typed}</div></div>}
             {fb && <div className="mt-2"><div className="text-xs text-neutral-600">Where it went wrong</div><ul className="list-disc pl-5 text-[15px] space-y-0.5">{fb.notes.map((n, k) => <li key={k}>{n}</li>)}</ul></div>}
             <div className="text-xs text-neutral-600 mt-2">{fb ? 'This is how it should be' : 'Correct answer'}</div>
             {q.kind === 'meaning'
               ? <div className="text-lg font-semibold">{q.answer}</div>
-              : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
+              : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb && fb.marks.length ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
             {q.kind === 'meaning' && zh && <div className="text-2xl mt-1">{zh}</div>}
             {state === 'right' && q.kind === 'meaning' && val.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '') !== q.answer.toLowerCase().replace(/[^a-z0-9 ]/g, '') && <div className="text-sm text-neutral-700 mt-2">Your meaning is right. You wrote “{val.trim()}”; the line above is how it is said in good English.</div>}
+            {state !== 'shown' && bd.length > 0 && <div className="mt-3"><div className="text-xs text-neutral-600">{state === 'right' ? 'Why it is right — word by word' : 'Word by word'}</div><div className="flex flex-wrap gap-1.5 mt-1">{bd.map((x, k) => <span key={k} className="bg-white border border-neutral-300 rounded px-2 py-1 text-sm"><b className="font-mono">{x.w}</b> = {x.m}</span>)}</div></div>}
             {state === 'shown' && <div className="text-sm text-neutral-700 mt-2">Your words are different from the answer. If the meaning is the same, tap “I was right”.</div>}
             {state === 'shown'
               ? <div className="grid grid-cols-2 gap-2 mt-3"><button onClick={() => mark(true)} className="bg-green-600 text-white font-bold rounded-lg py-2.5">I was right</button><button onClick={() => mark(false)} className="bg-red-600 text-white font-bold rounded-lg py-2.5">I was wrong</button></div>
