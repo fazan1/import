@@ -62,6 +62,11 @@ function explain(user: string, answer: string, meaningOf: Map<string, string>): 
   return { notes, marks };
 }
 
+/* Lenient English compare for the meaning quiz: small grammar slips (he have / he has, a / the, don't / do not) still count. */
+const ENG: Record<string, string> = { has: 'have', had: 'have', is: 'be', are: 'be', am: 'be', was: 'be', were: 'be', does: 'do', did: 'do', goods: 'stock', stocks: 'stock', cant: 'can not', cannot: 'can not', wont: 'will not', dont: 'do not', doesnt: 'do not', didnt: 'do not', isnt: 'be not', arent: 'be not', havent: 'have not', hasnt: 'have not', id: 'i would', ill: 'i will', im: 'i be', its: 'it be', whats: 'what be', ok: 'okay', yuan: 'rmb', him: 'he', me: 'i', them: 'they', us: 'we' };
+const engNorm = (t: string) => t.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[’']/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+  .map((w) => ENG[w] ?? w).join(' ').split(' ').filter((w) => !['a', 'an', 'the'].includes(w)).map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ');
+
 function speak(text: string) {
   try {
     const synth = window.speechSynthesis; if (!synth) { alert('This browser has no speech. Try Chrome or Safari.'); return; }
@@ -294,7 +299,7 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
   const mark = (ok: boolean) => { setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok }]); if (ok) setScore((s) => s + 1); };
   const check = () => {
     if (q.kind === 'wordOrder') mark(norm(picked.map((k) => q.words![k]).join('')) === norm(q.answer));
-    else if (q.kind === 'meaning') setState('shown');
+    else if (q.kind === 'meaning') { if (engNorm(val) === engNorm(q.answer)) mark(true); else setState('shown'); }
     else mark(norm(val) === norm(q.answer));
   };
   const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); };
@@ -335,7 +340,7 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
             className="mt-4 w-full border border-neutral-400 rounded-lg px-3 py-3 text-lg font-mono disabled:bg-[#f4f3f1]" />
         )}
 
-        {state === 'ask' && <button disabled={!canCheck} onClick={check} className="mt-4 w-full bg-[#111] text-white font-bold rounded-lg py-3 disabled:opacity-40">{q.kind === 'meaning' ? 'Show answer' : 'Check'}</button>}
+        {state === 'ask' && <button disabled={!canCheck} onClick={check} className="mt-4 w-full bg-[#111] text-white font-bold rounded-lg py-3 disabled:opacity-40">Check</button>}
 
         {answered && (
           <div className={`mt-4 rounded-lg p-3 ${state === 'right' ? 'bg-green-50 border border-green-600' : state === 'wrong' ? 'bg-red-50 border border-red-600' : 'bg-[#f4f3f1] border border-neutral-300'}`}>
@@ -348,6 +353,8 @@ function Quiz({ lesson, preset, chineseOf, meaningOf, hasNext, onDone, onLesson,
               ? <div className="text-lg font-semibold">{q.answer}</div>
               : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
             {q.kind === 'meaning' && zh && <div className="text-2xl mt-1">{zh}</div>}
+            {state === 'right' && q.kind === 'meaning' && val.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '') !== q.answer.toLowerCase().replace(/[^a-z0-9 ]/g, '') && <div className="text-sm text-neutral-700 mt-2">Your meaning is right. You wrote “{val.trim()}”; the line above is how it is said in good English.</div>}
+            {state === 'shown' && <div className="text-sm text-neutral-700 mt-2">Your words are different from the answer. If the meaning is the same, tap “I was right”.</div>}
             {state === 'shown'
               ? <div className="grid grid-cols-2 gap-2 mt-3"><button onClick={() => mark(true)} className="bg-green-600 text-white font-bold rounded-lg py-2.5">I was right</button><button onClick={() => mark(false)} className="bg-red-600 text-white font-bold rounded-lg py-2.5">I was wrong</button></div>
               : <button onClick={next} className="mt-3 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3">{i + 1 === qs.length ? 'See my score' : 'Next'}</button>}
