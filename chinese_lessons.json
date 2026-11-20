@@ -1,0 +1,6809 @@
+{
+ "course": "Chinese for Business",
+ "lessons": [
+  {
+   "number": 1,
+   "title": "I want, I have",
+   "subtitle": "Your first sentences: person + action + thing.",
+   "words": [
+    {
+     "pinyin": "wǒ",
+     "chinese": "我",
+     "meaning": "I, me"
+    },
+    {
+     "pinyin": "nǐ",
+     "chinese": "你",
+     "meaning": "you"
+    },
+    {
+     "pinyin": "tā",
+     "chinese": "他",
+     "meaning": "he, him"
+    },
+    {
+     "pinyin": "yào",
+     "chinese": "要",
+     "meaning": "want"
+    },
+    {
+     "pinyin": "yǒu",
+     "chinese": "有",
+     "meaning": "have"
+    },
+    {
+     "pinyin": "zhège",
+     "chinese": "这个",
+     "meaning": "this, this one"
+    },
+    {
+     "pinyin": "huò",
+     "chinese": "货",
+     "meaning": "goods, stock"
+    },
+    {
+     "pinyin": "qián",
+     "chinese": "钱",
+     "meaning": "money"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + Action + Thing",
+   "notes": [
+    "Question: put **ma** at the end.",
+    "Not want: **bú yào**.",
+    "Not have: **méi yǒu** (never bù yǒu).",
+    "To answer yes, repeat the action: **yào** (yes, I want) or **yǒu** (yes, I have).",
+    "To answer no: **bú yào** or **méi yǒu**."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ",
+     "meaning": "I"
+    },
+    {
+     "pinyin": "wǒ yào",
+     "meaning": "I want"
+    },
+    {
+     "pinyin": "wǒ yào huò",
+     "meaning": "I want goods"
+    },
+    {
+     "pinyin": "wǒ bú yào huò",
+     "meaning": "I don't want goods"
+    },
+    {
+     "pinyin": "nǐ yào huò",
+     "meaning": "You want goods"
+    },
+    {
+     "pinyin": "nǐ yào huò ma?",
+     "meaning": "Do you want goods?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bú (with yào)",
+      "méi (with yǒu)"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "yào",
+      "yǒu"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "zhège",
+      "huò",
+      "qián"
+     ]
+    },
+    {
+     "column": "Question",
+     "options": [
+      "(nothing)",
+      "ma?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ yào zhège",
+     "chinese": "我要这个",
+     "meaning": "I want this"
+    },
+    {
+     "pinyin": "nǐ yǒu huò",
+     "chinese": "你有货",
+     "meaning": "You have goods"
+    },
+    {
+     "pinyin": "tā yǒu qián",
+     "chinese": "他有钱",
+     "meaning": "He has money"
+    },
+    {
+     "pinyin": "nǐ yǒu huò ma?",
+     "chinese": "你有货吗?",
+     "meaning": "Do you have goods?"
+    },
+    {
+     "pinyin": "wǒ bú yào",
+     "chinese": "我不要",
+     "meaning": "I don't want it"
+    },
+    {
+     "pinyin": "wǒ méi yǒu qián",
+     "chinese": "我没有钱",
+     "meaning": "I don't have money"
+    },
+    {
+     "pinyin": "tā yào qián",
+     "chinese": "他要钱",
+     "meaning": "He wants money"
+    },
+    {
+     "pinyin": "wǒ yǒu zhège",
+     "chinese": "我有这个",
+     "meaning": "I have this"
+    },
+    {
+     "pinyin": "nǐ yào zhège ma?",
+     "chinese": "你要这个吗?",
+     "meaning": "Do you want this?"
+    },
+    {
+     "pinyin": "tā yǒu huò ma?",
+     "chinese": "他有货吗?",
+     "meaning": "Does he have stock?"
+    },
+    {
+     "pinyin": "nǐ yǒu qián ma?",
+     "chinese": "你有钱吗?",
+     "meaning": "Do you have money?"
+    },
+    {
+     "pinyin": "tā bú yào zhège",
+     "chinese": "他不要这个",
+     "meaning": "He doesn't want this"
+    },
+    {
+     "pinyin": "wǒ méi yǒu huò",
+     "chinese": "我没有货",
+     "meaning": "I don't have stock"
+    },
+    {
+     "pinyin": "tā méi yǒu qián",
+     "chinese": "他没有钱",
+     "meaning": "He has no money"
+    },
+    {
+     "pinyin": "yǒu",
+     "chinese": "有",
+     "meaning": "Yes, I have"
+    },
+    {
+     "pinyin": "méi yǒu",
+     "chinese": "没有",
+     "meaning": "No, I don't have"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ yào zhège",
+      "chinese": "我要这个",
+      "answer": "I want this"
+     },
+     {
+      "prompt": "tā yǒu qián",
+      "chinese": "他有钱",
+      "answer": "He has money"
+     },
+     {
+      "prompt": "wǒ bú yào",
+      "chinese": "我不要",
+      "answer": "I don't want it"
+     },
+     {
+      "prompt": "tā yào qián",
+      "chinese": "他要钱",
+      "answer": "He wants money"
+     },
+     {
+      "prompt": "nǐ yào zhège ma?",
+      "chinese": "你要这个吗?",
+      "answer": "Do you want this?"
+     },
+     {
+      "prompt": "nǐ yǒu qián ma?",
+      "chinese": "你有钱吗?",
+      "answer": "Do you have money?"
+     },
+     {
+      "prompt": "wǒ méi yǒu huò",
+      "chinese": "我没有货",
+      "answer": "I don't have stock"
+     },
+     {
+      "prompt": "yǒu",
+      "chinese": "有",
+      "answer": "Yes, I have"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ ______ huò",
+      "hint": "You have goods",
+      "answer": "yǒu"
+     },
+     {
+      "prompt": "______ yǒu huò ma?",
+      "hint": "Do you have goods?",
+      "answer": "nǐ"
+     },
+     {
+      "prompt": "wǒ méi yǒu ______",
+      "hint": "I don't have money",
+      "answer": "qián"
+     },
+     {
+      "prompt": "wǒ ______ zhège",
+      "hint": "I have this",
+      "answer": "yǒu"
+     },
+     {
+      "prompt": "______ yǒu huò ma?",
+      "hint": "Does he have stock?",
+      "answer": "tā"
+     },
+     {
+      "prompt": "tā bú yào ______",
+      "hint": "He doesn't want this",
+      "answer": "zhège"
+     },
+     {
+      "prompt": "tā méi ______ qián",
+      "hint": "He has no money",
+      "answer": "yǒu"
+     },
+     {
+      "prompt": "méi ______",
+      "hint": "No, I don't have",
+      "answer": "yǒu"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "qián",
+       "tā",
+       "yǒu",
+       "méi"
+      ],
+      "hint": "He has no money",
+      "answer": "tā méi yǒu qián"
+     },
+     {
+      "words": [
+       "huò",
+       "méi",
+       "wǒ",
+       "yǒu"
+      ],
+      "hint": "I don't have stock",
+      "answer": "wǒ méi yǒu huò"
+     },
+     {
+      "words": [
+       "tā",
+       "yào",
+       "bú",
+       "zhège"
+      ],
+      "hint": "He doesn't want this",
+      "answer": "tā bú yào zhège"
+     },
+     {
+      "words": [
+       "qián",
+       "ma",
+       "nǐ",
+       "yǒu"
+      ],
+      "hint": "Do you have money?",
+      "answer": "nǐ yǒu qián ma?"
+     },
+     {
+      "words": [
+       "ma",
+       "huò",
+       "yǒu",
+       "tā"
+      ],
+      "hint": "Does he have stock?",
+      "answer": "tā yǒu huò ma?"
+     },
+     {
+      "words": [
+       "ma",
+       "yào",
+       "zhège",
+       "nǐ"
+      ],
+      "hint": "Do you want this?",
+      "answer": "nǐ yào zhège ma?"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I want money.",
+      "answer": "wǒ yào qián"
+     },
+     {
+      "prompt": "Do you have this?",
+      "answer": "nǐ yǒu zhège ma?"
+     },
+     {
+      "prompt": "He doesn't want goods.",
+      "answer": "tā bú yào huò"
+     },
+     {
+      "prompt": "I don't have goods.",
+      "answer": "wǒ méi yǒu huò"
+     },
+     {
+      "prompt": "Does he have money?",
+      "answer": "tā yǒu qián ma?"
+     },
+     {
+      "prompt": "You want this.",
+      "answer": "nǐ yào zhège"
+     },
+     {
+      "prompt": "He has goods.",
+      "answer": "tā yǒu huò"
+     },
+     {
+      "prompt": "Do you want money?",
+      "answer": "nǐ yào qián ma?"
+     },
+     {
+      "prompt": "He doesn't have this.",
+      "answer": "tā méi yǒu zhège"
+     },
+     {
+      "prompt": "I don't want money.",
+      "answer": "wǒ bú yào qián"
+     }
+    ]
+   }
+  },
+  {
+   "number": 2,
+   "title": "Is, are, my, your",
+   "subtitle": "Say who people are and who owns what.",
+   "words": [
+    {
+     "pinyin": "shì",
+     "chinese": "是",
+     "meaning": "am, is, are"
+    },
+    {
+     "pinyin": "de",
+     "chinese": "的",
+     "meaning": "'s (shows the owner)"
+    },
+    {
+     "pinyin": "wǒmen",
+     "chinese": "我们",
+     "meaning": "we"
+    },
+    {
+     "pinyin": "nǐmen",
+     "chinese": "你们",
+     "meaning": "you all"
+    },
+    {
+     "pinyin": "tāmen",
+     "chinese": "他们",
+     "meaning": "they"
+    },
+    {
+     "pinyin": "nàge",
+     "chinese": "那个",
+     "meaning": "that, that one"
+    },
+    {
+     "pinyin": "lǎobǎn",
+     "chinese": "老板",
+     "meaning": "boss"
+    },
+    {
+     "pinyin": "péngyou",
+     "chinese": "朋友",
+     "meaning": "friend"
+    },
+    {
+     "pinyin": "rén",
+     "chinese": "人",
+     "meaning": "person, people"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "A + shì + B   |   Owner + de + Thing",
+   "notes": [
+    "**men** makes people plural: wǒ + men = wǒmen (we). Never use it for things.",
+    "Not: **bú shì**.",
+    "wǒ de = my, nǐ de = your, tā de = his, wǒmen de = our.",
+    "Yes = **shì**. No = **bú shì**.",
+    "Drop the thing to say mine, yours: zhège shì **wǒ de** = this is mine."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "tā",
+     "meaning": "he"
+    },
+    {
+     "pinyin": "tā shì",
+     "meaning": "he is"
+    },
+    {
+     "pinyin": "tā shì péngyou",
+     "meaning": "He is a friend"
+    },
+    {
+     "pinyin": "tā shì wǒ de péngyou",
+     "meaning": "He is my friend"
+    },
+    {
+     "pinyin": "tā bú shì wǒ de péngyou",
+     "meaning": "He is not my friend"
+    },
+    {
+     "pinyin": "tā shì nǐ de péngyou ma?",
+     "meaning": "Is he your friend?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "A",
+     "options": [
+      "wǒ",
+      "tā",
+      "tāmen",
+      "zhège",
+      "nàge"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bú"
+     ]
+    },
+    {
+     "column": "is",
+     "options": [
+      "shì"
+     ]
+    },
+    {
+     "column": "Owner + de",
+     "options": [
+      "(nothing)",
+      "wǒ de",
+      "nǐ de",
+      "tā de",
+      "wǒmen de"
+     ]
+    },
+    {
+     "column": "B",
+     "options": [
+      "lǎobǎn",
+      "péngyou",
+      "huò",
+      "qián",
+      "rén"
+     ]
+    },
+    {
+     "column": "Question",
+     "options": [
+      "(nothing)",
+      "ma?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ shì lǎobǎn",
+     "chinese": "我是老板",
+     "meaning": "I am the boss"
+    },
+    {
+     "pinyin": "tā shì wǒ de péngyou",
+     "chinese": "他是我的朋友",
+     "meaning": "He is my friend"
+    },
+    {
+     "pinyin": "wǒmen shì péngyou",
+     "chinese": "我们是朋友",
+     "meaning": "We are friends"
+    },
+    {
+     "pinyin": "nàge shì nǐmen de huò",
+     "chinese": "那个是你们的货",
+     "meaning": "That is your goods"
+    },
+    {
+     "pinyin": "wǒ bú shì lǎobǎn",
+     "chinese": "我不是老板",
+     "meaning": "I am not the boss"
+    },
+    {
+     "pinyin": "zhège shì nǐ de ma?",
+     "chinese": "这个是你的吗?",
+     "meaning": "Is this yours?"
+    },
+    {
+     "pinyin": "nǐ shì lǎobǎn ma?",
+     "chinese": "你是老板吗?",
+     "meaning": "Are you the boss?"
+    },
+    {
+     "pinyin": "tāmen shì wǒ de péngyou",
+     "chinese": "他们是我的朋友",
+     "meaning": "They are my friends"
+    },
+    {
+     "pinyin": "zhège shì wǒ de huò",
+     "chinese": "这个是我的货",
+     "meaning": "This is my goods"
+    },
+    {
+     "pinyin": "nàge shì tā de qián",
+     "chinese": "那个是他的钱",
+     "meaning": "That is his money"
+    },
+    {
+     "pinyin": "tā shì wǒmen de lǎobǎn",
+     "chinese": "他是我们的老板",
+     "meaning": "He is our boss"
+    },
+    {
+     "pinyin": "zhège bú shì wǒ de",
+     "chinese": "这个不是我的",
+     "meaning": "This is not mine"
+    },
+    {
+     "pinyin": "wǒ de péngyou yǒu huò",
+     "chinese": "我的朋友有货",
+     "meaning": "My friend has stock"
+    },
+    {
+     "pinyin": "nǐmen de lǎobǎn yào zhège ma?",
+     "chinese": "你们的老板要这个吗?",
+     "meaning": "Does your boss want this?"
+    },
+    {
+     "pinyin": "wǒmen yào nàge",
+     "chinese": "我们要那个",
+     "meaning": "We want that one"
+    },
+    {
+     "pinyin": "tāmen méi yǒu qián",
+     "chinese": "他们没有钱",
+     "meaning": "They have no money"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ shì lǎobǎn",
+      "chinese": "我是老板",
+      "answer": "I am the boss"
+     },
+     {
+      "prompt": "wǒmen shì péngyou",
+      "chinese": "我们是朋友",
+      "answer": "We are friends"
+     },
+     {
+      "prompt": "wǒ bú shì lǎobǎn",
+      "chinese": "我不是老板",
+      "answer": "I am not the boss"
+     },
+     {
+      "prompt": "nǐ shì lǎobǎn ma?",
+      "chinese": "你是老板吗?",
+      "answer": "Are you the boss?"
+     },
+     {
+      "prompt": "zhège shì wǒ de huò",
+      "chinese": "这个是我的货",
+      "answer": "This is my goods"
+     },
+     {
+      "prompt": "tā shì wǒmen de lǎobǎn",
+      "chinese": "他是我们的老板",
+      "answer": "He is our boss"
+     },
+     {
+      "prompt": "wǒ de péngyou yǒu huò",
+      "chinese": "我的朋友有货",
+      "answer": "My friend has stock"
+     },
+     {
+      "prompt": "wǒmen yào nàge",
+      "chinese": "我们要那个",
+      "answer": "We want that one"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "tā shì wǒ ______ péngyou",
+      "hint": "He is my friend",
+      "answer": "de"
+     },
+     {
+      "prompt": "nàge shì nǐmen ______ huò",
+      "hint": "That is your goods",
+      "answer": "de"
+     },
+     {
+      "prompt": "zhège shì nǐ ______ ma?",
+      "hint": "Is this yours?",
+      "answer": "de"
+     },
+     {
+      "prompt": "tāmen shì wǒ de ______",
+      "hint": "They are my friends",
+      "answer": "péngyou"
+     },
+     {
+      "prompt": "______ shì tā de qián",
+      "hint": "That is his money",
+      "answer": "nàge"
+     },
+     {
+      "prompt": "zhège bú shì wǒ ______",
+      "hint": "This is not mine",
+      "answer": "de"
+     },
+     {
+      "prompt": "nǐmen ______ lǎobǎn yào zhège ma?",
+      "hint": "Does your boss want this?",
+      "answer": "de"
+     },
+     {
+      "prompt": "______ méi yǒu qián",
+      "hint": "They have no money",
+      "answer": "tāmen"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "méi",
+       "yǒu",
+       "qián",
+       "tāmen"
+      ],
+      "hint": "They have no money",
+      "answer": "tāmen méi yǒu qián"
+     },
+     {
+      "words": [
+       "yào",
+       "nǐmen",
+       "zhège",
+       "ma",
+       "de",
+       "lǎobǎn"
+      ],
+      "hint": "Does your boss want this?",
+      "answer": "nǐmen de lǎobǎn yào zhège ma?"
+     },
+     {
+      "words": [
+       "de",
+       "yǒu",
+       "péngyou",
+       "wǒ",
+       "huò"
+      ],
+      "hint": "My friend has stock",
+      "answer": "wǒ de péngyou yǒu huò"
+     },
+     {
+      "words": [
+       "zhège",
+       "bú",
+       "shì",
+       "de",
+       "wǒ"
+      ],
+      "hint": "This is not mine",
+      "answer": "zhège bú shì wǒ de"
+     },
+     {
+      "words": [
+       "de",
+       "wǒmen",
+       "shì",
+       "lǎobǎn",
+       "tā"
+      ],
+      "hint": "He is our boss",
+      "answer": "tā shì wǒmen de lǎobǎn"
+     },
+     {
+      "words": [
+       "qián",
+       "nàge",
+       "shì",
+       "de",
+       "tā"
+      ],
+      "hint": "That is his money",
+      "answer": "nàge shì tā de qián"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "He is my boss.",
+      "answer": "tā shì wǒ de lǎobǎn"
+     },
+     {
+      "prompt": "This is your money.",
+      "answer": "zhège shì nǐ de qián"
+     },
+     {
+      "prompt": "Are they your people?",
+      "answer": "tāmen shì nǐ de rén ma?"
+     },
+     {
+      "prompt": "That is not my goods.",
+      "answer": "nàge bú shì wǒ de huò"
+     },
+     {
+      "prompt": "We have money.",
+      "answer": "wǒmen yǒu qián"
+     },
+     {
+      "prompt": "They are friends.",
+      "answer": "tāmen shì péngyou"
+     },
+     {
+      "prompt": "Is that yours?",
+      "answer": "nàge shì nǐ de ma?"
+     },
+     {
+      "prompt": "My boss has money.",
+      "answer": "wǒ de lǎobǎn yǒu qián"
+     },
+     {
+      "prompt": "We are not the boss.",
+      "answer": "wǒmen bú shì lǎobǎn"
+     },
+     {
+      "prompt": "This is their goods.",
+      "answer": "zhège shì tāmen de huò"
+     }
+    ]
+   }
+  },
+  {
+   "number": 3,
+   "title": "What, who, where",
+   "subtitle": "Ask questions and say where things are.",
+   "words": [
+    {
+     "pinyin": "shénme",
+     "chinese": "什么",
+     "meaning": "what"
+    },
+    {
+     "pinyin": "shéi",
+     "chinese": "谁",
+     "meaning": "who"
+    },
+    {
+     "pinyin": "nǎr",
+     "chinese": "哪儿",
+     "meaning": "where"
+    },
+    {
+     "pinyin": "zài",
+     "chinese": "在",
+     "meaning": "at, in, to be at"
+    },
+    {
+     "pinyin": "zhèlǐ",
+     "chinese": "这里",
+     "meaning": "here"
+    },
+    {
+     "pinyin": "nàlǐ",
+     "chinese": "那里",
+     "meaning": "there"
+    },
+    {
+     "pinyin": "gōngsī",
+     "chinese": "公司",
+     "meaning": "company"
+    },
+    {
+     "pinyin": "gōngchǎng",
+     "chinese": "工厂",
+     "meaning": "factory"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "The question word sits where the answer will go",
+   "notes": [
+    "nǐ yào **shénme**? -> wǒ yào **huò**. Same order, just swap the word.",
+    "Do not add ma when you already have a question word.",
+    "Where something is: Thing + **zài** + Place. Not: **bú zài**.",
+    "**shéi de** = whose: zhège shì shéi de? = whose is this?",
+    "**shénme** + thing = what kind of: shénme huò = what goods."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "huò",
+     "meaning": "the goods"
+    },
+    {
+     "pinyin": "huò zài gōngchǎng",
+     "meaning": "The goods are at the factory"
+    },
+    {
+     "pinyin": "huò bú zài gōngchǎng",
+     "meaning": "The goods are not at the factory"
+    },
+    {
+     "pinyin": "huò zài nǎr?",
+     "meaning": "Where are the goods?"
+    },
+    {
+     "pinyin": "nǐ yào huò",
+     "meaning": "You want goods (statement)"
+    },
+    {
+     "pinyin": "nǐ yào shénme?",
+     "meaning": "What do you want? (swap huò for shénme)"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Who / What",
+     "options": [
+      "wǒ",
+      "tā",
+      "lǎobǎn",
+      "huò",
+      "nǐ de gōngsī"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bú"
+     ]
+    },
+    {
+     "column": "at",
+     "options": [
+      "zài"
+     ]
+    },
+    {
+     "column": "Place",
+     "options": [
+      "zhèlǐ",
+      "nàlǐ",
+      "gōngsī",
+      "gōngchǎng",
+      "nǎr?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "nǐ yào shénme?",
+     "chinese": "你要什么?",
+     "meaning": "What do you want?"
+    },
+    {
+     "pinyin": "tā shì shéi?",
+     "chinese": "他是谁?",
+     "meaning": "Who is he?"
+    },
+    {
+     "pinyin": "nǐ zài nǎr?",
+     "chinese": "你在哪儿?",
+     "meaning": "Where are you?"
+    },
+    {
+     "pinyin": "wǒ zài gōngchǎng",
+     "chinese": "我在工厂",
+     "meaning": "I am at the factory"
+    },
+    {
+     "pinyin": "huò zài zhèlǐ",
+     "chinese": "货在这里",
+     "meaning": "The goods are here"
+    },
+    {
+     "pinyin": "zhège shì shénme?",
+     "chinese": "这个是什么?",
+     "meaning": "What is this?"
+    },
+    {
+     "pinyin": "nǐ yǒu shénme huò?",
+     "chinese": "你有什么货?",
+     "meaning": "What goods do you have?"
+    },
+    {
+     "pinyin": "nàge shì shénme?",
+     "chinese": "那个是什么?",
+     "meaning": "What is that?"
+    },
+    {
+     "pinyin": "shéi yǒu huò?",
+     "chinese": "谁有货?",
+     "meaning": "Who has stock?"
+    },
+    {
+     "pinyin": "zhège shì shéi de?",
+     "chinese": "这个是谁的?",
+     "meaning": "Whose is this?"
+    },
+    {
+     "pinyin": "lǎobǎn zài nǎr?",
+     "chinese": "老板在哪儿?",
+     "meaning": "Where is the boss?"
+    },
+    {
+     "pinyin": "lǎobǎn zài gōngsī",
+     "chinese": "老板在公司",
+     "meaning": "The boss is at the company"
+    },
+    {
+     "pinyin": "gōngchǎng zài nǎr?",
+     "chinese": "工厂在哪儿?",
+     "meaning": "Where is the factory?"
+    },
+    {
+     "pinyin": "wǒ de huò zài nǎr?",
+     "chinese": "我的货在哪儿?",
+     "meaning": "Where are my goods?"
+    },
+    {
+     "pinyin": "tā bú zài zhèlǐ",
+     "chinese": "他不在这里",
+     "meaning": "He is not here"
+    },
+    {
+     "pinyin": "nǐ zài gōngsī ma?",
+     "chinese": "你在公司吗?",
+     "meaning": "Are you at the company?"
+    },
+    {
+     "pinyin": "tāmen zài nàlǐ",
+     "chinese": "他们在那里",
+     "meaning": "They are there"
+    },
+    {
+     "pinyin": "zhège shì shéi de gōngchǎng?",
+     "chinese": "这个是谁的工厂?",
+     "meaning": "Whose factory is this?"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "nǐ yào shénme?",
+      "chinese": "你要什么?",
+      "answer": "What do you want?"
+     },
+     {
+      "prompt": "nǐ zài nǎr?",
+      "chinese": "你在哪儿?",
+      "answer": "Where are you?"
+     },
+     {
+      "prompt": "huò zài zhèlǐ",
+      "chinese": "货在这里",
+      "answer": "The goods are here"
+     },
+     {
+      "prompt": "nǐ yǒu shénme huò?",
+      "chinese": "你有什么货?",
+      "answer": "What goods do you have?"
+     },
+     {
+      "prompt": "shéi yǒu huò?",
+      "chinese": "谁有货?",
+      "answer": "Who has stock?"
+     },
+     {
+      "prompt": "lǎobǎn zài nǎr?",
+      "chinese": "老板在哪儿?",
+      "answer": "Where is the boss?"
+     },
+     {
+      "prompt": "gōngchǎng zài nǎr?",
+      "chinese": "工厂在哪儿?",
+      "answer": "Where is the factory?"
+     },
+     {
+      "prompt": "tā bú zài zhèlǐ",
+      "chinese": "他不在这里",
+      "answer": "He is not here"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "tā shì ______?",
+      "hint": "Who is he?",
+      "answer": "shéi"
+     },
+     {
+      "prompt": "wǒ zài ______",
+      "hint": "I am at the factory",
+      "answer": "gōngchǎng"
+     },
+     {
+      "prompt": "zhège shì ______?",
+      "hint": "What is this?",
+      "answer": "shénme"
+     },
+     {
+      "prompt": "nàge shì ______?",
+      "hint": "What is that?",
+      "answer": "shénme"
+     },
+     {
+      "prompt": "zhège shì ______ de?",
+      "hint": "Whose is this?",
+      "answer": "shéi"
+     },
+     {
+      "prompt": "lǎobǎn zài ______",
+      "hint": "The boss is at the company",
+      "answer": "gōngsī"
+     },
+     {
+      "prompt": "wǒ de huò zài ______?",
+      "hint": "Where are my goods?",
+      "answer": "nǎr"
+     },
+     {
+      "prompt": "nǐ zài ______ ma?",
+      "hint": "Are you at the company?",
+      "answer": "gōngsī"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "zhège",
+       "shéi",
+       "de",
+       "gōngchǎng",
+       "shì"
+      ],
+      "hint": "Whose factory is this?",
+      "answer": "zhège shì shéi de gōngchǎng?"
+     },
+     {
+      "words": [
+       "zài",
+       "ma",
+       "gōngsī",
+       "nǐ"
+      ],
+      "hint": "Are you at the company?",
+      "answer": "nǐ zài gōngsī ma?"
+     },
+     {
+      "words": [
+       "zài",
+       "tā",
+       "bú",
+       "zhèlǐ"
+      ],
+      "hint": "He is not here",
+      "answer": "tā bú zài zhèlǐ"
+     },
+     {
+      "words": [
+       "wǒ",
+       "nǎr",
+       "huò",
+       "zài",
+       "de"
+      ],
+      "hint": "Where are my goods?",
+      "answer": "wǒ de huò zài nǎr?"
+     },
+     {
+      "words": [
+       "shì",
+       "zhège",
+       "shéi",
+       "de"
+      ],
+      "hint": "Whose is this?",
+      "answer": "zhège shì shéi de?"
+     },
+     {
+      "words": [
+       "huò",
+       "nǐ",
+       "shénme",
+       "yǒu"
+      ],
+      "hint": "What goods do you have?",
+      "answer": "nǐ yǒu shénme huò?"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "What do you have?",
+      "answer": "nǐ yǒu shénme?"
+     },
+     {
+      "prompt": "Who is the boss?",
+      "answer": "shéi shì lǎobǎn?"
+     },
+     {
+      "prompt": "Where is your company?",
+      "answer": "nǐ de gōngsī zài nǎr?"
+     },
+     {
+      "prompt": "The money is there.",
+      "answer": "qián zài nàlǐ"
+     },
+     {
+      "prompt": "He is not at the factory.",
+      "answer": "tā bú zài gōngchǎng"
+     },
+     {
+      "prompt": "What is that?",
+      "answer": "nàge shì shénme?"
+     },
+     {
+      "prompt": "Who wants this?",
+      "answer": "shéi yào zhège?"
+     },
+     {
+      "prompt": "Where is the boss?",
+      "answer": "lǎobǎn zài nǎr?"
+     },
+     {
+      "prompt": "My friend is here.",
+      "answer": "wǒ de péngyou zài zhèlǐ"
+     },
+     {
+      "prompt": "Whose money is this?",
+      "answer": "zhège shì shéi de qián?"
+     }
+    ]
+   }
+  },
+  {
+   "number": 4,
+   "title": "Numbers and prices",
+   "subtitle": "Count, ask how much, ask how many.",
+   "words": [
+    {
+     "pinyin": "yī, èr, sān",
+     "chinese": "一 二 三",
+     "meaning": "1, 2, 3"
+    },
+    {
+     "pinyin": "sì, wǔ, liù",
+     "chinese": "四 五 六",
+     "meaning": "4, 5, 6"
+    },
+    {
+     "pinyin": "qī, bā, jiǔ, shí",
+     "chinese": "七 八 九 十",
+     "meaning": "7, 8, 9, 10"
+    },
+    {
+     "pinyin": "bǎi",
+     "chinese": "百",
+     "meaning": "hundred"
+    },
+    {
+     "pinyin": "qiān",
+     "chinese": "千",
+     "meaning": "thousand"
+    },
+    {
+     "pinyin": "wàn",
+     "chinese": "万",
+     "meaning": "ten thousand"
+    },
+    {
+     "pinyin": "ge",
+     "chinese": "个",
+     "meaning": "counting word (pieces)"
+    },
+    {
+     "pinyin": "liǎng",
+     "chinese": "两",
+     "meaning": "two (when counting things)"
+    },
+    {
+     "pinyin": "duōshao",
+     "chinese": "多少",
+     "meaning": "how much, how many"
+    },
+    {
+     "pinyin": "jǐ",
+     "chinese": "几",
+     "meaning": "how many (small number)"
+    },
+    {
+     "pinyin": "kuài",
+     "chinese": "块",
+     "meaning": "yuan (spoken)"
+    }
+   ],
+   "extraWords": [
+    {
+     "pinyin": "shíyī",
+     "chinese": "十一",
+     "meaning": "11"
+    },
+    {
+     "pinyin": "shí'èr",
+     "chinese": "十二",
+     "meaning": "12"
+    },
+    {
+     "pinyin": "èrshí",
+     "chinese": "二十",
+     "meaning": "20"
+    },
+    {
+     "pinyin": "èrshíwǔ",
+     "chinese": "二十五",
+     "meaning": "25"
+    },
+    {
+     "pinyin": "jiǔshíjiǔ",
+     "chinese": "九十九",
+     "meaning": "99"
+    },
+    {
+     "pinyin": "yìbǎi",
+     "chinese": "一百",
+     "meaning": "100"
+    },
+    {
+     "pinyin": "liǎngbǎi",
+     "chinese": "两百",
+     "meaning": "200"
+    },
+    {
+     "pinyin": "yìqiān",
+     "chinese": "一千",
+     "meaning": "1,000"
+    },
+    {
+     "pinyin": "sānqiān",
+     "chinese": "三千",
+     "meaning": "3,000"
+    },
+    {
+     "pinyin": "yí wàn",
+     "chinese": "一万",
+     "meaning": "10,000"
+    },
+    {
+     "pinyin": "wǔ wàn",
+     "chinese": "五万",
+     "meaning": "50,000"
+    },
+    {
+     "pinyin": "shí wàn",
+     "chinese": "十万",
+     "meaning": "100,000"
+    }
+   ],
+   "pattern": "Number + ge + Thing",
+   "notes": [
+    "Big numbers stack up: shíyī = 11, èrshí = 20, wǔshí = 50, sānbǎi = 300, liǎngqiān = 2,000.",
+    "Chinese counts in ten-thousands: 50,000 = wǔ wàn.",
+    "Use **liǎng** ge for two of something, not èr ge.",
+    "yī changes its tone before other words: **yí** ge, **yí** wàn, but **yì**bǎi, **yì**qiān. Copy the audio.",
+    "Prices: Thing + Number + kuài. No shì needed: zhège shí kuài = this is 10 yuan."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ yào",
+     "meaning": "I want"
+    },
+    {
+     "pinyin": "wǒ yào wǔ ge",
+     "meaning": "I want five"
+    },
+    {
+     "pinyin": "wǒ yào wǔshí ge",
+     "meaning": "I want fifty"
+    },
+    {
+     "pinyin": "wǒ yào wǔbǎi ge",
+     "meaning": "I want five hundred"
+    },
+    {
+     "pinyin": "nǐ yào duōshao?",
+     "meaning": "How many do you want?"
+    },
+    {
+     "pinyin": "yí ge duōshao qián?",
+     "meaning": "How much for one?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "wǒmen"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "yào",
+      "yǒu"
+     ]
+    },
+    {
+     "column": "Number",
+     "options": [
+      "yí",
+      "liǎng",
+      "sān",
+      "shí",
+      "wǔbǎi",
+      "jǐ?"
+     ]
+    },
+    {
+     "column": "ge",
+     "options": [
+      "ge"
+     ]
+    },
+    {
+     "column": "Thing (optional)",
+     "options": [
+      "rén",
+      "péngyou",
+      "gōngchǎng",
+      "gōngsī"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ yào sān ge",
+     "chinese": "我要三个",
+     "meaning": "I want three"
+    },
+    {
+     "pinyin": "wǒ yào liǎng ge",
+     "chinese": "我要两个",
+     "meaning": "I want two"
+    },
+    {
+     "pinyin": "zhège duōshao qián?",
+     "chinese": "这个多少钱?",
+     "meaning": "How much is this?"
+    },
+    {
+     "pinyin": "wǔshí kuài",
+     "chinese": "五十块",
+     "meaning": "50 yuan"
+    },
+    {
+     "pinyin": "nǐ yào jǐ ge?",
+     "chinese": "你要几个?",
+     "meaning": "How many do you want?"
+    },
+    {
+     "pinyin": "nǐ yǒu duōshao huò?",
+     "chinese": "你有多少货?",
+     "meaning": "How much stock do you have?"
+    },
+    {
+     "pinyin": "yí ge duōshao qián?",
+     "chinese": "一个多少钱?",
+     "meaning": "How much for one?"
+    },
+    {
+     "pinyin": "yí ge shí kuài",
+     "chinese": "一个十块",
+     "meaning": "10 yuan each"
+    },
+    {
+     "pinyin": "nàge èrshíwǔ kuài",
+     "chinese": "那个二十五块",
+     "meaning": "That one is 25 yuan"
+    },
+    {
+     "pinyin": "wǒ yào yìbǎi ge",
+     "chinese": "我要一百个",
+     "meaning": "I want 100"
+    },
+    {
+     "pinyin": "tā yào liǎngqiān ge",
+     "chinese": "他要两千个",
+     "meaning": "He wants 2,000"
+    },
+    {
+     "pinyin": "nǐ yǒu jǐ ge gōngchǎng?",
+     "chinese": "你有几个工厂?",
+     "meaning": "How many factories do you have?"
+    },
+    {
+     "pinyin": "wǒ yǒu liǎng ge gōngchǎng",
+     "chinese": "我有两个工厂",
+     "meaning": "I have two factories"
+    },
+    {
+     "pinyin": "gōngchǎng yǒu duōshao rén?",
+     "chinese": "工厂有多少人?",
+     "meaning": "How many people does the factory have?"
+    },
+    {
+     "pinyin": "gōngchǎng yǒu sānbǎi ge rén",
+     "chinese": "工厂有三百个人",
+     "meaning": "The factory has 300 people"
+    },
+    {
+     "pinyin": "wǒ méi yǒu yí wàn kuài",
+     "chinese": "我没有一万块",
+     "meaning": "I don't have 10,000 yuan"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ yào sān ge",
+      "chinese": "我要三个",
+      "answer": "I want three"
+     },
+     {
+      "prompt": "zhège duōshao qián?",
+      "chinese": "这个多少钱?",
+      "answer": "How much is this?"
+     },
+     {
+      "prompt": "nǐ yào jǐ ge?",
+      "chinese": "你要几个?",
+      "answer": "How many do you want?"
+     },
+     {
+      "prompt": "yí ge duōshao qián?",
+      "chinese": "一个多少钱?",
+      "answer": "How much for one?"
+     },
+     {
+      "prompt": "nàge èrshíwǔ kuài",
+      "chinese": "那个二十五块",
+      "answer": "That one is 25 yuan"
+     },
+     {
+      "prompt": "tā yào liǎngqiān ge",
+      "chinese": "他要两千个",
+      "answer": "He wants 2,000"
+     },
+     {
+      "prompt": "wǒ yǒu liǎng ge gōngchǎng",
+      "chinese": "我有两个工厂",
+      "answer": "I have two factories"
+     },
+     {
+      "prompt": "gōngchǎng yǒu sānbǎi ge rén",
+      "chinese": "工厂有三百个人",
+      "answer": "The factory has 300 people"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "wǒ yào liǎng ______",
+      "hint": "I want two",
+      "answer": "ge"
+     },
+     {
+      "prompt": "wǔshí ______",
+      "hint": "50 yuan",
+      "answer": "kuài"
+     },
+     {
+      "prompt": "nǐ yǒu ______ huò?",
+      "hint": "How much stock do you have?",
+      "answer": "duōshao"
+     },
+     {
+      "prompt": "yí ge ______ kuài",
+      "hint": "10 yuan each",
+      "answer": "shí"
+     },
+     {
+      "prompt": "wǒ yào yìbǎi ______",
+      "hint": "I want 100",
+      "answer": "ge"
+     },
+     {
+      "prompt": "nǐ yǒu jǐ ______ gōngchǎng?",
+      "hint": "How many factories do you have?",
+      "answer": "ge"
+     },
+     {
+      "prompt": "gōngchǎng yǒu ______ rén?",
+      "hint": "How many people does the factory have?",
+      "answer": "duōshao"
+     },
+     {
+      "prompt": "wǒ méi yǒu yí wàn ______",
+      "hint": "I don't have 10,000 yuan",
+      "answer": "kuài"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "yí",
+       "kuài",
+       "wàn",
+       "wǒ",
+       "yǒu",
+       "méi"
+      ],
+      "hint": "I don't have 10,000 yuan",
+      "answer": "wǒ méi yǒu yí wàn kuài"
+     },
+     {
+      "words": [
+       "rén",
+       "sānbǎi",
+       "gōngchǎng",
+       "yǒu",
+       "ge"
+      ],
+      "hint": "The factory has 300 people",
+      "answer": "gōngchǎng yǒu sānbǎi ge rén"
+     },
+     {
+      "words": [
+       "rén",
+       "duōshao",
+       "yǒu",
+       "gōngchǎng"
+      ],
+      "hint": "How many people does the factory have?",
+      "answer": "gōngchǎng yǒu duōshao rén?"
+     },
+     {
+      "words": [
+       "gōngchǎng",
+       "ge",
+       "liǎng",
+       "yǒu",
+       "wǒ"
+      ],
+      "hint": "I have two factories",
+      "answer": "wǒ yǒu liǎng ge gōngchǎng"
+     },
+     {
+      "words": [
+       "gōngchǎng",
+       "ge",
+       "nǐ",
+       "yǒu",
+       "jǐ"
+      ],
+      "hint": "How many factories do you have?",
+      "answer": "nǐ yǒu jǐ ge gōngchǎng?"
+     },
+     {
+      "words": [
+       "liǎngqiān",
+       "ge",
+       "tā",
+       "yào"
+      ],
+      "hint": "He wants 2,000",
+      "answer": "tā yào liǎngqiān ge"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I want five.",
+      "answer": "wǒ yào wǔ ge"
+     },
+     {
+      "prompt": "How much is that?",
+      "answer": "nàge duōshao qián?"
+     },
+     {
+      "prompt": "Eighty yuan.",
+      "answer": "bāshí kuài"
+     },
+     {
+      "prompt": "He wants ten.",
+      "answer": "tā yào shí ge"
+     },
+     {
+      "prompt": "Three hundred.",
+      "answer": "sānbǎi"
+     },
+     {
+      "prompt": "How much for one?",
+      "answer": "yí ge duōshao qián?"
+     },
+     {
+      "prompt": "I want two hundred.",
+      "answer": "wǒ yào liǎngbǎi ge"
+     },
+     {
+      "prompt": "Twenty-five yuan.",
+      "answer": "èrshíwǔ kuài"
+     },
+     {
+      "prompt": "How many people do you have?",
+      "answer": "nǐmen yǒu duōshao rén?"
+     },
+     {
+      "prompt": "I have three friends.",
+      "answer": "wǒ yǒu sān ge péngyou"
+     }
+    ]
+   }
+  },
+  {
+   "number": 5,
+   "title": "Buy, sell, pay, send",
+   "subtitle": "The action words of trading.",
+   "words": [
+    {
+     "pinyin": "mǎi",
+     "chinese": "买",
+     "meaning": "buy"
+    },
+    {
+     "pinyin": "mài",
+     "chinese": "卖",
+     "meaning": "sell"
+    },
+    {
+     "pinyin": "gěi",
+     "chinese": "给",
+     "meaning": "give"
+    },
+    {
+     "pinyin": "kàn",
+     "chinese": "看",
+     "meaning": "look, see"
+    },
+    {
+     "pinyin": "fù",
+     "chinese": "付",
+     "meaning": "pay"
+    },
+    {
+     "pinyin": "fā",
+     "chinese": "发",
+     "meaning": "send, ship"
+    },
+    {
+     "pinyin": "děng",
+     "chinese": "等",
+     "meaning": "wait"
+    },
+    {
+     "pinyin": "xiǎng",
+     "chinese": "想",
+     "meaning": "would like to"
+    },
+    {
+     "pinyin": "jiàgé",
+     "chinese": "价格",
+     "meaning": "price"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + (xiǎng) + Action + Thing",
+   "notes": [
+    "**xiǎng** goes before another action: wǒ xiǎng mǎi = I would like to buy.",
+    "Giving: Person + **gěi** + Receiver + Thing.",
+    "mǎi (buy) dips low then rises; mài (sell) falls sharply. Listen to both.",
+    "Not doing something: **bù** + action (bù mǎi, bú mài, bú fù).",
+    "fù goes with qián (pay money); fā goes with huò (send goods)."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ mǎi",
+     "meaning": "I buy"
+    },
+    {
+     "pinyin": "wǒ mǎi zhège",
+     "meaning": "I buy this"
+    },
+    {
+     "pinyin": "wǒ xiǎng mǎi zhège",
+     "meaning": "I'd like to buy this"
+    },
+    {
+     "pinyin": "wǒ xiǎng mǎi wǔbǎi ge",
+     "meaning": "I'd like to buy 500"
+    },
+    {
+     "pinyin": "wǒ bù xiǎng mǎi",
+     "meaning": "I don't want to buy"
+    },
+    {
+     "pinyin": "nǐ xiǎng mǎi shénme?",
+     "meaning": "What would you like to buy?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "wǒmen"
+     ]
+    },
+    {
+     "column": "Would like",
+     "options": [
+      "(nothing)",
+      "xiǎng",
+      "bù xiǎng"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "mǎi",
+      "mài",
+      "kàn",
+      "fù",
+      "fā",
+      "děng"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "zhège",
+      "huò",
+      "qián",
+      "jiàgé",
+      "shénme?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ xiǎng mǎi zhège",
+     "chinese": "我想买这个",
+     "meaning": "I'd like to buy this"
+    },
+    {
+     "pinyin": "nǐ mài shénme?",
+     "chinese": "你卖什么?",
+     "meaning": "What do you sell?"
+    },
+    {
+     "pinyin": "wǒ xiǎng kàn huò",
+     "chinese": "我想看货",
+     "meaning": "I'd like to see the goods"
+    },
+    {
+     "pinyin": "nǐ gěi wǒ jiàgé",
+     "chinese": "你给我价格",
+     "meaning": "Give me the price"
+    },
+    {
+     "pinyin": "wǒ fù qián, nǐ fā huò",
+     "chinese": "我付钱，你发货",
+     "meaning": "I pay, you ship"
+    },
+    {
+     "pinyin": "wǒ děng nǐ",
+     "chinese": "我等你",
+     "meaning": "I'll wait for you"
+    },
+    {
+     "pinyin": "nǐ xiǎng mǎi shénme?",
+     "chinese": "你想买什么?",
+     "meaning": "What would you like to buy?"
+    },
+    {
+     "pinyin": "wǒ xiǎng mǎi yìqiān ge",
+     "chinese": "我想买一千个",
+     "meaning": "I'd like to buy 1,000"
+    },
+    {
+     "pinyin": "nǐ mài zhège ma?",
+     "chinese": "你卖这个吗?",
+     "meaning": "Do you sell this?"
+    },
+    {
+     "pinyin": "wǒmen bú mài",
+     "chinese": "我们不卖",
+     "meaning": "We don't sell it"
+    },
+    {
+     "pinyin": "shéi mài zhège?",
+     "chinese": "谁卖这个?",
+     "meaning": "Who sells this?"
+    },
+    {
+     "pinyin": "nǐ gěi wǒ kàn",
+     "chinese": "你给我看",
+     "meaning": "Show me"
+    },
+    {
+     "pinyin": "wǒ gěi nǐ qián",
+     "chinese": "我给你钱",
+     "meaning": "I give you money"
+    },
+    {
+     "pinyin": "tā bú fù qián",
+     "chinese": "他不付钱",
+     "meaning": "He doesn't pay"
+    },
+    {
+     "pinyin": "nǐ fā huò ma?",
+     "chinese": "你发货吗?",
+     "meaning": "Will you ship?"
+    },
+    {
+     "pinyin": "wǒ xiǎng kàn gōngchǎng",
+     "chinese": "我想看工厂",
+     "meaning": "I'd like to see the factory"
+    },
+    {
+     "pinyin": "nǐ děng wǒ",
+     "chinese": "你等我",
+     "meaning": "Wait for me"
+    },
+    {
+     "pinyin": "jiàgé duōshao?",
+     "chinese": "价格多少?",
+     "meaning": "What is the price?"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ xiǎng mǎi zhège",
+      "chinese": "我想买这个",
+      "answer": "I'd like to buy this"
+     },
+     {
+      "prompt": "wǒ xiǎng kàn huò",
+      "chinese": "我想看货",
+      "answer": "I'd like to see the goods"
+     },
+     {
+      "prompt": "wǒ fù qián, nǐ fā huò",
+      "chinese": "我付钱，你发货",
+      "answer": "I pay, you ship"
+     },
+     {
+      "prompt": "nǐ xiǎng mǎi shénme?",
+      "chinese": "你想买什么?",
+      "answer": "What would you like to buy?"
+     },
+     {
+      "prompt": "nǐ mài zhège ma?",
+      "chinese": "你卖这个吗?",
+      "answer": "Do you sell this?"
+     },
+     {
+      "prompt": "shéi mài zhège?",
+      "chinese": "谁卖这个?",
+      "answer": "Who sells this?"
+     },
+     {
+      "prompt": "wǒ gěi nǐ qián",
+      "chinese": "我给你钱",
+      "answer": "I give you money"
+     },
+     {
+      "prompt": "nǐ fā huò ma?",
+      "chinese": "你发货吗?",
+      "answer": "Will you ship?"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ ______ shénme?",
+      "hint": "What do you sell?",
+      "answer": "mài"
+     },
+     {
+      "prompt": "nǐ gěi wǒ ______",
+      "hint": "Give me the price",
+      "answer": "jiàgé"
+     },
+     {
+      "prompt": "wǒ ______ nǐ",
+      "hint": "I'll wait for you",
+      "answer": "děng"
+     },
+     {
+      "prompt": "wǒ xiǎng ______ yìqiān ge",
+      "hint": "I'd like to buy 1,000",
+      "answer": "mǎi"
+     },
+     {
+      "prompt": "wǒmen bú ______",
+      "hint": "We don't sell it",
+      "answer": "mài"
+     },
+     {
+      "prompt": "nǐ gěi wǒ ______",
+      "hint": "Show me",
+      "answer": "kàn"
+     },
+     {
+      "prompt": "tā bú ______ qián",
+      "hint": "He doesn't pay",
+      "answer": "fù"
+     },
+     {
+      "prompt": "wǒ xiǎng ______ gōngchǎng",
+      "hint": "I'd like to see the factory",
+      "answer": "kàn"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "wǒ",
+       "xiǎng",
+       "gōngchǎng",
+       "kàn"
+      ],
+      "hint": "I'd like to see the factory",
+      "answer": "wǒ xiǎng kàn gōngchǎng"
+     },
+     {
+      "words": [
+       "huò",
+       "ma",
+       "fā",
+       "nǐ"
+      ],
+      "hint": "Will you ship?",
+      "answer": "nǐ fā huò ma?"
+     },
+     {
+      "words": [
+       "bú",
+       "fù",
+       "qián",
+       "tā"
+      ],
+      "hint": "He doesn't pay",
+      "answer": "tā bú fù qián"
+     },
+     {
+      "words": [
+       "qián",
+       "wǒ",
+       "gěi",
+       "nǐ"
+      ],
+      "hint": "I give you money",
+      "answer": "wǒ gěi nǐ qián"
+     },
+     {
+      "words": [
+       "gěi",
+       "nǐ",
+       "wǒ",
+       "kàn"
+      ],
+      "hint": "Show me",
+      "answer": "nǐ gěi wǒ kàn"
+     },
+     {
+      "words": [
+       "ma",
+       "zhège",
+       "nǐ",
+       "mài"
+      ],
+      "hint": "Do you sell this?",
+      "answer": "nǐ mài zhège ma?"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I'd like to buy ten.",
+      "answer": "wǒ xiǎng mǎi shí ge"
+     },
+     {
+      "prompt": "He sells goods.",
+      "answer": "tā mài huò"
+     },
+     {
+      "prompt": "Would you like to look at this?",
+      "answer": "nǐ xiǎng kàn zhège ma?"
+     },
+     {
+      "prompt": "I give you money.",
+      "answer": "wǒ gěi nǐ qián"
+     },
+     {
+      "prompt": "They don't sell that.",
+      "answer": "tāmen bú mài nàge"
+     },
+     {
+      "prompt": "Who buys this?",
+      "answer": "shéi mǎi zhège?"
+     },
+     {
+      "prompt": "I'd like to see the price.",
+      "answer": "wǒ xiǎng kàn jiàgé"
+     },
+     {
+      "prompt": "He doesn't want to wait.",
+      "answer": "tā bù xiǎng děng"
+     },
+     {
+      "prompt": "You pay, I ship.",
+      "answer": "nǐ fù qián, wǒ fā huò"
+     },
+     {
+      "prompt": "Give me five.",
+      "answer": "nǐ gěi wǒ wǔ ge"
+     }
+    ]
+   }
+  },
+  {
+   "number": 6,
+   "title": "Good, expensive, cheap",
+   "subtitle": "Describe things and react to a price.",
+   "words": [
+    {
+     "pinyin": "hǎo",
+     "chinese": "好",
+     "meaning": "good"
+    },
+    {
+     "pinyin": "guì",
+     "chinese": "贵",
+     "meaning": "expensive"
+    },
+    {
+     "pinyin": "piányi",
+     "chinese": "便宜",
+     "meaning": "cheap"
+    },
+    {
+     "pinyin": "dà",
+     "chinese": "大",
+     "meaning": "big"
+    },
+    {
+     "pinyin": "xiǎo",
+     "chinese": "小",
+     "meaning": "small"
+    },
+    {
+     "pinyin": "duō",
+     "chinese": "多",
+     "meaning": "many, much"
+    },
+    {
+     "pinyin": "shǎo",
+     "chinese": "少",
+     "meaning": "few, little"
+    },
+    {
+     "pinyin": "hěn",
+     "chinese": "很",
+     "meaning": "very"
+    },
+    {
+     "pinyin": "tài",
+     "chinese": "太",
+     "meaning": "too"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Thing + hěn + Describing word (no shì)",
+   "notes": [
+    "Say zhège **hěn** guì. Do not say zhège shì guì.",
+    "Not: **bù** + describing word (bú guì, bù hǎo).",
+    "Too much: **tài** ... **le**.",
+    "Describing word + **de** = the ... one: dà de = the big one, piányi de = the cheap one.",
+    "In a ma question drop hěn: zhège guì ma?"
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "jiàgé",
+     "meaning": "the price"
+    },
+    {
+     "pinyin": "jiàgé hěn guì",
+     "meaning": "The price is expensive"
+    },
+    {
+     "pinyin": "jiàgé bú guì",
+     "meaning": "The price is not expensive"
+    },
+    {
+     "pinyin": "jiàgé tài guì le",
+     "meaning": "The price is too expensive"
+    },
+    {
+     "pinyin": "jiàgé guì ma?",
+     "meaning": "Is the price expensive?"
+    },
+    {
+     "pinyin": "nǐ de jiàgé tài guì le",
+     "meaning": "Your price is too expensive"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Thing",
+     "options": [
+      "zhège",
+      "nàge",
+      "jiàgé",
+      "huò",
+      "gōngchǎng",
+      "nǐ de gōngsī"
+     ]
+    },
+    {
+     "column": "Degree",
+     "options": [
+      "hěn",
+      "bù",
+      "tài"
+     ]
+    },
+    {
+     "column": "Describing word",
+     "options": [
+      "hǎo",
+      "guì",
+      "piányi",
+      "dà",
+      "xiǎo",
+      "duō",
+      "shǎo"
+     ]
+    },
+    {
+     "column": "End",
+     "options": [
+      "(nothing)",
+      "le (with tài)",
+      "ma? (no hěn)"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "zhège hěn guì",
+     "chinese": "这个很贵",
+     "meaning": "This is expensive"
+    },
+    {
+     "pinyin": "nàge hěn piányi",
+     "chinese": "那个很便宜",
+     "meaning": "That is cheap"
+    },
+    {
+     "pinyin": "jiàgé hěn hǎo",
+     "chinese": "价格很好",
+     "meaning": "The price is good"
+    },
+    {
+     "pinyin": "tài guì le",
+     "chinese": "太贵了",
+     "meaning": "Too expensive"
+    },
+    {
+     "pinyin": "huò bù duō",
+     "chinese": "货不多",
+     "meaning": "There is not much stock"
+    },
+    {
+     "pinyin": "zhège hǎo ma?",
+     "chinese": "这个好吗?",
+     "meaning": "Is this one good?"
+    },
+    {
+     "pinyin": "nǐ de jiàgé tài guì le",
+     "chinese": "你的价格太贵了",
+     "meaning": "Your price is too expensive"
+    },
+    {
+     "pinyin": "zhège bù hǎo",
+     "chinese": "这个不好",
+     "meaning": "This is not good"
+    },
+    {
+     "pinyin": "tā de huò hěn hǎo",
+     "chinese": "他的货很好",
+     "meaning": "His goods are good"
+    },
+    {
+     "pinyin": "gōngchǎng hěn dà",
+     "chinese": "工厂很大",
+     "meaning": "The factory is big"
+    },
+    {
+     "pinyin": "wǒ de gōngsī hěn xiǎo",
+     "chinese": "我的公司很小",
+     "meaning": "My company is small"
+    },
+    {
+     "pinyin": "tài shǎo le",
+     "chinese": "太少了",
+     "meaning": "Too few"
+    },
+    {
+     "pinyin": "tài duō le",
+     "chinese": "太多了",
+     "meaning": "Too many"
+    },
+    {
+     "pinyin": "rén hěn duō",
+     "chinese": "人很多",
+     "meaning": "There are many people"
+    },
+    {
+     "pinyin": "zhège guì ma?",
+     "chinese": "这个贵吗?",
+     "meaning": "Is this expensive?"
+    },
+    {
+     "pinyin": "hěn hǎo",
+     "chinese": "很好",
+     "meaning": "Very good"
+    },
+    {
+     "pinyin": "wǒ yào dà de",
+     "chinese": "我要大的",
+     "meaning": "I want the big one"
+    },
+    {
+     "pinyin": "wǒ yào piányi de",
+     "chinese": "我要便宜的",
+     "meaning": "I want the cheap one"
+    },
+    {
+     "pinyin": "nǐ yǒu xiǎo de ma?",
+     "chinese": "你有小的吗?",
+     "meaning": "Do you have a small one?"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "zhège hěn guì",
+      "chinese": "这个很贵",
+      "answer": "This is expensive"
+     },
+     {
+      "prompt": "jiàgé hěn hǎo",
+      "chinese": "价格很好",
+      "answer": "The price is good"
+     },
+     {
+      "prompt": "huò bù duō",
+      "chinese": "货不多",
+      "answer": "There is not much stock"
+     },
+     {
+      "prompt": "nǐ de jiàgé tài guì le",
+      "chinese": "你的价格太贵了",
+      "answer": "Your price is too expensive"
+     },
+     {
+      "prompt": "tā de huò hěn hǎo",
+      "chinese": "他的货很好",
+      "answer": "His goods are good"
+     },
+     {
+      "prompt": "wǒ de gōngsī hěn xiǎo",
+      "chinese": "我的公司很小",
+      "answer": "My company is small"
+     },
+     {
+      "prompt": "tài duō le",
+      "chinese": "太多了",
+      "answer": "Too many"
+     },
+     {
+      "prompt": "zhège guì ma?",
+      "chinese": "这个贵吗?",
+      "answer": "Is this expensive?"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nàge hěn ______",
+      "hint": "That is cheap",
+      "answer": "piányi"
+     },
+     {
+      "prompt": "tài ______ le",
+      "hint": "Too expensive",
+      "answer": "guì"
+     },
+     {
+      "prompt": "zhège ______ ma?",
+      "hint": "Is this one good?",
+      "answer": "hǎo"
+     },
+     {
+      "prompt": "zhège bù ______",
+      "hint": "This is not good",
+      "answer": "hǎo"
+     },
+     {
+      "prompt": "gōngchǎng hěn ______",
+      "hint": "The factory is big",
+      "answer": "dà"
+     },
+     {
+      "prompt": "tài ______ le",
+      "hint": "Too few",
+      "answer": "shǎo"
+     },
+     {
+      "prompt": "rén hěn ______",
+      "hint": "There are many people",
+      "answer": "duō"
+     },
+     {
+      "prompt": "hěn ______",
+      "hint": "Very good",
+      "answer": "hǎo"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "de",
+       "xiǎo",
+       "yǒu",
+       "nǐ",
+       "ma"
+      ],
+      "hint": "Do you have a small one?",
+      "answer": "nǐ yǒu xiǎo de ma?"
+     },
+     {
+      "words": [
+       "yào",
+       "piányi",
+       "de",
+       "wǒ"
+      ],
+      "hint": "I want the cheap one",
+      "answer": "wǒ yào piányi de"
+     },
+     {
+      "words": [
+       "de",
+       "yào",
+       "wǒ",
+       "dà"
+      ],
+      "hint": "I want the big one",
+      "answer": "wǒ yào dà de"
+     },
+     {
+      "words": [
+       "wǒ",
+       "xiǎo",
+       "gōngsī",
+       "de",
+       "hěn"
+      ],
+      "hint": "My company is small",
+      "answer": "wǒ de gōngsī hěn xiǎo"
+     },
+     {
+      "words": [
+       "huò",
+       "de",
+       "hěn",
+       "tā",
+       "hǎo"
+      ],
+      "hint": "His goods are good",
+      "answer": "tā de huò hěn hǎo"
+     },
+     {
+      "words": [
+       "tài",
+       "jiàgé",
+       "de",
+       "nǐ",
+       "guì",
+       "le"
+      ],
+      "hint": "Your price is too expensive",
+      "answer": "nǐ de jiàgé tài guì le"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "The price is expensive.",
+      "answer": "jiàgé hěn guì"
+     },
+     {
+      "prompt": "This is not expensive.",
+      "answer": "zhège bú guì"
+     },
+     {
+      "prompt": "That is too small.",
+      "answer": "nàge tài xiǎo le"
+     },
+     {
+      "prompt": "Is your company big?",
+      "answer": "nǐ de gōngsī dà ma?"
+     },
+     {
+      "prompt": "Their goods are cheap.",
+      "answer": "tāmen de huò hěn piányi"
+     },
+     {
+      "prompt": "Your goods are good.",
+      "answer": "nǐ de huò hěn hǎo"
+     },
+     {
+      "prompt": "That is too expensive.",
+      "answer": "nàge tài guì le"
+     },
+     {
+      "prompt": "I want the small one.",
+      "answer": "wǒ yào xiǎo de"
+     },
+     {
+      "prompt": "Is the factory big?",
+      "answer": "gōngchǎng dà ma?"
+     },
+     {
+      "prompt": "The money is too little.",
+      "answer": "qián tài shǎo le"
+     }
+    ]
+   }
+  },
+  {
+   "number": 7,
+   "title": "Today, tomorrow, done",
+   "subtitle": "Say when, and say that something is finished.",
+   "words": [
+    {
+     "pinyin": "jīntiān",
+     "chinese": "今天",
+     "meaning": "today"
+    },
+    {
+     "pinyin": "míngtiān",
+     "chinese": "明天",
+     "meaning": "tomorrow"
+    },
+    {
+     "pinyin": "zuótiān",
+     "chinese": "昨天",
+     "meaning": "yesterday"
+    },
+    {
+     "pinyin": "xiànzài",
+     "chinese": "现在",
+     "meaning": "now"
+    },
+    {
+     "pinyin": "shénme shíhou",
+     "chinese": "什么时候",
+     "meaning": "when"
+    },
+    {
+     "pinyin": "tiān",
+     "chinese": "天",
+     "meaning": "day"
+    },
+    {
+     "pinyin": "yuè",
+     "chinese": "月",
+     "meaning": "month"
+    },
+    {
+     "pinyin": "le",
+     "chinese": "了",
+     "meaning": "done, finished"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + Time + Action + Thing",
+   "notes": [
+    "Time always comes before the action, never at the end.",
+    "Put **le** after the action to show it is done: fù le = paid.",
+    "Counting days needs no ge: sān tiān. Months do: liǎng ge yuè.",
+    "Did not do it: **méi** + action, and no le: wǒ méi fù = I haven't paid.",
+    "Chinese has no will or did. The time word tells you: míngtiān = future, zuótiān = past."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ fù qián",
+     "meaning": "I pay"
+    },
+    {
+     "pinyin": "wǒ míngtiān fù qián",
+     "meaning": "I will pay tomorrow"
+    },
+    {
+     "pinyin": "wǒ míngtiān bú fù qián",
+     "meaning": "I won't pay tomorrow"
+    },
+    {
+     "pinyin": "nǐ shénme shíhou fù qián?",
+     "meaning": "When will you pay?"
+    },
+    {
+     "pinyin": "wǒ fù le",
+     "meaning": "I have paid"
+    },
+    {
+     "pinyin": "wǒ zuótiān fù le",
+     "meaning": "I paid yesterday"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "tāmen"
+     ]
+    },
+    {
+     "column": "Time",
+     "options": [
+      "jīntiān",
+      "míngtiān",
+      "zuótiān",
+      "xiànzài",
+      "shénme shíhou?"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "fù",
+      "fā",
+      "mǎi",
+      "kàn",
+      "yào"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "qián",
+      "huò",
+      "zhège"
+     ]
+    },
+    {
+     "column": "Done",
+     "options": [
+      "(nothing)",
+      "le"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ míngtiān fù qián",
+     "chinese": "我明天付钱",
+     "meaning": "I will pay tomorrow"
+    },
+    {
+     "pinyin": "nǐ shénme shíhou fā huò?",
+     "chinese": "你什么时候发货?",
+     "meaning": "When will you ship?"
+    },
+    {
+     "pinyin": "wǒ zuótiān fù le",
+     "chinese": "我昨天付了",
+     "meaning": "I paid yesterday"
+    },
+    {
+     "pinyin": "tā xiànzài zài gōngchǎng",
+     "chinese": "他现在在工厂",
+     "meaning": "He is at the factory now"
+    },
+    {
+     "pinyin": "huò fā le ma?",
+     "chinese": "货发了吗?",
+     "meaning": "Have the goods been sent?"
+    },
+    {
+     "pinyin": "sān tiān",
+     "chinese": "三天",
+     "meaning": "three days"
+    },
+    {
+     "pinyin": "nǐ jīntiān fā huò ma?",
+     "chinese": "你今天发货吗?",
+     "meaning": "Will you ship today?"
+    },
+    {
+     "pinyin": "wǒ xiànzài fù qián",
+     "chinese": "我现在付钱",
+     "meaning": "I'll pay now"
+    },
+    {
+     "pinyin": "wǒ xiànzài méi yǒu qián",
+     "chinese": "我现在没有钱",
+     "meaning": "I have no money right now"
+    },
+    {
+     "pinyin": "tā zuótiān mǎi le",
+     "chinese": "他昨天买了",
+     "meaning": "He bought it yesterday"
+    },
+    {
+     "pinyin": "huò fā le",
+     "chinese": "货发了",
+     "meaning": "The goods have been sent"
+    },
+    {
+     "pinyin": "qián fù le",
+     "chinese": "钱付了",
+     "meaning": "The money has been paid"
+    },
+    {
+     "pinyin": "nǐ fù le ma?",
+     "chinese": "你付了吗?",
+     "meaning": "Have you paid?"
+    },
+    {
+     "pinyin": "wǒ méi fù",
+     "chinese": "我没付",
+     "meaning": "I haven't paid"
+    },
+    {
+     "pinyin": "tā méi fā huò",
+     "chinese": "他没发货",
+     "meaning": "He hasn't shipped"
+    },
+    {
+     "pinyin": "wǒ děng le sān tiān",
+     "chinese": "我等了三天",
+     "meaning": "I waited three days"
+    },
+    {
+     "pinyin": "yí ge yuè",
+     "chinese": "一个月",
+     "meaning": "one month"
+    },
+    {
+     "pinyin": "nǐ shénme shíhou yào?",
+     "chinese": "你什么时候要?",
+     "meaning": "When do you want it?"
+    },
+    {
+     "pinyin": "wǒ míngtiān yào",
+     "chinese": "我明天要",
+     "meaning": "I want it tomorrow"
+    },
+    {
+     "pinyin": "jīntiān jiàgé duōshao?",
+     "chinese": "今天价格多少?",
+     "meaning": "What is the price today?"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ míngtiān fù qián",
+      "chinese": "我明天付钱",
+      "answer": "I will pay tomorrow"
+     },
+     {
+      "prompt": "wǒ zuótiān fù le",
+      "chinese": "我昨天付了",
+      "answer": "I paid yesterday"
+     },
+     {
+      "prompt": "huò fā le ma?",
+      "chinese": "货发了吗?",
+      "answer": "Have the goods been sent?"
+     },
+     {
+      "prompt": "nǐ jīntiān fā huò ma?",
+      "chinese": "你今天发货吗?",
+      "answer": "Will you ship today?"
+     },
+     {
+      "prompt": "wǒ xiànzài méi yǒu qián",
+      "chinese": "我现在没有钱",
+      "answer": "I have no money right now"
+     },
+     {
+      "prompt": "huò fā le",
+      "chinese": "货发了",
+      "answer": "The goods have been sent"
+     },
+     {
+      "prompt": "nǐ fù le ma?",
+      "chinese": "你付了吗?",
+      "answer": "Have you paid?"
+     },
+     {
+      "prompt": "tā méi fā huò",
+      "chinese": "他没发货",
+      "answer": "He hasn't shipped"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ shénme ______ fā huò?",
+      "hint": "When will you ship?",
+      "answer": "shíhou"
+     },
+     {
+      "prompt": "tā ______ zài gōngchǎng",
+      "hint": "He is at the factory now",
+      "answer": "xiànzài"
+     },
+     {
+      "prompt": "sān ______",
+      "hint": "three days",
+      "answer": "tiān"
+     },
+     {
+      "prompt": "wǒ ______ fù qián",
+      "hint": "I'll pay now",
+      "answer": "xiànzài"
+     },
+     {
+      "prompt": "tā zuótiān mǎi ______",
+      "hint": "He bought it yesterday",
+      "answer": "le"
+     },
+     {
+      "prompt": "qián fù ______",
+      "hint": "The money has been paid",
+      "answer": "le"
+     },
+     {
+      "prompt": "wǒ děng le sān ______",
+      "hint": "I waited three days",
+      "answer": "tiān"
+     },
+     {
+      "prompt": "nǐ shénme ______ yào?",
+      "hint": "When do you want it?",
+      "answer": "shíhou"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "yào",
+       "shénme",
+       "nǐ",
+       "shíhou"
+      ],
+      "hint": "When do you want it?",
+      "answer": "nǐ shénme shíhou yào?"
+     },
+     {
+      "words": [
+       "děng",
+       "sān",
+       "le",
+       "tiān",
+       "wǒ"
+      ],
+      "hint": "I waited three days",
+      "answer": "wǒ děng le sān tiān"
+     },
+     {
+      "words": [
+       "méi",
+       "tā",
+       "huò",
+       "fā"
+      ],
+      "hint": "He hasn't shipped",
+      "answer": "tā méi fā huò"
+     },
+     {
+      "words": [
+       "ma",
+       "le",
+       "nǐ",
+       "fù"
+      ],
+      "hint": "Have you paid?",
+      "answer": "nǐ fù le ma?"
+     },
+     {
+      "words": [
+       "mǎi",
+       "tā",
+       "zuótiān",
+       "le"
+      ],
+      "hint": "He bought it yesterday",
+      "answer": "tā zuótiān mǎi le"
+     },
+     {
+      "words": [
+       "yǒu",
+       "qián",
+       "méi",
+       "wǒ",
+       "xiànzài"
+      ],
+      "hint": "I have no money right now",
+      "answer": "wǒ xiànzài méi yǒu qián"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I want it today.",
+      "answer": "wǒ jīntiān yào"
+     },
+     {
+      "prompt": "When will you pay?",
+      "answer": "nǐ shénme shíhou fù qián?"
+     },
+     {
+      "prompt": "He bought it yesterday.",
+      "answer": "tā zuótiān mǎi le"
+     },
+     {
+      "prompt": "I am at the company now.",
+      "answer": "wǒ xiànzài zài gōngsī"
+     },
+     {
+      "prompt": "Five days.",
+      "answer": "wǔ tiān"
+     },
+     {
+      "prompt": "Will you ship tomorrow?",
+      "answer": "nǐ míngtiān fā huò ma?"
+     },
+     {
+      "prompt": "I have paid.",
+      "answer": "wǒ fù le"
+     },
+     {
+      "prompt": "He hasn't paid.",
+      "answer": "tā méi fù"
+     },
+     {
+      "prompt": "Two months.",
+      "answer": "liǎng ge yuè"
+     },
+     {
+      "prompt": "When do you want the goods?",
+      "answer": "nǐ shénme shíhou yào huò?"
+     }
+    ]
+   }
+  },
+  {
+   "number": 8,
+   "title": "Come, go, how, why",
+   "subtitle": "Talk about travel and ask for reasons.",
+   "words": [
+    {
+     "pinyin": "lái",
+     "chinese": "来",
+     "meaning": "come"
+    },
+    {
+     "pinyin": "qù",
+     "chinese": "去",
+     "meaning": "go"
+    },
+    {
+     "pinyin": "huí",
+     "chinese": "回",
+     "meaning": "return, go back"
+    },
+    {
+     "pinyin": "Zhōngguó",
+     "chinese": "中国",
+     "meaning": "China"
+    },
+    {
+     "pinyin": "jiā",
+     "chinese": "家",
+     "meaning": "home"
+    },
+    {
+     "pinyin": "zěnme",
+     "chinese": "怎么",
+     "meaning": "how"
+    },
+    {
+     "pinyin": "wèishénme",
+     "chinese": "为什么",
+     "meaning": "why"
+    },
+    {
+     "pinyin": "yīnwèi",
+     "chinese": "因为",
+     "meaning": "because"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + Time + lái / qù + Place",
+   "notes": [
+    "**zěnme** and **wèishénme** go before the action.",
+    "bù stays bù before lái; it becomes bú before qù.",
+    "zhège zěnme mài? is a natural way to ask the price.",
+    "Did not come or go: **méi** lái, **méi** qù.",
+    "Answer wèishénme with **yīnwèi** + sentence."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ qù",
+     "meaning": "I go"
+    },
+    {
+     "pinyin": "wǒ qù Zhōngguó",
+     "meaning": "I go to China"
+    },
+    {
+     "pinyin": "wǒ míngtiān qù Zhōngguó",
+     "meaning": "I'm going to China tomorrow"
+    },
+    {
+     "pinyin": "wǒ míngtiān bú qù Zhōngguó",
+     "meaning": "I'm not going to China tomorrow"
+    },
+    {
+     "pinyin": "nǐ shénme shíhou qù Zhōngguó?",
+     "meaning": "When are you going to China?"
+    },
+    {
+     "pinyin": "nǐ wèishénme qù Zhōngguó?",
+     "meaning": "Why are you going to China?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "lǎobǎn"
+     ]
+    },
+    {
+     "column": "Time",
+     "options": [
+      "(nothing)",
+      "jīntiān",
+      "míngtiān",
+      "xiànzài"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bù / bú"
+     ]
+    },
+    {
+     "column": "Move",
+     "options": [
+      "lái",
+      "qù",
+      "huí"
+     ]
+    },
+    {
+     "column": "Place",
+     "options": [
+      "Zhōngguó",
+      "gōngchǎng",
+      "gōngsī",
+      "jiā",
+      "zhèlǐ",
+      "nǎr?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ míngtiān qù Zhōngguó",
+     "chinese": "我明天去中国",
+     "meaning": "I'm going to China tomorrow"
+    },
+    {
+     "pinyin": "nǐ shénme shíhou lái?",
+     "chinese": "你什么时候来?",
+     "meaning": "When are you coming?"
+    },
+    {
+     "pinyin": "tā huí jiā le",
+     "chinese": "他回家了",
+     "meaning": "He has gone home"
+    },
+    {
+     "pinyin": "nǐ zěnme qù?",
+     "chinese": "你怎么去?",
+     "meaning": "How are you going?"
+    },
+    {
+     "pinyin": "nǐ wèishénme bù lái?",
+     "chinese": "你为什么不来?",
+     "meaning": "Why aren't you coming?"
+    },
+    {
+     "pinyin": "yīnwèi wǒ méi yǒu qián",
+     "chinese": "因为我没有钱",
+     "meaning": "Because I have no money"
+    },
+    {
+     "pinyin": "nǐ qù nǎr?",
+     "chinese": "你去哪儿?",
+     "meaning": "Where are you going?"
+    },
+    {
+     "pinyin": "wǒ qù gōngsī",
+     "chinese": "我去公司",
+     "meaning": "I'm going to the company"
+    },
+    {
+     "pinyin": "tā míngtiān lái gōngchǎng",
+     "chinese": "他明天来工厂",
+     "meaning": "He is coming to the factory tomorrow"
+    },
+    {
+     "pinyin": "lǎobǎn lái le",
+     "chinese": "老板来了",
+     "meaning": "The boss has come"
+    },
+    {
+     "pinyin": "tā méi lái",
+     "chinese": "他没来",
+     "meaning": "He didn't come"
+    },
+    {
+     "pinyin": "wǒ jīntiān bú qù",
+     "chinese": "我今天不去",
+     "meaning": "I'm not going today"
+    },
+    {
+     "pinyin": "nǐ lái zhèlǐ",
+     "chinese": "你来这里",
+     "meaning": "Come here"
+    },
+    {
+     "pinyin": "wǒ xiǎng qù Zhōngguó",
+     "chinese": "我想去中国",
+     "meaning": "I'd like to go to China"
+    },
+    {
+     "pinyin": "tā huí Zhōngguó le",
+     "chinese": "他回中国了",
+     "meaning": "He has gone back to China"
+    },
+    {
+     "pinyin": "wǒ xiànzài huí jiā",
+     "chinese": "我现在回家",
+     "meaning": "I'm going home now"
+    },
+    {
+     "pinyin": "zhège zěnme mài?",
+     "chinese": "这个怎么卖?",
+     "meaning": "How is this sold? (What's the price?)"
+    },
+    {
+     "pinyin": "zěnme fù qián?",
+     "chinese": "怎么付钱?",
+     "meaning": "How do I pay?"
+    },
+    {
+     "pinyin": "nǐ wèishénme bú fù qián?",
+     "chinese": "你为什么不付钱?",
+     "meaning": "Why don't you pay?"
+    },
+    {
+     "pinyin": "yīnwèi tài guì le",
+     "chinese": "因为太贵了",
+     "meaning": "Because it is too expensive"
+    },
+    {
+     "pinyin": "yīnwèi huò bù hǎo",
+     "chinese": "因为货不好",
+     "meaning": "Because the goods are not good"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ míngtiān qù Zhōngguó",
+      "chinese": "我明天去中国",
+      "answer": "I'm going to China tomorrow"
+     },
+     {
+      "prompt": "tā huí jiā le",
+      "chinese": "他回家了",
+      "answer": "He has gone home"
+     },
+     {
+      "prompt": "nǐ wèishénme bù lái?",
+      "chinese": "你为什么不来?",
+      "answer": "Why aren't you coming?"
+     },
+     {
+      "prompt": "nǐ qù nǎr?",
+      "chinese": "你去哪儿?",
+      "answer": "Where are you going?"
+     },
+     {
+      "prompt": "tā míngtiān lái gōngchǎng",
+      "chinese": "他明天来工厂",
+      "answer": "He is coming to the factory tomorrow"
+     },
+     {
+      "prompt": "tā méi lái",
+      "chinese": "他没来",
+      "answer": "He didn't come"
+     },
+     {
+      "prompt": "nǐ lái zhèlǐ",
+      "chinese": "你来这里",
+      "answer": "Come here"
+     },
+     {
+      "prompt": "tā huí Zhōngguó le",
+      "chinese": "他回中国了",
+      "answer": "He has gone back to China"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ shénme shíhou ______?",
+      "hint": "When are you coming?",
+      "answer": "lái"
+     },
+     {
+      "prompt": "nǐ zěnme ______?",
+      "hint": "How are you going?",
+      "answer": "qù"
+     },
+     {
+      "prompt": "______ wǒ méi yǒu qián",
+      "hint": "Because I have no money",
+      "answer": "yīnwèi"
+     },
+     {
+      "prompt": "wǒ ______ gōngsī",
+      "hint": "I'm going to the company",
+      "answer": "qù"
+     },
+     {
+      "prompt": "lǎobǎn ______ le",
+      "hint": "The boss has come",
+      "answer": "lái"
+     },
+     {
+      "prompt": "wǒ jīntiān bú ______",
+      "hint": "I'm not going today",
+      "answer": "qù"
+     },
+     {
+      "prompt": "wǒ xiǎng qù ______",
+      "hint": "I'd like to go to China",
+      "answer": "Zhōngguó"
+     },
+     {
+      "prompt": "wǒ xiànzài huí ______",
+      "hint": "I'm going home now",
+      "answer": "jiā"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "yīnwèi",
+       "bù",
+       "hǎo",
+       "huò"
+      ],
+      "hint": "Because the goods are not good",
+      "answer": "yīnwèi huò bù hǎo"
+     },
+     {
+      "words": [
+       "le",
+       "guì",
+       "yīnwèi",
+       "tài"
+      ],
+      "hint": "Because it is too expensive",
+      "answer": "yīnwèi tài guì le"
+     },
+     {
+      "words": [
+       "fù",
+       "bú",
+       "qián",
+       "wèishénme",
+       "nǐ"
+      ],
+      "hint": "Why don't you pay?",
+      "answer": "nǐ wèishénme bú fù qián?"
+     },
+     {
+      "words": [
+       "xiànzài",
+       "wǒ",
+       "huí",
+       "jiā"
+      ],
+      "hint": "I'm going home now",
+      "answer": "wǒ xiànzài huí jiā"
+     },
+     {
+      "words": [
+       "tā",
+       "Zhōngguó",
+       "huí",
+       "le"
+      ],
+      "hint": "He has gone back to China",
+      "answer": "tā huí Zhōngguó le"
+     },
+     {
+      "words": [
+       "qù",
+       "wǒ",
+       "xiǎng",
+       "Zhōngguó"
+      ],
+      "hint": "I'd like to go to China",
+      "answer": "wǒ xiǎng qù Zhōngguó"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I'm going to the factory today.",
+      "answer": "wǒ jīntiān qù gōngchǎng"
+     },
+     {
+      "prompt": "Is he coming tomorrow?",
+      "answer": "tā míngtiān lái ma?"
+     },
+     {
+      "prompt": "Why don't you buy?",
+      "answer": "nǐ wèishénme bù mǎi?"
+     },
+     {
+      "prompt": "We are going to China.",
+      "answer": "wǒmen qù Zhōngguó"
+     },
+     {
+      "prompt": "When are you going home?",
+      "answer": "nǐ shénme shíhou huí jiā?"
+     },
+     {
+      "prompt": "Where is he going?",
+      "answer": "tā qù nǎr?"
+     },
+     {
+      "prompt": "The boss didn't come.",
+      "answer": "lǎobǎn méi lái"
+     },
+     {
+      "prompt": "I'd like to go home.",
+      "answer": "wǒ xiǎng huí jiā"
+     },
+     {
+      "prompt": "How do I buy?",
+      "answer": "wǒ zěnme mǎi?"
+     },
+     {
+      "prompt": "Because I have no stock.",
+      "answer": "yīnwèi wǒ méi yǒu huò"
+     }
+    ]
+   }
+  },
+  {
+   "number": 9,
+   "title": "Speak, understand, can",
+   "subtitle": "Handle a real conversation and ask for a better price.",
+   "words": [
+    {
+     "pinyin": "shuō",
+     "chinese": "说",
+     "meaning": "say, speak"
+    },
+    {
+     "pinyin": "tīng",
+     "chinese": "听",
+     "meaning": "listen"
+    },
+    {
+     "pinyin": "dǒng",
+     "chinese": "懂",
+     "meaning": "understand"
+    },
+    {
+     "pinyin": "zhīdào",
+     "chinese": "知道",
+     "meaning": "know"
+    },
+    {
+     "pinyin": "néng",
+     "chinese": "能",
+     "meaning": "can, able to"
+    },
+    {
+     "pinyin": "kěyǐ",
+     "chinese": "可以",
+     "meaning": "may, OK to"
+    },
+    {
+     "pinyin": "xǐhuan",
+     "chinese": "喜欢",
+     "meaning": "like"
+    },
+    {
+     "pinyin": "Zhōngwén",
+     "chinese": "中文",
+     "meaning": "Chinese (language)"
+    },
+    {
+     "pinyin": "yìdiǎn",
+     "chinese": "一点",
+     "meaning": "a little"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + néng / kěyǐ + Action",
+   "notes": [
+    "Not: **bù néng**, **bù kěyǐ**, **bù dǒng**, **bù zhīdào**.",
+    "**kěyǐ** on its own means OK, fine.",
+    "**yìdiǎn** goes after the describing word: piányi yìdiǎn = a bit cheaper.",
+    "**tīng bù dǒng** is a fixed phrase: I hear you but can't follow. Use it when someone speaks too fast.",
+    "Describing word + **yìdiǎn**: dà yìdiǎn = a bit bigger, piányi yìdiǎn = a bit cheaper."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "nǐ fā huò",
+     "meaning": "You ship"
+    },
+    {
+     "pinyin": "nǐ néng fā huò",
+     "meaning": "You can ship"
+    },
+    {
+     "pinyin": "nǐ míngtiān néng fā huò",
+     "meaning": "You can ship tomorrow"
+    },
+    {
+     "pinyin": "nǐ míngtiān néng fā huò ma?",
+     "meaning": "Can you ship tomorrow?"
+    },
+    {
+     "pinyin": "wǒ míngtiān bù néng fā huò",
+     "meaning": "I can't ship tomorrow"
+    },
+    {
+     "pinyin": "kěyǐ",
+     "meaning": "OK, fine"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "wǒmen"
+     ]
+    },
+    {
+     "column": "Time",
+     "options": [
+      "(nothing)",
+      "jīntiān",
+      "míngtiān",
+      "xiànzài"
+     ]
+    },
+    {
+     "column": "Can",
+     "options": [
+      "néng",
+      "bù néng",
+      "kěyǐ",
+      "bù kěyǐ"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "lái",
+      "qù",
+      "fā",
+      "fù",
+      "kàn",
+      "mǎi"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "(nothing)",
+      "huò",
+      "qián",
+      "zhège"
+     ]
+    },
+    {
+     "column": "Question",
+     "options": [
+      "(nothing)",
+      "ma?"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ bù dǒng",
+     "chinese": "我不懂",
+     "meaning": "I don't understand"
+    },
+    {
+     "pinyin": "nǐ shuō shénme?",
+     "chinese": "你说什么?",
+     "meaning": "What did you say?"
+    },
+    {
+     "pinyin": "wǒ bù zhīdào",
+     "chinese": "我不知道",
+     "meaning": "I don't know"
+    },
+    {
+     "pinyin": "nǐ néng fā huò ma?",
+     "chinese": "你能发货吗?",
+     "meaning": "Can you ship?"
+    },
+    {
+     "pinyin": "kěyǐ piányi yìdiǎn ma?",
+     "chinese": "可以便宜一点吗?",
+     "meaning": "Can it be a bit cheaper?"
+    },
+    {
+     "pinyin": "wǒ shuō yìdiǎn Zhōngwén",
+     "chinese": "我说一点中文",
+     "meaning": "I speak a little Chinese"
+    },
+    {
+     "pinyin": "wǒ dǒng yìdiǎn",
+     "chinese": "我懂一点",
+     "meaning": "I understand a little"
+    },
+    {
+     "pinyin": "wǒ tīng bù dǒng",
+     "chinese": "我听不懂",
+     "meaning": "I can't follow what you're saying"
+    },
+    {
+     "pinyin": "nǐ shuō Zhōngwén ma?",
+     "chinese": "你说中文吗?",
+     "meaning": "Do you speak Chinese?"
+    },
+    {
+     "pinyin": "wǒ bù shuō Zhōngwén",
+     "chinese": "我不说中文",
+     "meaning": "I don't speak Chinese"
+    },
+    {
+     "pinyin": "tā shuō shénme?",
+     "chinese": "他说什么?",
+     "meaning": "What is he saying?"
+    },
+    {
+     "pinyin": "nǐ zhīdào jiàgé ma?",
+     "chinese": "你知道价格吗?",
+     "meaning": "Do you know the price?"
+    },
+    {
+     "pinyin": "shéi zhīdào?",
+     "chinese": "谁知道?",
+     "meaning": "Who knows?"
+    },
+    {
+     "pinyin": "wǒ néng kàn huò ma?",
+     "chinese": "我能看货吗?",
+     "meaning": "Can I see the goods?"
+    },
+    {
+     "pinyin": "nǐ jīntiān néng lái ma?",
+     "chinese": "你今天能来吗?",
+     "meaning": "Can you come today?"
+    },
+    {
+     "pinyin": "wǒ míngtiān kěyǐ fù qián ma?",
+     "chinese": "我明天可以付钱吗?",
+     "meaning": "May I pay tomorrow?"
+    },
+    {
+     "pinyin": "bù kěyǐ",
+     "chinese": "不可以",
+     "meaning": "No, not OK"
+    },
+    {
+     "pinyin": "wǒ hěn xǐhuan zhège",
+     "chinese": "我很喜欢这个",
+     "meaning": "I like this a lot"
+    },
+    {
+     "pinyin": "tā bù xǐhuan nǐ de jiàgé",
+     "chinese": "他不喜欢你的价格",
+     "meaning": "He doesn't like your price"
+    },
+    {
+     "pinyin": "nǐ tīng wǒ shuō",
+     "chinese": "你听我说",
+     "meaning": "Listen to me"
+    },
+    {
+     "pinyin": "wǒ yào dà yìdiǎn de",
+     "chinese": "我要大一点的",
+     "meaning": "I want a slightly bigger one"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ bù dǒng",
+      "chinese": "我不懂",
+      "answer": "I don't understand"
+     },
+     {
+      "prompt": "wǒ bù zhīdào",
+      "chinese": "我不知道",
+      "answer": "I don't know"
+     },
+     {
+      "prompt": "kěyǐ piányi yìdiǎn ma?",
+      "chinese": "可以便宜一点吗?",
+      "answer": "Can it be a bit cheaper?"
+     },
+     {
+      "prompt": "wǒ dǒng yìdiǎn",
+      "chinese": "我懂一点",
+      "answer": "I understand a little"
+     },
+     {
+      "prompt": "nǐ shuō Zhōngwén ma?",
+      "chinese": "你说中文吗?",
+      "answer": "Do you speak Chinese?"
+     },
+     {
+      "prompt": "tā shuō shénme?",
+      "chinese": "他说什么?",
+      "answer": "What is he saying?"
+     },
+     {
+      "prompt": "shéi zhīdào?",
+      "chinese": "谁知道?",
+      "answer": "Who knows?"
+     },
+     {
+      "prompt": "nǐ jīntiān néng lái ma?",
+      "chinese": "你今天能来吗?",
+      "answer": "Can you come today?"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ ______ shénme?",
+      "hint": "What did you say?",
+      "answer": "shuō"
+     },
+     {
+      "prompt": "nǐ ______ fā huò ma?",
+      "hint": "Can you ship?",
+      "answer": "néng"
+     },
+     {
+      "prompt": "wǒ shuō yìdiǎn ______",
+      "hint": "I speak a little Chinese",
+      "answer": "Zhōngwén"
+     },
+     {
+      "prompt": "wǒ tīng bù ______",
+      "hint": "I can't follow what you're saying",
+      "answer": "dǒng"
+     },
+     {
+      "prompt": "wǒ bù shuō ______",
+      "hint": "I don't speak Chinese",
+      "answer": "Zhōngwén"
+     },
+     {
+      "prompt": "nǐ ______ jiàgé ma?",
+      "hint": "Do you know the price?",
+      "answer": "zhīdào"
+     },
+     {
+      "prompt": "wǒ ______ kàn huò ma?",
+      "hint": "Can I see the goods?",
+      "answer": "néng"
+     },
+     {
+      "prompt": "wǒ míngtiān ______ fù qián ma?",
+      "hint": "May I pay tomorrow?",
+      "answer": "kěyǐ"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "de",
+       "wǒ",
+       "yào",
+       "dà",
+       "yìdiǎn"
+      ],
+      "hint": "I want a slightly bigger one",
+      "answer": "wǒ yào dà yìdiǎn de"
+     },
+     {
+      "words": [
+       "shuō",
+       "nǐ",
+       "wǒ",
+       "tīng"
+      ],
+      "hint": "Listen to me",
+      "answer": "nǐ tīng wǒ shuō"
+     },
+     {
+      "words": [
+       "bù",
+       "tā",
+       "jiàgé",
+       "nǐ",
+       "de",
+       "xǐhuan"
+      ],
+      "hint": "He doesn't like your price",
+      "answer": "tā bù xǐhuan nǐ de jiàgé"
+     },
+     {
+      "words": [
+       "hěn",
+       "wǒ",
+       "zhège",
+       "xǐhuan"
+      ],
+      "hint": "I like this a lot",
+      "answer": "wǒ hěn xǐhuan zhège"
+     },
+     {
+      "words": [
+       "wǒ",
+       "qián",
+       "kěyǐ",
+       "míngtiān",
+       "fù",
+       "ma"
+      ],
+      "hint": "May I pay tomorrow?",
+      "answer": "wǒ míngtiān kěyǐ fù qián ma?"
+     },
+     {
+      "words": [
+       "ma",
+       "néng",
+       "nǐ",
+       "jīntiān",
+       "lái"
+      ],
+      "hint": "Can you come today?",
+      "answer": "nǐ jīntiān néng lái ma?"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "Do you understand?",
+      "answer": "nǐ dǒng ma?"
+     },
+     {
+      "prompt": "I can't go tomorrow.",
+      "answer": "wǒ míngtiān bù néng qù"
+     },
+     {
+      "prompt": "He doesn't know the price.",
+      "answer": "tā bù zhīdào jiàgé"
+     },
+     {
+      "prompt": "May I look?",
+      "answer": "wǒ kěyǐ kàn ma?"
+     },
+     {
+      "prompt": "I don't like that one.",
+      "answer": "wǒ bù xǐhuan nàge"
+     },
+     {
+      "prompt": "I understand a little.",
+      "answer": "wǒ dǒng yìdiǎn"
+     },
+     {
+      "prompt": "Can you come tomorrow?",
+      "answer": "nǐ míngtiān néng lái ma?"
+     },
+     {
+      "prompt": "Does he know?",
+      "answer": "tā zhīdào ma?"
+     },
+     {
+      "prompt": "I like your factory.",
+      "answer": "wǒ xǐhuan nǐ de gōngchǎng"
+     },
+     {
+      "prompt": "A bit bigger.",
+      "answer": "dà yìdiǎn"
+     }
+    ]
+   }
+  },
+  {
+   "number": 10,
+   "title": "Joining words and a full conversation",
+   "subtitle": "Link ideas, be polite, and run a whole deal.",
+   "words": [
+    {
+     "pinyin": "hé",
+     "chinese": "和",
+     "meaning": "and (joins two things)"
+    },
+    {
+     "pinyin": "yě",
+     "chinese": "也",
+     "meaning": "also"
+    },
+    {
+     "pinyin": "dōu",
+     "chinese": "都",
+     "meaning": "all, both"
+    },
+    {
+     "pinyin": "dànshì",
+     "chinese": "但是",
+     "meaning": "but"
+    },
+    {
+     "pinyin": "nǐ hǎo",
+     "chinese": "你好",
+     "meaning": "hello"
+    },
+    {
+     "pinyin": "xièxie",
+     "chinese": "谢谢",
+     "meaning": "thank you"
+    },
+    {
+     "pinyin": "qǐng",
+     "chinese": "请",
+     "meaning": "please"
+    },
+    {
+     "pinyin": "duìbuqǐ",
+     "chinese": "对不起",
+     "meaning": "sorry"
+    },
+    {
+     "pinyin": "méi guānxi",
+     "chinese": "没关系",
+     "meaning": "no problem"
+    },
+    {
+     "pinyin": "zàijiàn",
+     "chinese": "再见",
+     "meaning": "goodbye"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + yě / dōu + Action",
+   "notes": [
+    "**yě** and **dōu** go before the action, never at the end.",
+    "**hé** joins two things, not two sentences.",
+    "**qǐng** goes at the start: qǐng děng yíxià = please wait a moment.",
+    "**dōu** needs more than one person or thing before it: wǒmen dōu, tāmen dōu, huò dōu.",
+    "Someone says duìbuqǐ, you answer **méi guānxi**."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ yào zhège",
+     "meaning": "I want this"
+    },
+    {
+     "pinyin": "wǒ yě yào zhège",
+     "meaning": "I also want this"
+    },
+    {
+     "pinyin": "wǒmen dōu yào zhège",
+     "meaning": "We all want this"
+    },
+    {
+     "pinyin": "wǒ yào zhège hé nàge",
+     "meaning": "I want this and that"
+    },
+    {
+     "pinyin": "wǒ yào zhège, dànshì tài guì le",
+     "meaning": "I want this, but it is too expensive"
+    },
+    {
+     "pinyin": "qǐng gěi wǒ zhège",
+     "meaning": "Please give me this"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "tā",
+      "wǒmen",
+      "tāmen"
+     ]
+    },
+    {
+     "column": "Also / all",
+     "options": [
+      "yě",
+      "dōu"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bù"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "yào",
+      "mǎi",
+      "qù",
+      "zhīdào",
+      "shì"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "(nothing)",
+      "zhège",
+      "huò",
+      "lǎobǎn"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ yào zhège hé nàge",
+     "chinese": "我要这个和那个",
+     "meaning": "I want this and that"
+    },
+    {
+     "pinyin": "wǒ yě yào",
+     "chinese": "我也要",
+     "meaning": "I want it too"
+    },
+    {
+     "pinyin": "wǒmen dōu qù",
+     "chinese": "我们都去",
+     "meaning": "We are all going"
+    },
+    {
+     "pinyin": "zhège hěn hǎo, dànshì tài guì le",
+     "chinese": "这个很好，但是太贵了",
+     "meaning": "This is good, but too expensive"
+    },
+    {
+     "pinyin": "qǐng děng yíxià",
+     "chinese": "请等一下",
+     "meaning": "Please wait a moment"
+    },
+    {
+     "pinyin": "tā yě shì lǎobǎn",
+     "chinese": "他也是老板",
+     "meaning": "He is also a boss"
+    },
+    {
+     "pinyin": "wǒ yě bù zhīdào",
+     "chinese": "我也不知道",
+     "meaning": "I don't know either"
+    },
+    {
+     "pinyin": "tāmen dōu lái le",
+     "chinese": "他们都来了",
+     "meaning": "They have all come"
+    },
+    {
+     "pinyin": "wǒmen dōu shì péngyou",
+     "chinese": "我们都是朋友",
+     "meaning": "We are all friends"
+    },
+    {
+     "pinyin": "huò dōu fā le",
+     "chinese": "货都发了",
+     "meaning": "The goods have all been sent"
+    },
+    {
+     "pinyin": "wǒ hé tā qù gōngchǎng",
+     "chinese": "我和他去工厂",
+     "meaning": "He and I are going to the factory"
+    },
+    {
+     "pinyin": "wǒ yào dà de hé xiǎo de",
+     "chinese": "我要大的和小的",
+     "meaning": "I want the big one and the small one"
+    },
+    {
+     "pinyin": "wǒ xiǎng mǎi, dànshì méi yǒu qián",
+     "chinese": "我想买，但是没有钱",
+     "meaning": "I'd like to buy, but I have no money"
+    },
+    {
+     "pinyin": "huò hěn hǎo, dànshì jiàgé tài guì le",
+     "chinese": "货很好，但是价格太贵了",
+     "meaning": "The goods are good, but the price is too high"
+    },
+    {
+     "pinyin": "qǐng gěi wǒ jiàgé",
+     "chinese": "请给我价格",
+     "meaning": "Please give me the price"
+    },
+    {
+     "pinyin": "qǐng lái zhèlǐ",
+     "chinese": "请来这里",
+     "meaning": "Please come here"
+    },
+    {
+     "pinyin": "duìbuqǐ, wǒ tīng bù dǒng",
+     "chinese": "对不起，我听不懂",
+     "meaning": "Sorry, I can't follow"
+    },
+    {
+     "pinyin": "xièxie nǐ",
+     "chinese": "谢谢你",
+     "meaning": "Thank you"
+    }
+   ],
+   "conversation": [
+    {
+     "speaker": "A",
+     "pinyin": "nǐ hǎo! nǐ yǒu huò ma?",
+     "meaning": "Hello! Do you have stock?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "yǒu. nǐ yào duōshao?",
+     "meaning": "Yes. How many do you want?"
+    },
+    {
+     "speaker": "A",
+     "pinyin": "wǒ yào wǔbǎi ge. duōshao qián?",
+     "meaning": "I want 500. How much?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "yí ge shí kuài.",
+     "meaning": "10 yuan each."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "tài guì le. kěyǐ piányi yìdiǎn ma?",
+     "meaning": "Too expensive. Can it be a bit cheaper?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "kěyǐ. jiǔ kuài.",
+     "meaning": "OK. 9 yuan."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "hǎo. wǒ míngtiān fù qián. nǐ shénme shíhou fā huò?",
+     "meaning": "Good. I'll pay tomorrow. When will you ship?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "sān tiān.",
+     "meaning": "Three days."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "xièxie, zàijiàn!",
+     "meaning": "Thank you, goodbye!"
+    }
+   ],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ yào zhège hé nàge",
+      "chinese": "我要这个和那个",
+      "answer": "I want this and that"
+     },
+     {
+      "prompt": "wǒmen dōu qù",
+      "chinese": "我们都去",
+      "answer": "We are all going"
+     },
+     {
+      "prompt": "qǐng děng yíxià",
+      "chinese": "请等一下",
+      "answer": "Please wait a moment"
+     },
+     {
+      "prompt": "wǒ yě bù zhīdào",
+      "chinese": "我也不知道",
+      "answer": "I don't know either"
+     },
+     {
+      "prompt": "wǒmen dōu shì péngyou",
+      "chinese": "我们都是朋友",
+      "answer": "We are all friends"
+     },
+     {
+      "prompt": "wǒ hé tā qù gōngchǎng",
+      "chinese": "我和他去工厂",
+      "answer": "He and I are going to the factory"
+     },
+     {
+      "prompt": "wǒ xiǎng mǎi, dànshì méi yǒu qián",
+      "chinese": "我想买，但是没有钱",
+      "answer": "I'd like to buy, but I have no money"
+     },
+     {
+      "prompt": "qǐng gěi wǒ jiàgé",
+      "chinese": "请给我价格",
+      "answer": "Please give me the price"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "wǒ ______ yào",
+      "hint": "I want it too",
+      "answer": "yě"
+     },
+     {
+      "prompt": "zhège hěn hǎo, ______ tài guì le",
+      "hint": "This is good, but too expensive",
+      "answer": "dànshì"
+     },
+     {
+      "prompt": "tā ______ shì lǎobǎn",
+      "hint": "He is also a boss",
+      "answer": "yě"
+     },
+     {
+      "prompt": "tāmen ______ lái le",
+      "hint": "They have all come",
+      "answer": "dōu"
+     },
+     {
+      "prompt": "huò ______ fā le",
+      "hint": "The goods have all been sent",
+      "answer": "dōu"
+     },
+     {
+      "prompt": "wǒ yào dà de ______ xiǎo de",
+      "hint": "I want the big one and the small one",
+      "answer": "hé"
+     },
+     {
+      "prompt": "huò hěn hǎo, ______ jiàgé tài guì le",
+      "hint": "The goods are good, but the price is too high",
+      "answer": "dànshì"
+     },
+     {
+      "prompt": "______ lái zhèlǐ",
+      "hint": "Please come here",
+      "answer": "qǐng"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "jiàgé",
+       "wǒ",
+       "gěi",
+       "qǐng"
+      ],
+      "hint": "Please give me the price",
+      "answer": "qǐng gěi wǒ jiàgé"
+     },
+     {
+      "words": [
+       "xiǎo",
+       "dà",
+       "de",
+       "de",
+       "yào",
+       "wǒ",
+       "hé"
+      ],
+      "hint": "I want the big one and the small one",
+      "answer": "wǒ yào dà de hé xiǎo de"
+     },
+     {
+      "words": [
+       "qù",
+       "gōngchǎng",
+       "tā",
+       "wǒ",
+       "hé"
+      ],
+      "hint": "He and I are going to the factory",
+      "answer": "wǒ hé tā qù gōngchǎng"
+     },
+     {
+      "words": [
+       "dōu",
+       "le",
+       "huò",
+       "fā"
+      ],
+      "hint": "The goods have all been sent",
+      "answer": "huò dōu fā le"
+     },
+     {
+      "words": [
+       "péngyou",
+       "dōu",
+       "wǒmen",
+       "shì"
+      ],
+      "hint": "We are all friends",
+      "answer": "wǒmen dōu shì péngyou"
+     },
+     {
+      "words": [
+       "tāmen",
+       "le",
+       "lái",
+       "dōu"
+      ],
+      "hint": "They have all come",
+      "answer": "tāmen dōu lái le"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "He also sells this.",
+      "answer": "tā yě mài zhège"
+     },
+     {
+      "prompt": "We all know.",
+      "answer": "wǒmen dōu zhīdào"
+     },
+     {
+      "prompt": "I want the goods and the price.",
+      "answer": "wǒ yào huò hé jiàgé"
+     },
+     {
+      "prompt": "It is cheap, but not good.",
+      "answer": "hěn piányi, dànshì bù hǎo"
+     },
+     {
+      "prompt": "Please give me three.",
+      "answer": "qǐng gěi wǒ sān ge"
+     },
+     {
+      "prompt": "I also want to go.",
+      "answer": "wǒ yě xiǎng qù"
+     },
+     {
+      "prompt": "They are all at the factory.",
+      "answer": "tāmen dōu zài gōngchǎng"
+     },
+     {
+      "prompt": "My friend and I.",
+      "answer": "wǒ hé wǒ de péngyou"
+     },
+     {
+      "prompt": "Please wait for me.",
+      "answer": "qǐng děng wǒ"
+     },
+     {
+      "prompt": "I'd like to go, but I can't.",
+      "answer": "wǒ xiǎng qù, dànshì bù néng qù"
+     }
+    ]
+   }
+  },
+  {
+   "number": 11,
+   "title": "OK, no problem, maybe",
+   "subtitle": "Short replies: agree, refuse, and say how sure you are.",
+   "words": [
+    {
+     "pinyin": "hǎo de",
+     "chinese": "好的",
+     "meaning": "OK, all right"
+    },
+    {
+     "pinyin": "xíng",
+     "chinese": "行",
+     "meaning": "fine, that works"
+    },
+    {
+     "pinyin": "bù xíng",
+     "chinese": "不行",
+     "meaning": "no, that won't work"
+    },
+    {
+     "pinyin": "duì",
+     "chinese": "对",
+     "meaning": "right, correct"
+    },
+    {
+     "pinyin": "bú duì",
+     "chinese": "不对",
+     "meaning": "wrong"
+    },
+    {
+     "pinyin": "wèntí",
+     "chinese": "问题",
+     "meaning": "problem, question"
+    },
+    {
+     "pinyin": "méi wèntí",
+     "chinese": "没问题",
+     "meaning": "no problem"
+    },
+    {
+     "pinyin": "dāngrán",
+     "chinese": "当然",
+     "meaning": "of course"
+    },
+    {
+     "pinyin": "kěnéng",
+     "chinese": "可能",
+     "meaning": "maybe, might"
+    },
+    {
+     "pinyin": "yídìng",
+     "chinese": "一定",
+     "meaning": "definitely"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + Time + yídìng / kěnéng + Action",
+   "notes": [
+    "Chinese has no single word for yes or no. Repeat the action (yào, yǒu, shì), or use hǎo de, xíng, duì.",
+    "Add **, xíng ma?** to the end of any plan to ask if it is OK.",
+    "**kěnéng** and **yídìng** go before the action, and before bù."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "nǐ fā huò",
+     "meaning": "You ship"
+    },
+    {
+     "pinyin": "nǐ míngtiān fā huò",
+     "meaning": "You ship tomorrow"
+    },
+    {
+     "pinyin": "nǐ míngtiān yídìng fā huò",
+     "meaning": "You definitely ship tomorrow"
+    },
+    {
+     "pinyin": "nǐ míngtiān fā huò, xíng ma?",
+     "meaning": "Ship tomorrow, OK?"
+    },
+    {
+     "pinyin": "xíng, méi wèntí",
+     "meaning": "Fine, no problem"
+    },
+    {
+     "pinyin": "bù xíng, míngtiān bù néng fā",
+     "meaning": "No, I can't ship tomorrow"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "lǎobǎn"
+     ]
+    },
+    {
+     "column": "Time",
+     "options": [
+      "jīntiān",
+      "míngtiān",
+      "xiànzài"
+     ]
+    },
+    {
+     "column": "How sure",
+     "options": [
+      "(nothing)",
+      "yídìng",
+      "kěnéng"
+     ]
+    },
+    {
+     "column": "Not",
+     "options": [
+      "(nothing)",
+      "bù / bú"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "lái",
+      "qù",
+      "mǎi",
+      "fù qián",
+      "fā huò"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "hǎo de",
+     "chinese": "好的",
+     "meaning": "OK"
+    },
+    {
+     "pinyin": "xíng ma?",
+     "chinese": "行吗?",
+     "meaning": "Is that OK?"
+    },
+    {
+     "pinyin": "bù xíng",
+     "chinese": "不行",
+     "meaning": "No, that won't work"
+    },
+    {
+     "pinyin": "míngtiān fā huò, xíng ma?",
+     "chinese": "明天发货，行吗?",
+     "meaning": "Ship tomorrow, OK?"
+    },
+    {
+     "pinyin": "duì",
+     "chinese": "对",
+     "meaning": "Right"
+    },
+    {
+     "pinyin": "jiàgé bú duì",
+     "chinese": "价格不对",
+     "meaning": "The price is wrong"
+    },
+    {
+     "pinyin": "zhège duì ma?",
+     "chinese": "这个对吗?",
+     "meaning": "Is this right?"
+    },
+    {
+     "pinyin": "méi wèntí",
+     "chinese": "没问题",
+     "meaning": "No problem"
+    },
+    {
+     "pinyin": "yǒu wèntí ma?",
+     "chinese": "有问题吗?",
+     "meaning": "Is there a problem?"
+    },
+    {
+     "pinyin": "wǒ yǒu yí ge wèntí",
+     "chinese": "我有一个问题",
+     "meaning": "I have a question"
+    },
+    {
+     "pinyin": "huò yǒu wèntí",
+     "chinese": "货有问题",
+     "meaning": "There is a problem with the goods"
+    },
+    {
+     "pinyin": "dāngrán kěyǐ",
+     "chinese": "当然可以",
+     "meaning": "Of course you can"
+    },
+    {
+     "pinyin": "tā kěnéng bù lái",
+     "chinese": "他可能不来",
+     "meaning": "He might not come"
+    },
+    {
+     "pinyin": "wǒ míngtiān yídìng fù qián",
+     "chinese": "我明天一定付钱",
+     "meaning": "I will definitely pay tomorrow"
+    },
+    {
+     "pinyin": "kěnéng tài guì le",
+     "chinese": "可能太贵了",
+     "meaning": "Maybe it is too expensive"
+    },
+    {
+     "pinyin": "tā yídìng zhīdào",
+     "chinese": "他一定知道",
+     "meaning": "He definitely knows"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "hǎo de",
+      "chinese": "好的",
+      "answer": "OK"
+     },
+     {
+      "prompt": "bù xíng",
+      "chinese": "不行",
+      "answer": "No, that won't work"
+     },
+     {
+      "prompt": "duì",
+      "chinese": "对",
+      "answer": "Right"
+     },
+     {
+      "prompt": "zhège duì ma?",
+      "chinese": "这个对吗?",
+      "answer": "Is this right?"
+     },
+     {
+      "prompt": "yǒu wèntí ma?",
+      "chinese": "有问题吗?",
+      "answer": "Is there a problem?"
+     },
+     {
+      "prompt": "huò yǒu wèntí",
+      "chinese": "货有问题",
+      "answer": "There is a problem with the goods"
+     },
+     {
+      "prompt": "tā kěnéng bù lái",
+      "chinese": "他可能不来",
+      "answer": "He might not come"
+     },
+     {
+      "prompt": "kěnéng tài guì le",
+      "chinese": "可能太贵了",
+      "answer": "Maybe it is too expensive"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "______ ma?",
+      "hint": "Is that OK?",
+      "answer": "xíng"
+     },
+     {
+      "prompt": "míngtiān fā huò, ______ ma?",
+      "hint": "Ship tomorrow, OK?",
+      "answer": "xíng"
+     },
+     {
+      "prompt": "jiàgé bú ______",
+      "hint": "The price is wrong",
+      "answer": "duì"
+     },
+     {
+      "prompt": "méi ______",
+      "hint": "No problem",
+      "answer": "wèntí"
+     },
+     {
+      "prompt": "wǒ yǒu yí ge ______",
+      "hint": "I have a question",
+      "answer": "wèntí"
+     },
+     {
+      "prompt": "______ kěyǐ",
+      "hint": "Of course you can",
+      "answer": "dāngrán"
+     },
+     {
+      "prompt": "wǒ míngtiān ______ fù qián",
+      "hint": "I will definitely pay tomorrow",
+      "answer": "yídìng"
+     },
+     {
+      "prompt": "tā ______ zhīdào",
+      "hint": "He definitely knows",
+      "answer": "yídìng"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "tài",
+       "kěnéng",
+       "guì",
+       "le"
+      ],
+      "hint": "Maybe it is too expensive",
+      "answer": "kěnéng tài guì le"
+     },
+     {
+      "words": [
+       "qián",
+       "wǒ",
+       "yídìng",
+       "fù",
+       "míngtiān"
+      ],
+      "hint": "I will definitely pay tomorrow",
+      "answer": "wǒ míngtiān yídìng fù qián"
+     },
+     {
+      "words": [
+       "lái",
+       "bù",
+       "kěnéng",
+       "tā"
+      ],
+      "hint": "He might not come",
+      "answer": "tā kěnéng bù lái"
+     },
+     {
+      "words": [
+       "wèntí",
+       "ge",
+       "yí",
+       "wǒ",
+       "yǒu"
+      ],
+      "hint": "I have a question",
+      "answer": "wǒ yǒu yí ge wèntí"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "OK.",
+      "answer": "hǎo de"
+     },
+     {
+      "prompt": "No problem.",
+      "answer": "méi wèntí"
+     },
+     {
+      "prompt": "That won't work.",
+      "answer": "bù xíng"
+     },
+     {
+      "prompt": "Is this right?",
+      "answer": "zhège duì ma?"
+     },
+     {
+      "prompt": "I have a problem.",
+      "answer": "wǒ yǒu wèntí"
+     },
+     {
+      "prompt": "He will definitely come.",
+      "answer": "tā yídìng lái"
+     },
+     {
+      "prompt": "Maybe he doesn't know.",
+      "answer": "tā kěnéng bù zhīdào"
+     },
+     {
+      "prompt": "Of course I want it.",
+      "answer": "wǒ dāngrán yào"
+     },
+     {
+      "prompt": "Pay today, OK?",
+      "answer": "jīntiān fù qián, xíng ma?"
+     },
+     {
+      "prompt": "Is there a problem with the goods?",
+      "answer": "huò yǒu wèntí ma?"
+     }
+    ]
+   }
+  },
+  {
+   "number": 12,
+   "title": "Can, need, don't",
+   "subtitle": "Three kinds of can, plus need, help, ask and tell.",
+   "words": [
+    {
+     "pinyin": "huì",
+     "chinese": "会",
+     "meaning": "can (know how), will"
+    },
+    {
+     "pinyin": "bié",
+     "chinese": "别",
+     "meaning": "don't"
+    },
+    {
+     "pinyin": "bú yòng",
+     "chinese": "不用",
+     "meaning": "no need to"
+    },
+    {
+     "pinyin": "yòng",
+     "chinese": "用",
+     "meaning": "use"
+    },
+    {
+     "pinyin": "xūyào",
+     "chinese": "需要",
+     "meaning": "need"
+    },
+    {
+     "pinyin": "bāng",
+     "chinese": "帮",
+     "meaning": "help"
+    },
+    {
+     "pinyin": "wèn",
+     "chinese": "问",
+     "meaning": "ask"
+    },
+    {
+     "pinyin": "gàosu",
+     "chinese": "告诉",
+     "meaning": "tell"
+    },
+    {
+     "pinyin": "zuò",
+     "chinese": "做",
+     "meaning": "do, make"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + huì / néng / kěyǐ + Action",
+   "notes": [
+    "**huì** = you learned how (speak Chinese, drive). **néng** = you are able to right now. **kěyǐ** = you are allowed.",
+    "**huì** also means will: tā míngtiān huì lái = he will come tomorrow.",
+    "Telling someone not to: **bié** + action."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "nǐ shuō Zhōngwén",
+     "meaning": "You speak Chinese"
+    },
+    {
+     "pinyin": "nǐ huì shuō Zhōngwén",
+     "meaning": "You can speak Chinese"
+    },
+    {
+     "pinyin": "nǐ huì shuō Zhōngwén ma?",
+     "meaning": "Can you speak Chinese?"
+    },
+    {
+     "pinyin": "wǒ bú huì shuō Zhōngwén",
+     "meaning": "I can't speak Chinese"
+    },
+    {
+     "pinyin": "wǒ huì shuō yìdiǎn",
+     "meaning": "I can speak a little"
+    },
+    {
+     "pinyin": "bié shuō",
+     "meaning": "Don't say it"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "wǒmen"
+     ]
+    },
+    {
+     "column": "Can / need",
+     "options": [
+      "huì",
+      "bú huì",
+      "néng",
+      "bù néng",
+      "xūyào",
+      "bú yòng"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "shuō",
+      "lái",
+      "zuò",
+      "yòng",
+      "wèn",
+      "mǎi"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "(nothing)",
+      "Zhōngwén",
+      "zhège",
+      "lǎobǎn"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ huì shuō yìdiǎn Zhōngwén",
+     "chinese": "我会说一点中文",
+     "meaning": "I can speak a little Chinese"
+    },
+    {
+     "pinyin": "nǐ huì shuō Zhōngwén ma?",
+     "chinese": "你会说中文吗?",
+     "meaning": "Can you speak Chinese?"
+    },
+    {
+     "pinyin": "wǒ bú huì",
+     "chinese": "我不会",
+     "meaning": "I can't (I don't know how)"
+    },
+    {
+     "pinyin": "tā míngtiān huì lái",
+     "chinese": "他明天会来",
+     "meaning": "He will come tomorrow"
+    },
+    {
+     "pinyin": "bié qù",
+     "chinese": "别去",
+     "meaning": "Don't go"
+    },
+    {
+     "pinyin": "bié mǎi nàge",
+     "chinese": "别买那个",
+     "meaning": "Don't buy that one"
+    },
+    {
+     "pinyin": "bú yòng děng",
+     "chinese": "不用等",
+     "meaning": "No need to wait"
+    },
+    {
+     "pinyin": "bú yòng, xièxie",
+     "chinese": "不用，谢谢",
+     "meaning": "No need, thank you"
+    },
+    {
+     "pinyin": "wǒ xūyào wǔbǎi ge",
+     "chinese": "我需要五百个",
+     "meaning": "I need 500"
+    },
+    {
+     "pinyin": "nǐ xūyào shénme?",
+     "chinese": "你需要什么?",
+     "meaning": "What do you need?"
+    },
+    {
+     "pinyin": "nǐ néng bāng wǒ ma?",
+     "chinese": "你能帮我吗?",
+     "meaning": "Can you help me?"
+    },
+    {
+     "pinyin": "wǒ xiǎng wèn jiàgé",
+     "chinese": "我想问价格",
+     "meaning": "I'd like to ask the price"
+    },
+    {
+     "pinyin": "wǒ wèn lǎobǎn",
+     "chinese": "我问老板",
+     "meaning": "I'll ask the boss"
+    },
+    {
+     "pinyin": "qǐng gàosu wǒ",
+     "chinese": "请告诉我",
+     "meaning": "Please tell me"
+    },
+    {
+     "pinyin": "nǐ gàosu tā",
+     "chinese": "你告诉他",
+     "meaning": "You tell him"
+    },
+    {
+     "pinyin": "gōngchǎng zuò shénme?",
+     "chinese": "工厂做什么?",
+     "meaning": "What does the factory make?"
+    },
+    {
+     "pinyin": "zhège zěnme yòng?",
+     "chinese": "这个怎么用?",
+     "meaning": "How do you use this?"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ huì shuō yìdiǎn Zhōngwén",
+      "chinese": "我会说一点中文",
+      "answer": "I can speak a little Chinese"
+     },
+     {
+      "prompt": "wǒ bú huì",
+      "chinese": "我不会",
+      "answer": "I can't (I don't know how)"
+     },
+     {
+      "prompt": "bié qù",
+      "chinese": "别去",
+      "answer": "Don't go"
+     },
+     {
+      "prompt": "bú yòng děng",
+      "chinese": "不用等",
+      "answer": "No need to wait"
+     },
+     {
+      "prompt": "wǒ xūyào wǔbǎi ge",
+      "chinese": "我需要五百个",
+      "answer": "I need 500"
+     },
+     {
+      "prompt": "nǐ néng bāng wǒ ma?",
+      "chinese": "你能帮我吗?",
+      "answer": "Can you help me?"
+     },
+     {
+      "prompt": "wǒ wèn lǎobǎn",
+      "chinese": "我问老板",
+      "answer": "I'll ask the boss"
+     },
+     {
+      "prompt": "nǐ gàosu tā",
+      "chinese": "你告诉他",
+      "answer": "You tell him"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ ______ shuō Zhōngwén ma?",
+      "hint": "Can you speak Chinese?",
+      "answer": "huì"
+     },
+     {
+      "prompt": "tā míngtiān ______ lái",
+      "hint": "He will come tomorrow",
+      "answer": "huì"
+     },
+     {
+      "prompt": "______ mǎi nàge",
+      "hint": "Don't buy that one",
+      "answer": "bié"
+     },
+     {
+      "prompt": "bú ______, xièxie",
+      "hint": "No need, thank you",
+      "answer": "yòng"
+     },
+     {
+      "prompt": "nǐ ______ shénme?",
+      "hint": "What do you need?",
+      "answer": "xūyào"
+     },
+     {
+      "prompt": "wǒ xiǎng ______ jiàgé",
+      "hint": "I'd like to ask the price",
+      "answer": "wèn"
+     },
+     {
+      "prompt": "qǐng ______ wǒ",
+      "hint": "Please tell me",
+      "answer": "gàosu"
+     },
+     {
+      "prompt": "gōngchǎng ______ shénme?",
+      "hint": "What does the factory make?",
+      "answer": "zuò"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "wǒ",
+       "wèn",
+       "xiǎng",
+       "jiàgé"
+      ],
+      "hint": "I'd like to ask the price",
+      "answer": "wǒ xiǎng wèn jiàgé"
+     },
+     {
+      "words": [
+       "bāng",
+       "ma",
+       "nǐ",
+       "wǒ",
+       "néng"
+      ],
+      "hint": "Can you help me?",
+      "answer": "nǐ néng bāng wǒ ma?"
+     },
+     {
+      "words": [
+       "wǒ",
+       "wǔbǎi",
+       "xūyào",
+       "ge"
+      ],
+      "hint": "I need 500",
+      "answer": "wǒ xūyào wǔbǎi ge"
+     },
+     {
+      "words": [
+       "lái",
+       "tā",
+       "huì",
+       "míngtiān"
+      ],
+      "hint": "He will come tomorrow",
+      "answer": "tā míngtiān huì lái"
+     },
+     {
+      "words": [
+       "nǐ",
+       "shuō",
+       "Zhōngwén",
+       "huì",
+       "ma"
+      ],
+      "hint": "Can you speak Chinese?",
+      "answer": "nǐ huì shuō Zhōngwén ma?"
+     },
+     {
+      "words": [
+       "Zhōngwén",
+       "yìdiǎn",
+       "wǒ",
+       "shuō",
+       "huì"
+      ],
+      "hint": "I can speak a little Chinese",
+      "answer": "wǒ huì shuō yìdiǎn Zhōngwén"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I can't (I don't know how).",
+      "answer": "wǒ bú huì"
+     },
+     {
+      "prompt": "Don't wait.",
+      "answer": "bié děng"
+     },
+     {
+      "prompt": "No need to pay.",
+      "answer": "bú yòng fù qián"
+     },
+     {
+      "prompt": "I need the price.",
+      "answer": "wǒ xūyào jiàgé"
+     },
+     {
+      "prompt": "Can you help me?",
+      "answer": "nǐ néng bāng wǒ ma?"
+     },
+     {
+      "prompt": "Please tell the boss.",
+      "answer": "qǐng gàosu lǎobǎn"
+     },
+     {
+      "prompt": "I'd like to ask a question.",
+      "answer": "wǒ xiǎng wèn yí ge wèntí"
+     },
+     {
+      "prompt": "What does he make?",
+      "answer": "tā zuò shénme?"
+     },
+     {
+      "prompt": "Will he come tomorrow?",
+      "answer": "tā míngtiān huì lái ma?"
+     },
+     {
+      "prompt": "Don't tell him.",
+      "answer": "bié gàosu tā"
+     }
+    ]
+   }
+  },
+  {
+   "number": 13,
+   "title": "Eat, drink, work, call",
+   "subtitle": "Everyday talk, and how to say you are doing something right now.",
+   "words": [
+    {
+     "pinyin": "chī",
+     "chinese": "吃",
+     "meaning": "eat"
+    },
+    {
+     "pinyin": "hē",
+     "chinese": "喝",
+     "meaning": "drink"
+    },
+    {
+     "pinyin": "fàn",
+     "chinese": "饭",
+     "meaning": "meal, rice"
+    },
+    {
+     "pinyin": "shuǐ",
+     "chinese": "水",
+     "meaning": "water"
+    },
+    {
+     "pinyin": "chá",
+     "chinese": "茶",
+     "meaning": "tea"
+    },
+    {
+     "pinyin": "gōngzuò",
+     "chinese": "工作",
+     "meaning": "work"
+    },
+    {
+     "pinyin": "máng",
+     "chinese": "忙",
+     "meaning": "busy"
+    },
+    {
+     "pinyin": "lèi",
+     "chinese": "累",
+     "meaning": "tired"
+    },
+    {
+     "pinyin": "diànhuà",
+     "chinese": "电话",
+     "meaning": "phone"
+    },
+    {
+     "pinyin": "dǎ",
+     "chinese": "打",
+     "meaning": "make (a call)"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Person + zài + Action = doing it right now",
+   "notes": [
+    "**zài** has two jobs: zài + place = at; zài + action = doing now.",
+    "Place comes before the action: wǒ zài gōngsī gōngzuò.",
+    "nǐ chī fàn le ma? is a friendly greeting, like how are you."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ chī",
+     "meaning": "I eat"
+    },
+    {
+     "pinyin": "wǒ chī fàn",
+     "meaning": "I eat (a meal)"
+    },
+    {
+     "pinyin": "wǒ zài chī fàn",
+     "meaning": "I am eating now"
+    },
+    {
+     "pinyin": "wǒ zài gōngsī chī fàn",
+     "meaning": "I eat at the company"
+    },
+    {
+     "pinyin": "wǒ chī le",
+     "meaning": "I have eaten"
+    },
+    {
+     "pinyin": "nǐ chī le ma?",
+     "meaning": "Have you eaten?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Person",
+     "options": [
+      "wǒ",
+      "nǐ",
+      "tā",
+      "tāmen"
+     ]
+    },
+    {
+     "column": "Now",
+     "options": [
+      "(nothing)",
+      "zài"
+     ]
+    },
+    {
+     "column": "Action",
+     "options": [
+      "chī",
+      "hē",
+      "dǎ",
+      "kàn",
+      "zuò"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "fàn",
+      "chá",
+      "shuǐ",
+      "diànhuà",
+      "huò"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "nǐ chī fàn le ma?",
+     "chinese": "你吃饭了吗?",
+     "meaning": "Have you eaten?"
+    },
+    {
+     "pinyin": "wǒ chī le",
+     "chinese": "我吃了",
+     "meaning": "I have eaten"
+    },
+    {
+     "pinyin": "wǒ méi chī",
+     "chinese": "我没吃",
+     "meaning": "I haven't eaten"
+    },
+    {
+     "pinyin": "nǐ xiǎng chī shénme?",
+     "chinese": "你想吃什么?",
+     "meaning": "What would you like to eat?"
+    },
+    {
+     "pinyin": "wǒ xiǎng hē chá",
+     "chinese": "我想喝茶",
+     "meaning": "I'd like tea"
+    },
+    {
+     "pinyin": "nǐ hē shuǐ ma?",
+     "chinese": "你喝水吗?",
+     "meaning": "Would you like water?"
+    },
+    {
+     "pinyin": "wǒ bù hē, xièxie",
+     "chinese": "我不喝，谢谢",
+     "meaning": "Not for me, thank you"
+    },
+    {
+     "pinyin": "wǒ zài chī fàn",
+     "chinese": "我在吃饭",
+     "meaning": "I am eating"
+    },
+    {
+     "pinyin": "tā zài gōngzuò",
+     "chinese": "他在工作",
+     "meaning": "He is working"
+    },
+    {
+     "pinyin": "nǐ zài zuò shénme?",
+     "chinese": "你在做什么?",
+     "meaning": "What are you doing?"
+    },
+    {
+     "pinyin": "wǒ jīntiān hěn máng",
+     "chinese": "我今天很忙",
+     "meaning": "I am busy today"
+    },
+    {
+     "pinyin": "nǐ máng ma?",
+     "chinese": "你忙吗?",
+     "meaning": "Are you busy?"
+    },
+    {
+     "pinyin": "wǒ hěn lèi",
+     "chinese": "我很累",
+     "meaning": "I am tired"
+    },
+    {
+     "pinyin": "nǐ zài nǎr gōngzuò?",
+     "chinese": "你在哪儿工作?",
+     "meaning": "Where do you work?"
+    },
+    {
+     "pinyin": "wǒ zài gōngsī gōngzuò",
+     "chinese": "我在公司工作",
+     "meaning": "I work at the company"
+    },
+    {
+     "pinyin": "wǒ gěi nǐ dǎ diànhuà",
+     "chinese": "我给你打电话",
+     "meaning": "I will call you"
+    },
+    {
+     "pinyin": "qǐng gěi wǒ dǎ diànhuà",
+     "chinese": "请给我打电话",
+     "meaning": "Please call me"
+    },
+    {
+     "pinyin": "tā zài dǎ diànhuà",
+     "chinese": "他在打电话",
+     "meaning": "He is on the phone"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "nǐ chī fàn le ma?",
+      "chinese": "你吃饭了吗?",
+      "answer": "Have you eaten?"
+     },
+     {
+      "prompt": "wǒ méi chī",
+      "chinese": "我没吃",
+      "answer": "I haven't eaten"
+     },
+     {
+      "prompt": "wǒ xiǎng hē chá",
+      "chinese": "我想喝茶",
+      "answer": "I'd like tea"
+     },
+     {
+      "prompt": "wǒ bù hē, xièxie",
+      "chinese": "我不喝，谢谢",
+      "answer": "Not for me, thank you"
+     },
+     {
+      "prompt": "tā zài gōngzuò",
+      "chinese": "他在工作",
+      "answer": "He is working"
+     },
+     {
+      "prompt": "wǒ jīntiān hěn máng",
+      "chinese": "我今天很忙",
+      "answer": "I am busy today"
+     },
+     {
+      "prompt": "wǒ hěn lèi",
+      "chinese": "我很累",
+      "answer": "I am tired"
+     },
+     {
+      "prompt": "wǒ zài gōngsī gōngzuò",
+      "chinese": "我在公司工作",
+      "answer": "I work at the company"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "wǒ ______ le",
+      "hint": "I have eaten",
+      "answer": "chī"
+     },
+     {
+      "prompt": "nǐ xiǎng ______ shénme?",
+      "hint": "What would you like to eat?",
+      "answer": "chī"
+     },
+     {
+      "prompt": "nǐ hē ______ ma?",
+      "hint": "Would you like water?",
+      "answer": "shuǐ"
+     },
+     {
+      "prompt": "wǒ zài chī ______",
+      "hint": "I am eating",
+      "answer": "fàn"
+     },
+     {
+      "prompt": "nǐ ______ ma?",
+      "hint": "Are you busy?",
+      "answer": "máng"
+     },
+     {
+      "prompt": "nǐ zài nǎr ______?",
+      "hint": "Where do you work?",
+      "answer": "gōngzuò"
+     },
+     {
+      "prompt": "wǒ gěi nǐ dǎ ______",
+      "hint": "I will call you",
+      "answer": "diànhuà"
+     },
+     {
+      "prompt": "tā zài dǎ ______",
+      "hint": "He is on the phone",
+      "answer": "diànhuà"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "diànhuà",
+       "tā",
+       "zài",
+       "dǎ"
+      ],
+      "hint": "He is on the phone",
+      "answer": "tā zài dǎ diànhuà"
+     },
+     {
+      "words": [
+       "dǎ",
+       "wǒ",
+       "qǐng",
+       "diànhuà",
+       "gěi"
+      ],
+      "hint": "Please call me",
+      "answer": "qǐng gěi wǒ dǎ diànhuà"
+     },
+     {
+      "words": [
+       "diànhuà",
+       "dǎ",
+       "nǐ",
+       "wǒ",
+       "gěi"
+      ],
+      "hint": "I will call you",
+      "answer": "wǒ gěi nǐ dǎ diànhuà"
+     },
+     {
+      "words": [
+       "gōngzuò",
+       "zài",
+       "wǒ",
+       "gōngsī"
+      ],
+      "hint": "I work at the company",
+      "answer": "wǒ zài gōngsī gōngzuò"
+     },
+     {
+      "words": [
+       "gōngzuò",
+       "nǐ",
+       "nǎr",
+       "zài"
+      ],
+      "hint": "Where do you work?",
+      "answer": "nǐ zài nǎr gōngzuò?"
+     },
+     {
+      "words": [
+       "jīntiān",
+       "máng",
+       "wǒ",
+       "hěn"
+      ],
+      "hint": "I am busy today",
+      "answer": "wǒ jīntiān hěn máng"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "Have you eaten?",
+      "answer": "nǐ chī fàn le ma?"
+     },
+     {
+      "prompt": "I'd like to drink water.",
+      "answer": "wǒ xiǎng hē shuǐ"
+     },
+     {
+      "prompt": "He is eating.",
+      "answer": "tā zài chī fàn"
+     },
+     {
+      "prompt": "I am very busy.",
+      "answer": "wǒ hěn máng"
+     },
+     {
+      "prompt": "Are you tired?",
+      "answer": "nǐ lèi ma?"
+     },
+     {
+      "prompt": "What is he doing?",
+      "answer": "tā zài zuò shénme?"
+     },
+     {
+      "prompt": "I don't drink tea.",
+      "answer": "wǒ bù hē chá"
+     },
+     {
+      "prompt": "We work at the factory.",
+      "answer": "wǒmen zài gōngchǎng gōngzuò"
+     },
+     {
+      "prompt": "I haven't eaten.",
+      "answer": "wǒ méi chī"
+     },
+     {
+      "prompt": "Please call me.",
+      "answer": "qǐng gěi wǒ dǎ diànhuà"
+     }
+    ]
+   }
+  },
+  {
+   "number": 14,
+   "title": "Better, best, same",
+   "subtitle": "Compare two things and pick the best one.",
+   "words": [
+    {
+     "pinyin": "bǐ",
+     "chinese": "比",
+     "meaning": "than"
+    },
+    {
+     "pinyin": "zuì",
+     "chinese": "最",
+     "meaning": "most"
+    },
+    {
+     "pinyin": "gèng",
+     "chinese": "更",
+     "meaning": "even more"
+    },
+    {
+     "pinyin": "zhēn",
+     "chinese": "真",
+     "meaning": "really"
+    },
+    {
+     "pinyin": "yíyàng",
+     "chinese": "一样",
+     "meaning": "the same"
+    },
+    {
+     "pinyin": "nǎge",
+     "chinese": "哪个",
+     "meaning": "which one"
+    },
+    {
+     "pinyin": "kuài",
+     "chinese": "快",
+     "meaning": "fast"
+    },
+    {
+     "pinyin": "màn",
+     "chinese": "慢",
+     "meaning": "slow"
+    },
+    {
+     "pinyin": "xīn",
+     "chinese": "新",
+     "meaning": "new"
+    },
+    {
+     "pinyin": "jiù",
+     "chinese": "旧",
+     "meaning": "old (things)"
+    },
+    {
+     "pinyin": "huài",
+     "chinese": "坏",
+     "meaning": "bad, broken"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "A + bǐ + B + Describing word",
+   "notes": [
+    "Do not use hěn in a bǐ sentence. Add **yìdiǎn** at the end for a bit more.",
+    "**zuì** + describing word = the most: zuì hǎo = best.",
+    "kuài here (fast, 快) is a different word from kuài (yuan, 块). Same sound, different character."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "zhège guì",
+     "meaning": "this, expensive"
+    },
+    {
+     "pinyin": "zhège hěn guì",
+     "meaning": "This is expensive"
+    },
+    {
+     "pinyin": "zhège bǐ nàge guì",
+     "meaning": "This is more expensive than that"
+    },
+    {
+     "pinyin": "zhège bǐ nàge guì yìdiǎn",
+     "meaning": "This is a bit more expensive than that"
+    },
+    {
+     "pinyin": "zhège zuì guì",
+     "meaning": "This is the most expensive"
+    },
+    {
+     "pinyin": "nǎge zuì guì?",
+     "meaning": "Which one is the most expensive?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "A",
+     "options": [
+      "zhège",
+      "nàge",
+      "nǐ de jiàgé",
+      "tā de huò"
+     ]
+    },
+    {
+     "column": "than",
+     "options": [
+      "bǐ"
+     ]
+    },
+    {
+     "column": "B",
+     "options": [
+      "nàge",
+      "zhège",
+      "wǒ de",
+      "tā de"
+     ]
+    },
+    {
+     "column": "Describing word",
+     "options": [
+      "hǎo",
+      "guì",
+      "piányi",
+      "dà",
+      "xiǎo",
+      "kuài",
+      "màn",
+      "xīn"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "zhège bǐ nàge guì",
+     "chinese": "这个比那个贵",
+     "meaning": "This is more expensive than that"
+    },
+    {
+     "pinyin": "nàge bǐ zhège hǎo",
+     "chinese": "那个比这个好",
+     "meaning": "That is better than this"
+    },
+    {
+     "pinyin": "tā de jiàgé bǐ nǐ de piányi",
+     "chinese": "他的价格比你的便宜",
+     "meaning": "His price is cheaper than yours"
+    },
+    {
+     "pinyin": "zhège zuì hǎo",
+     "chinese": "这个最好",
+     "meaning": "This is the best"
+    },
+    {
+     "pinyin": "zuì piányi de duōshao qián?",
+     "chinese": "最便宜的多少钱?",
+     "meaning": "How much is the cheapest one?"
+    },
+    {
+     "pinyin": "nǎge zuì piányi?",
+     "chinese": "哪个最便宜?",
+     "meaning": "Which is the cheapest?"
+    },
+    {
+     "pinyin": "nǐ yào nǎge?",
+     "chinese": "你要哪个?",
+     "meaning": "Which one do you want?"
+    },
+    {
+     "pinyin": "zhège gèng hǎo",
+     "chinese": "这个更好",
+     "meaning": "This one is even better"
+    },
+    {
+     "pinyin": "zhēn guì",
+     "chinese": "真贵",
+     "meaning": "Really expensive"
+    },
+    {
+     "pinyin": "tài màn le",
+     "chinese": "太慢了",
+     "meaning": "Too slow"
+    },
+    {
+     "pinyin": "qǐng kuài yìdiǎn",
+     "chinese": "请快一点",
+     "meaning": "Please be a bit quicker"
+    },
+    {
+     "pinyin": "qǐng shuō màn yìdiǎn",
+     "chinese": "请说慢一点",
+     "meaning": "Please speak a bit slower"
+    },
+    {
+     "pinyin": "zhège shì xīn de",
+     "chinese": "这个是新的",
+     "meaning": "This is new"
+    },
+    {
+     "pinyin": "wǒ bú yào jiù de",
+     "chinese": "我不要旧的",
+     "meaning": "I don't want old ones"
+    },
+    {
+     "pinyin": "zhège huài le",
+     "chinese": "这个坏了",
+     "meaning": "This is broken"
+    },
+    {
+     "pinyin": "zhège hé nàge yíyàng",
+     "chinese": "这个和那个一样",
+     "meaning": "This and that are the same"
+    },
+    {
+     "pinyin": "jiàgé yíyàng ma?",
+     "chinese": "价格一样吗?",
+     "meaning": "Is the price the same?"
+    },
+    {
+     "pinyin": "bù yíyàng",
+     "chinese": "不一样",
+     "meaning": "Not the same"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "zhège bǐ nàge guì",
+      "chinese": "这个比那个贵",
+      "answer": "This is more expensive than that"
+     },
+     {
+      "prompt": "tā de jiàgé bǐ nǐ de piányi",
+      "chinese": "他的价格比你的便宜",
+      "answer": "His price is cheaper than yours"
+     },
+     {
+      "prompt": "zuì piányi de duōshao qián?",
+      "chinese": "最便宜的多少钱?",
+      "answer": "How much is the cheapest one?"
+     },
+     {
+      "prompt": "nǐ yào nǎge?",
+      "chinese": "你要哪个?",
+      "answer": "Which one do you want?"
+     },
+     {
+      "prompt": "zhēn guì",
+      "chinese": "真贵",
+      "answer": "Really expensive"
+     },
+     {
+      "prompt": "qǐng kuài yìdiǎn",
+      "chinese": "请快一点",
+      "answer": "Please be a bit quicker"
+     },
+     {
+      "prompt": "zhège shì xīn de",
+      "chinese": "这个是新的",
+      "answer": "This is new"
+     },
+     {
+      "prompt": "zhège huài le",
+      "chinese": "这个坏了",
+      "answer": "This is broken"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nàge ______ zhège hǎo",
+      "hint": "That is better than this",
+      "answer": "bǐ"
+     },
+     {
+      "prompt": "zhège ______ hǎo",
+      "hint": "This is the best",
+      "answer": "zuì"
+     },
+     {
+      "prompt": "nǎge ______ piányi?",
+      "hint": "Which is the cheapest?",
+      "answer": "zuì"
+     },
+     {
+      "prompt": "zhège ______ hǎo",
+      "hint": "This one is even better",
+      "answer": "gèng"
+     },
+     {
+      "prompt": "tài ______ le",
+      "hint": "Too slow",
+      "answer": "màn"
+     },
+     {
+      "prompt": "qǐng shuō ______ yìdiǎn",
+      "hint": "Please speak a bit slower",
+      "answer": "màn"
+     },
+     {
+      "prompt": "wǒ bú yào ______ de",
+      "hint": "I don't want old ones",
+      "answer": "jiù"
+     },
+     {
+      "prompt": "zhège hé nàge ______",
+      "hint": "This and that are the same",
+      "answer": "yíyàng"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "hé",
+       "yíyàng",
+       "nàge",
+       "zhège"
+      ],
+      "hint": "This and that are the same",
+      "answer": "zhège hé nàge yíyàng"
+     },
+     {
+      "words": [
+       "jiù",
+       "wǒ",
+       "bú",
+       "de",
+       "yào"
+      ],
+      "hint": "I don't want old ones",
+      "answer": "wǒ bú yào jiù de"
+     },
+     {
+      "words": [
+       "zhège",
+       "xīn",
+       "shì",
+       "de"
+      ],
+      "hint": "This is new",
+      "answer": "zhège shì xīn de"
+     },
+     {
+      "words": [
+       "màn",
+       "qǐng",
+       "shuō",
+       "yìdiǎn"
+      ],
+      "hint": "Please speak a bit slower",
+      "answer": "qǐng shuō màn yìdiǎn"
+     },
+     {
+      "words": [
+       "zuì",
+       "qián",
+       "duōshao",
+       "piányi",
+       "de"
+      ],
+      "hint": "How much is the cheapest one?",
+      "answer": "zuì piányi de duōshao qián?"
+     },
+     {
+      "words": [
+       "nǐ",
+       "bǐ",
+       "tā",
+       "de",
+       "de",
+       "jiàgé",
+       "piányi"
+      ],
+      "hint": "His price is cheaper than yours",
+      "answer": "tā de jiàgé bǐ nǐ de piányi"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "This is better than that.",
+      "answer": "zhège bǐ nàge hǎo"
+     },
+     {
+      "prompt": "Which one is the best?",
+      "answer": "nǎge zuì hǎo?"
+     },
+     {
+      "prompt": "Too slow.",
+      "answer": "tài màn le"
+     },
+     {
+      "prompt": "Please speak a bit slower.",
+      "answer": "qǐng shuō màn yìdiǎn"
+     },
+     {
+      "prompt": "This is broken.",
+      "answer": "zhège huài le"
+     },
+     {
+      "prompt": "I want new ones.",
+      "answer": "wǒ yào xīn de"
+     },
+     {
+      "prompt": "The price is not the same.",
+      "answer": "jiàgé bù yíyàng"
+     },
+     {
+      "prompt": "Your price is more expensive than his.",
+      "answer": "nǐ de jiàgé bǐ tā de guì"
+     },
+     {
+      "prompt": "Really cheap.",
+      "answer": "zhēn piányi"
+     },
+     {
+      "prompt": "Which one do you want?",
+      "answer": "nǐ yào nǎge?"
+     }
+    ]
+   }
+  },
+  {
+   "number": 15,
+   "title": "If, so, or, already, still",
+   "subtitle": "Join two ideas and talk about what has or hasn't happened yet.",
+   "words": [
+    {
+     "pinyin": "rúguǒ",
+     "chinese": "如果",
+     "meaning": "if"
+    },
+    {
+     "pinyin": "suǒyǐ",
+     "chinese": "所以",
+     "meaning": "so, therefore"
+    },
+    {
+     "pinyin": "háishi",
+     "chinese": "还是",
+     "meaning": "or (in a question)"
+    },
+    {
+     "pinyin": "hái",
+     "chinese": "还",
+     "meaning": "still, more"
+    },
+    {
+     "pinyin": "yǐjīng",
+     "chinese": "已经",
+     "meaning": "already"
+    },
+    {
+     "pinyin": "zài",
+     "chinese": "再",
+     "meaning": "again"
+    },
+    {
+     "pinyin": "cóng",
+     "chinese": "从",
+     "meaning": "from"
+    },
+    {
+     "pinyin": "dào",
+     "chinese": "到",
+     "meaning": "to, arrive"
+    },
+    {
+     "pinyin": "xīngqī",
+     "chinese": "星期",
+     "meaning": "week"
+    },
+    {
+     "pinyin": "nián",
+     "chinese": "年",
+     "meaning": "year"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "rúguǒ + Condition, Result",
+   "notes": [
+    "**hái méi** + action = not yet: huò hái méi dào = the goods have not arrived yet.",
+    "**háishi** offers a choice in a question: A háishi B?",
+    "zài (again, 再) sounds the same as zài (at, 在). Again goes before an action that has not happened yet.",
+    "qǐng zài shuō yí biàn = please say it once more. Learn it as one fixed phrase."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ mǎi",
+     "meaning": "I buy"
+    },
+    {
+     "pinyin": "wǒ bù mǎi",
+     "meaning": "I won't buy"
+    },
+    {
+     "pinyin": "tài guì, wǒ bù mǎi",
+     "meaning": "Too expensive, I won't buy"
+    },
+    {
+     "pinyin": "rúguǒ tài guì, wǒ bù mǎi",
+     "meaning": "If it is too expensive, I won't buy"
+    },
+    {
+     "pinyin": "rúguǒ piányi yìdiǎn, wǒ mǎi",
+     "meaning": "If it is a bit cheaper, I'll buy"
+    },
+    {
+     "pinyin": "nǐ mǎi háishi bù mǎi?",
+     "meaning": "Are you buying or not?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "If",
+     "options": [
+      "rúguǒ"
+     ]
+    },
+    {
+     "column": "Condition",
+     "options": [
+      "tài guì",
+      "nǐ lái",
+      "huò hǎo",
+      "méi yǒu huò",
+      "nǐ fù qián"
+     ]
+    },
+    {
+     "column": "Result",
+     "options": [
+      "wǒ bù mǎi",
+      "wǒ qù",
+      "wǒ mǎi",
+      "wǒ děng",
+      "wǒ fā huò"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "nǐ yào dà de háishi xiǎo de?",
+     "chinese": "你要大的还是小的?",
+     "meaning": "Do you want the big one or the small one?"
+    },
+    {
+     "pinyin": "jīntiān háishi míngtiān?",
+     "chinese": "今天还是明天?",
+     "meaning": "Today or tomorrow?"
+    },
+    {
+     "pinyin": "rúguǒ tài guì, wǒ bù mǎi",
+     "chinese": "如果太贵，我不买",
+     "meaning": "If it is too expensive, I won't buy"
+    },
+    {
+     "pinyin": "rúguǒ nǐ mǎi yìqiān ge, kěyǐ piányi yìdiǎn",
+     "chinese": "如果你买一千个，可以便宜一点",
+     "meaning": "If you buy 1,000, it can be a bit cheaper"
+    },
+    {
+     "pinyin": "yīnwèi tài guì le, suǒyǐ wǒ bù mǎi",
+     "chinese": "因为太贵了，所以我不买",
+     "meaning": "Because it is too expensive, I'm not buying"
+    },
+    {
+     "pinyin": "wǒ hái méi fù",
+     "chinese": "我还没付",
+     "meaning": "I still haven't paid"
+    },
+    {
+     "pinyin": "huò hái méi dào",
+     "chinese": "货还没到",
+     "meaning": "The goods haven't arrived yet"
+    },
+    {
+     "pinyin": "tā hái zài gōngchǎng",
+     "chinese": "他还在工厂",
+     "meaning": "He is still at the factory"
+    },
+    {
+     "pinyin": "hái yǒu ma?",
+     "chinese": "还有吗?",
+     "meaning": "Is there any more?"
+    },
+    {
+     "pinyin": "wǒ yǐjīng fù le",
+     "chinese": "我已经付了",
+     "meaning": "I have already paid"
+    },
+    {
+     "pinyin": "huò yǐjīng fā le",
+     "chinese": "货已经发了",
+     "meaning": "The goods have already been sent"
+    },
+    {
+     "pinyin": "huò dào le",
+     "chinese": "货到了",
+     "meaning": "The goods have arrived"
+    },
+    {
+     "pinyin": "huò shénme shíhou dào?",
+     "chinese": "货什么时候到?",
+     "meaning": "When will the goods arrive?"
+    },
+    {
+     "pinyin": "yí ge xīngqī néng dào ma?",
+     "chinese": "一个星期能到吗?",
+     "meaning": "Can it arrive within a week?"
+    },
+    {
+     "pinyin": "wǒ míngtiān zài lái",
+     "chinese": "我明天再来",
+     "meaning": "I'll come again tomorrow"
+    },
+    {
+     "pinyin": "qǐng zài shuō yí biàn",
+     "chinese": "请再说一遍",
+     "meaning": "Please say it once more"
+    },
+    {
+     "pinyin": "tā cóng Zhōngguó lái",
+     "chinese": "他从中国来",
+     "meaning": "He comes from China"
+    },
+    {
+     "pinyin": "cóng Zhōngguó dào zhèlǐ",
+     "chinese": "从中国到这里",
+     "meaning": "from China to here"
+    },
+    {
+     "pinyin": "liǎng nián",
+     "chinese": "两年",
+     "meaning": "two years"
+    }
+   ],
+   "conversation": [],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "nǐ yào dà de háishi xiǎo de?",
+      "chinese": "你要大的还是小的?",
+      "answer": "Do you want the big one or the small one?"
+     },
+     {
+      "prompt": "rúguǒ tài guì, wǒ bù mǎi",
+      "chinese": "如果太贵，我不买",
+      "answer": "If it is too expensive, I won't buy"
+     },
+     {
+      "prompt": "yīnwèi tài guì le, suǒyǐ wǒ bù mǎi",
+      "chinese": "因为太贵了，所以我不买",
+      "answer": "Because it is too expensive, I'm not buying"
+     },
+     {
+      "prompt": "huò hái méi dào",
+      "chinese": "货还没到",
+      "answer": "The goods haven't arrived yet"
+     },
+     {
+      "prompt": "hái yǒu ma?",
+      "chinese": "还有吗?",
+      "answer": "Is there any more?"
+     },
+     {
+      "prompt": "huò yǐjīng fā le",
+      "chinese": "货已经发了",
+      "answer": "The goods have already been sent"
+     },
+     {
+      "prompt": "huò shénme shíhou dào?",
+      "chinese": "货什么时候到?",
+      "answer": "When will the goods arrive?"
+     },
+     {
+      "prompt": "wǒ míngtiān zài lái",
+      "chinese": "我明天再来",
+      "answer": "I'll come again tomorrow"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "jīntiān ______ míngtiān?",
+      "hint": "Today or tomorrow?",
+      "answer": "háishi"
+     },
+     {
+      "prompt": "______ nǐ mǎi yìqiān ge, kěyǐ piányi yìdiǎn",
+      "hint": "If you buy 1,000, it can be a bit cheaper",
+      "answer": "rúguǒ"
+     },
+     {
+      "prompt": "wǒ ______ méi fù",
+      "hint": "I still haven't paid",
+      "answer": "hái"
+     },
+     {
+      "prompt": "tā hái ______ gōngchǎng",
+      "hint": "He is still at the factory",
+      "answer": "zài"
+     },
+     {
+      "prompt": "wǒ ______ fù le",
+      "hint": "I have already paid",
+      "answer": "yǐjīng"
+     },
+     {
+      "prompt": "huò ______ le",
+      "hint": "The goods have arrived",
+      "answer": "dào"
+     },
+     {
+      "prompt": "yí ge xīngqī néng ______ ma?",
+      "hint": "Can it arrive within a week?",
+      "answer": "dào"
+     },
+     {
+      "prompt": "qǐng ______ shuō yí biàn",
+      "hint": "Please say it once more",
+      "answer": "zài"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "zhèlǐ",
+       "dào",
+       "cóng",
+       "Zhōngguó"
+      ],
+      "hint": "from China to here",
+      "answer": "cóng Zhōngguó dào zhèlǐ"
+     },
+     {
+      "words": [
+       "lái",
+       "Zhōngguó",
+       "tā",
+       "cóng"
+      ],
+      "hint": "He comes from China",
+      "answer": "tā cóng Zhōngguó lái"
+     },
+     {
+      "words": [
+       "biàn",
+       "yí",
+       "shuō",
+       "zài",
+       "qǐng"
+      ],
+      "hint": "Please say it once more",
+      "answer": "qǐng zài shuō yí biàn"
+     },
+     {
+      "words": [
+       "zài",
+       "lái",
+       "wǒ",
+       "míngtiān"
+      ],
+      "hint": "I'll come again tomorrow",
+      "answer": "wǒ míngtiān zài lái"
+     },
+     {
+      "words": [
+       "yí",
+       "ma",
+       "ge",
+       "dào",
+       "xīngqī",
+       "néng"
+      ],
+      "hint": "Can it arrive within a week?",
+      "answer": "yí ge xīngqī néng dào ma?"
+     },
+     {
+      "words": [
+       "shénme",
+       "dào",
+       "huò",
+       "shíhou"
+      ],
+      "hint": "When will the goods arrive?",
+      "answer": "huò shénme shíhou dào?"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "Big or small?",
+      "answer": "dà de háishi xiǎo de?"
+     },
+     {
+      "prompt": "If you come, I'll go.",
+      "answer": "rúguǒ nǐ lái, wǒ qù"
+     },
+     {
+      "prompt": "I have already paid.",
+      "answer": "wǒ yǐjīng fù le"
+     },
+     {
+      "prompt": "The goods haven't arrived yet.",
+      "answer": "huò hái méi dào"
+     },
+     {
+      "prompt": "When will the goods arrive?",
+      "answer": "huò shénme shíhou dào?"
+     },
+     {
+      "prompt": "Two weeks.",
+      "answer": "liǎng ge xīngqī"
+     },
+     {
+      "prompt": "He comes from China.",
+      "answer": "tā cóng Zhōngguó lái"
+     },
+     {
+      "prompt": "Is there any more?",
+      "answer": "hái yǒu ma?"
+     },
+     {
+      "prompt": "I'll come again tomorrow.",
+      "answer": "wǒ míngtiān zài lái"
+     },
+     {
+      "prompt": "So I'm not going.",
+      "answer": "suǒyǐ wǒ bú qù"
+     }
+    ]
+   }
+  },
+  {
+   "number": 16,
+   "title": "Samples, quality, orders",
+   "subtitle": "The trade words for a real deal with a supplier.",
+   "words": [
+    {
+     "pinyin": "yàngpǐn",
+     "chinese": "样品",
+     "meaning": "sample"
+    },
+    {
+     "pinyin": "zhìliàng",
+     "chinese": "质量",
+     "meaning": "quality"
+    },
+    {
+     "pinyin": "shùliàng",
+     "chinese": "数量",
+     "meaning": "quantity"
+    },
+    {
+     "pinyin": "dìngdān",
+     "chinese": "订单",
+     "meaning": "order"
+    },
+    {
+     "pinyin": "xià",
+     "chinese": "下",
+     "meaning": "place (an order)"
+    },
+    {
+     "pinyin": "xiāng",
+     "chinese": "箱",
+     "meaning": "carton"
+    },
+    {
+     "pinyin": "dìngjīn",
+     "chinese": "定金",
+     "meaning": "deposit"
+    },
+    {
+     "pinyin": "yùnfèi",
+     "chinese": "运费",
+     "meaning": "shipping cost"
+    },
+    {
+     "pinyin": "zuì dī",
+     "chinese": "最低",
+     "meaning": "lowest"
+    },
+    {
+     "pinyin": "kèhù",
+     "chinese": "客户",
+     "meaning": "customer"
+    },
+    {
+     "pinyin": "zhàopiàn",
+     "chinese": "照片",
+     "meaning": "photo"
+    },
+    {
+     "pinyin": "shǒutào",
+     "chinese": "手套",
+     "meaning": "gloves"
+    }
+   ],
+   "extraWords": [],
+   "pattern": "Number + xiāng (carton counts like ge)",
+   "notes": [
+    "**xiāng** replaces ge: wǔshí xiāng = 50 cartons. One carton is **yì xiāng**.",
+    "Asking an amount: Thing + **duōshao**? (dìngjīn duōshao?)",
+    "Prices with decimals: yí kuài bā = 1.80 yuan, liǎng kuài wǔ = 2.50 yuan."
+   ],
+   "buildSteps": [
+    {
+     "pinyin": "wǒ xià dìngdān",
+     "meaning": "I place an order"
+    },
+    {
+     "pinyin": "wǒ xiǎng xià dìngdān",
+     "meaning": "I'd like to place an order"
+    },
+    {
+     "pinyin": "wǒ jīntiān xiǎng xià dìngdān",
+     "meaning": "I'd like to place an order today"
+    },
+    {
+     "pinyin": "rúguǒ jiàgé hǎo, wǒ jīntiān xià dìngdān",
+     "meaning": "If the price is good, I'll order today"
+    },
+    {
+     "pinyin": "wǒ yào yìbǎi xiāng",
+     "meaning": "I want 100 cartons"
+    },
+    {
+     "pinyin": "wǒ jīntiān fù dìngjīn, nǐ shénme shíhou fā huò?",
+     "meaning": "I pay the deposit today; when will you ship?"
+    }
+   ],
+   "sentenceBuilder": [
+    {
+     "column": "Request",
+     "options": [
+      "wǒ xiǎng kàn",
+      "qǐng fā",
+      "qǐng gěi wǒ",
+      "wǒ xūyào"
+     ]
+    },
+    {
+     "column": "Thing",
+     "options": [
+      "yàngpǐn",
+      "zhàopiàn",
+      "jiàgé",
+      "zuì dī jiàgé",
+      "shǒutào"
+     ]
+    }
+   ],
+   "examples": [
+    {
+     "pinyin": "wǒ xiǎng kàn yàngpǐn",
+     "chinese": "我想看样品",
+     "meaning": "I'd like to see a sample"
+    },
+    {
+     "pinyin": "nǐ néng fā yàngpǐn ma?",
+     "chinese": "你能发样品吗?",
+     "meaning": "Can you send a sample?"
+    },
+    {
+     "pinyin": "yàngpǐn duōshao qián?",
+     "chinese": "样品多少钱?",
+     "meaning": "How much is the sample?"
+    },
+    {
+     "pinyin": "zhìliàng hěn hǎo",
+     "chinese": "质量很好",
+     "meaning": "The quality is good"
+    },
+    {
+     "pinyin": "zhìliàng yǒu wèntí",
+     "chinese": "质量有问题",
+     "meaning": "There is a quality problem"
+    },
+    {
+     "pinyin": "zhìliàng yíyàng ma?",
+     "chinese": "质量一样吗?",
+     "meaning": "Is the quality the same?"
+    },
+    {
+     "pinyin": "shùliàng duōshao?",
+     "chinese": "数量多少?",
+     "meaning": "What is the quantity?"
+    },
+    {
+     "pinyin": "wǒ xiǎng xià dìngdān",
+     "chinese": "我想下订单",
+     "meaning": "I'd like to place an order"
+    },
+    {
+     "pinyin": "wǒ yào wǔshí xiāng",
+     "chinese": "我要五十箱",
+     "meaning": "I want 50 cartons"
+    },
+    {
+     "pinyin": "yì xiāng duōshao ge?",
+     "chinese": "一箱多少个?",
+     "meaning": "How many pieces per carton?"
+    },
+    {
+     "pinyin": "yì xiāng yìbǎi ge",
+     "chinese": "一箱一百个",
+     "meaning": "100 pieces per carton"
+    },
+    {
+     "pinyin": "dìngjīn duōshao?",
+     "chinese": "定金多少?",
+     "meaning": "How much is the deposit?"
+    },
+    {
+     "pinyin": "wǒ jīntiān fù dìngjīn",
+     "chinese": "我今天付定金",
+     "meaning": "I'll pay the deposit today"
+    },
+    {
+     "pinyin": "yùnfèi duōshao qián?",
+     "chinese": "运费多少钱?",
+     "meaning": "How much is shipping?"
+    },
+    {
+     "pinyin": "zuì dī jiàgé duōshao?",
+     "chinese": "最低价格多少?",
+     "meaning": "What is your lowest price?"
+    },
+    {
+     "pinyin": "zhège shì zuì dī jiàgé ma?",
+     "chinese": "这个是最低价格吗?",
+     "meaning": "Is this the lowest price?"
+    },
+    {
+     "pinyin": "qǐng fā zhàopiàn",
+     "chinese": "请发照片",
+     "meaning": "Please send photos"
+    },
+    {
+     "pinyin": "tā shì wǒ de kèhù",
+     "chinese": "他是我的客户",
+     "meaning": "He is my customer"
+    },
+    {
+     "pinyin": "wǒ de kèhù yào xīn de",
+     "chinese": "我的客户要新的",
+     "meaning": "My customer wants new ones"
+    }
+   ],
+   "conversation": [
+    {
+     "speaker": "A",
+     "pinyin": "nǐ hǎo. wǒ xiǎng mǎi shǒutào. nǐ yǒu yàngpǐn ma?",
+     "meaning": "Hello. I'd like to buy gloves. Do you have samples?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "yǒu. nǐ xūyào duōshao?",
+     "meaning": "Yes. How many do you need?"
+    },
+    {
+     "speaker": "A",
+     "pinyin": "yìbǎi xiāng. yì xiāng duōshao ge?",
+     "meaning": "100 cartons. How many per carton?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "yì xiāng wǔbǎi ge. yí ge liǎng kuài.",
+     "meaning": "500 per carton. 2 yuan each."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "tài guì le. zuì dī jiàgé duōshao?",
+     "meaning": "Too expensive. What is your lowest price?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "rúguǒ nǐ mǎi liǎngbǎi xiāng, yí ge yí kuài bā.",
+     "meaning": "If you buy 200 cartons, 1.80 each."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "hǎo de. zhìliàng yíyàng ma?",
+     "meaning": "OK. Is the quality the same?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "yíyàng. méi wèntí.",
+     "meaning": "The same. No problem."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "dìngjīn duōshao? shénme shíhou fā huò?",
+     "meaning": "How much is the deposit? When do you ship?"
+    },
+    {
+     "speaker": "B",
+     "pinyin": "dìngjīn wǔ wàn kuài. yí ge xīngqī fā huò.",
+     "meaning": "Deposit 50,000 yuan. We ship in one week."
+    },
+    {
+     "speaker": "A",
+     "pinyin": "xíng. wǒ míngtiān fù dìngjīn. xièxie!",
+     "meaning": "Fine. I'll pay the deposit tomorrow. Thank you!"
+    }
+   ],
+   "quizzes": {
+    "meaning": [
+     {
+      "prompt": "wǒ xiǎng kàn yàngpǐn",
+      "chinese": "我想看样品",
+      "answer": "I'd like to see a sample"
+     },
+     {
+      "prompt": "yàngpǐn duōshao qián?",
+      "chinese": "样品多少钱?",
+      "answer": "How much is the sample?"
+     },
+     {
+      "prompt": "zhìliàng yǒu wèntí",
+      "chinese": "质量有问题",
+      "answer": "There is a quality problem"
+     },
+     {
+      "prompt": "shùliàng duōshao?",
+      "chinese": "数量多少?",
+      "answer": "What is the quantity?"
+     },
+     {
+      "prompt": "wǒ yào wǔshí xiāng",
+      "chinese": "我要五十箱",
+      "answer": "I want 50 cartons"
+     },
+     {
+      "prompt": "yì xiāng yìbǎi ge",
+      "chinese": "一箱一百个",
+      "answer": "100 pieces per carton"
+     },
+     {
+      "prompt": "wǒ jīntiān fù dìngjīn",
+      "chinese": "我今天付定金",
+      "answer": "I'll pay the deposit today"
+     },
+     {
+      "prompt": "zuì dī jiàgé duōshao?",
+      "chinese": "最低价格多少?",
+      "answer": "What is your lowest price?"
+     }
+    ],
+    "fillGap": [
+     {
+      "prompt": "nǐ néng fā ______ ma?",
+      "hint": "Can you send a sample?",
+      "answer": "yàngpǐn"
+     },
+     {
+      "prompt": "______ hěn hǎo",
+      "hint": "The quality is good",
+      "answer": "zhìliàng"
+     },
+     {
+      "prompt": "______ yíyàng ma?",
+      "hint": "Is the quality the same?",
+      "answer": "zhìliàng"
+     },
+     {
+      "prompt": "wǒ xiǎng xià ______",
+      "hint": "I'd like to place an order",
+      "answer": "dìngdān"
+     },
+     {
+      "prompt": "yì ______ duōshao ge?",
+      "hint": "How many pieces per carton?",
+      "answer": "xiāng"
+     },
+     {
+      "prompt": "______ duōshao?",
+      "hint": "How much is the deposit?",
+      "answer": "dìngjīn"
+     },
+     {
+      "prompt": "______ duōshao qián?",
+      "hint": "How much is shipping?",
+      "answer": "yùnfèi"
+     },
+     {
+      "prompt": "zhège shì zuì ______ jiàgé ma?",
+      "hint": "Is this the lowest price?",
+      "answer": "dī"
+     }
+    ],
+    "wordOrder": [
+     {
+      "words": [
+       "wǒ",
+       "de",
+       "de",
+       "xīn",
+       "yào",
+       "kèhù"
+      ],
+      "hint": "My customer wants new ones",
+      "answer": "wǒ de kèhù yào xīn de"
+     },
+     {
+      "words": [
+       "wǒ",
+       "kèhù",
+       "tā",
+       "de",
+       "shì"
+      ],
+      "hint": "He is my customer",
+      "answer": "tā shì wǒ de kèhù"
+     },
+     {
+      "words": [
+       "dī",
+       "zhège",
+       "jiàgé",
+       "shì",
+       "zuì",
+       "ma"
+      ],
+      "hint": "Is this the lowest price?",
+      "answer": "zhège shì zuì dī jiàgé ma?"
+     },
+     {
+      "words": [
+       "duōshao",
+       "jiàgé",
+       "dī",
+       "zuì"
+      ],
+      "hint": "What is your lowest price?",
+      "answer": "zuì dī jiàgé duōshao?"
+     },
+     {
+      "words": [
+       "jīntiān",
+       "wǒ",
+       "dìngjīn",
+       "fù"
+      ],
+      "hint": "I'll pay the deposit today",
+      "answer": "wǒ jīntiān fù dìngjīn"
+     },
+     {
+      "words": [
+       "xiāng",
+       "ge",
+       "yì",
+       "yìbǎi"
+      ],
+      "hint": "100 pieces per carton",
+      "answer": "yì xiāng yìbǎi ge"
+     }
+    ],
+    "translate": [
+     {
+      "prompt": "I'd like to see samples.",
+      "answer": "wǒ xiǎng kàn yàngpǐn"
+     },
+     {
+      "prompt": "What is the lowest price?",
+      "answer": "zuì dī jiàgé duōshao?"
+     },
+     {
+      "prompt": "The quality is not good.",
+      "answer": "zhìliàng bù hǎo"
+     },
+     {
+      "prompt": "I want twenty cartons.",
+      "answer": "wǒ yào èrshí xiāng"
+     },
+     {
+      "prompt": "How much is shipping?",
+      "answer": "yùnfèi duōshao qián?"
+     },
+     {
+      "prompt": "Please send photos.",
+      "answer": "qǐng fā zhàopiàn"
+     },
+     {
+      "prompt": "How many per carton?",
+      "answer": "yì xiāng duōshao ge?"
+     },
+     {
+      "prompt": "My customer doesn't like this.",
+      "answer": "wǒ de kèhù bù xǐhuan zhège"
+     },
+     {
+      "prompt": "I have already paid the deposit.",
+      "answer": "wǒ yǐjīng fù dìngjīn le"
+     },
+     {
+      "prompt": "If the quality is good, I'll place an order.",
+      "answer": "rúguǒ zhìliàng hǎo, wǒ xià dìngdān"
+     }
+    ]
+   }
+  }
+ ]
+}
