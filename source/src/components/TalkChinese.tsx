@@ -76,10 +76,12 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
     setBusy(true); setErr(''); setShowHint(false);
     try {
       const { data } = await supabase.auth.getSession();
-      const r = await fetch('/api/chinese', {
+      const post = () => fetch('/api/chinese', {
         method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + (data.session?.access_token || ''), 'x-supabase-key': supabaseAnonKey || '' },
         body: JSON.stringify({ scene: sc.scene + ' ' + t + (quick ? ' QUICK-FIRE DRILL: ask ONE very short, simple question per turn (3 to 6 words) that he can answer in 2 to 4 words; reuse the same few question types again and again with different words so his answers become automatic; no long sentences; about 12 exchanges before closing.' : ''), vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
       });
+      let r = await post();
+      if (r.status === 502 || r.status === 504) r = await post();   // one quiet second try before showing an error
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(j.message || j.error || 'The AI partner could not answer (' + r.status + ').'); return; }
       const next = [...list];

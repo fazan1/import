@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js AND source/api/chinese.cjs to /api/chinese.js at the repo root (Vercel functions: guide-page ask box; nightly backup; Learn Chinese Talk).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V248)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V249)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v249 Talk fix (owner got 'The AI gave no usable line'): api/chinese answers through a FORCED TOOL CALL ('say', input_schema reply/feedback/hint/done) instead of free-text JSON; max_tokens 1200; falls back to plain JSON once (400 or empty); the error now names stop_reason, block types and model.
   v248 Talk (owner: 'I convert in my head English then Chinese' = HE is slow to answer, not the AI): answer timer (from end of the supplier's speech to his line: 'answered in N s' on each bubble, colour bar while waiting, average at the end, aim < 3 s) + 'Quick-fire drill' checkbox (scene text asks for very short repeated question types, ~12 exchanges).
   v247 Talk speed (owner: 'takes time when he replies'): api/chinese default model claude-haiku-5-5 (env CHINESE_MODEL overrides), word list in its own cached system block (cache_control ephemeral), max_tokens 450, returns ms; voice at normal speed with a Voice: slow/normal switch (localStorage learn-chinese-voice).
   v246 Talk: every conversation random (twist(): supplier mood, opening, stock situation, a task, variation code appended to the scene) + 'Random conversation — surprise me' button (random open scene).

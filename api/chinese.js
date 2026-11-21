@@ -78,17 +78,35 @@ module.exports = async (req, res) => {
   const t0 = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45000);
-  try {
+  // The answer comes back through a forced tool call, so it is always a well-formed object (plain-text JSON was sometimes cut off or wrapped in prose).
+  const line = { type: 'object', properties: { chinese: { type: 'string' }, pinyin: { type: 'string' }, english: { type: 'string' } }, required: ['chinese', 'pinyin', 'english'] };
+  const tool = { name: 'say', description: 'Give the partner\'s next line, the feedback on the learner\'s last line, and a hint.', input_schema: { type: 'object', properties: {
+    reply: line,
+    feedback: { type: ['object', 'null'], properties: { ok: { type: 'boolean' }, heard: { type: 'string' }, better: { anyOf: [line, { type: 'null' }] }, note: { type: 'string' } } },
+    hint: { anyOf: [line, { type: 'null' }] },
+    done: { type: 'boolean' },
+  }, required: ['reply', 'done'] } };
+  const ask = async (forced) => {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 450, system: [{ type: 'text', text: system }, { type: 'text', text: words, cache_control: { type: 'ephemeral' } }], messages }),
+      body: JSON.stringify(Object.assign({ model: MODEL, max_tokens: 1200, system: [{ type: 'text', text: system }, { type: 'text', text: words, cache_control: { type: 'ephemeral' } }], messages }, forced ? { tools: [tool], tool_choice: { type: 'tool', name: 'say' } } : {})),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) return send(res, 502, { error: 'AI_ERROR', message: (data && data.error && data.error.message) || ('AI service answered ' + r.status) });
-    const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
-    const out = extractJson(text);
-    if (!out || !out.reply || !out.reply.chinese) return send(res, 502, { error: 'EMPTY', message: 'The AI gave no usable line. Tap again.' });
+    if (!r.ok) return { err: (data && data.error && data.error.message) || ('AI service answered ' + r.status), status: r.status };
+    const blocks = data.content || [];
+    const tu = blocks.find((c) => c.type === 'tool_use' && c.input);
+    let out = tu ? tu.input : extractJson(blocks.filter((c) => c.type === 'text').map((c) => c.text).join('\n'));
+    if (out && typeof out.reply === 'string') out.reply = extractJson(out.reply) || { chinese: out.reply, pinyin: '', english: '' };
+    return { out, why: (data.stop_reason || '?') + ' / ' + blocks.map((c) => c.type).join(',') };
+  };
+  try {
+    let a = await ask(true);
+    if (a.err && a.status === 400) a = await ask(false);          // a model that refuses forced tools: plain JSON instead
+    if (!a.err && !(a.out && a.out.reply && a.out.reply.chinese)) { const b = await ask(false); if (b.out && b.out.reply && b.out.reply.chinese) a = b; else if (!a.why && b.why) a.why = b.why; }
+    if (a.err) return send(res, 502, { error: 'AI_ERROR', message: a.err });
+    const out = a.out;
+    if (!out || !out.reply || !out.reply.chinese) return send(res, 502, { error: 'EMPTY', message: 'The AI gave no usable line (' + (a.why || 'no answer') + ', model ' + MODEL + '). Tap again.' });
     out.ms = Date.now() - t0;
     return send(res, 200, out);
   } catch (e) {
