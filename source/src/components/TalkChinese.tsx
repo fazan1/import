@@ -32,11 +32,12 @@ const twist = () => [
   'Variation code ' + Math.floor(Math.random() * 100000) + ': make this conversation clearly different from a standard one.',
 ].join(' ');
 
+let RATE = (() => { try { return localStorage.getItem('learn-chinese-voice') === 'slow' ? 0.7 : 1; } catch { return 1; } })();
 function speak(text: string) {
   try {
     const synth = window.speechSynthesis; if (!synth) return;
     synth.cancel();
-    const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = 0.8;
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = RATE;
     const v = synth.getVoices().find((x) => /^zh[-_]CN/i.test(x.lang)) || synth.getVoices().find((x) => /^zh/i.test(x.lang));
     if (v) u.voice = v;
     synth.speak(u);
@@ -56,6 +57,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [done, setDone] = useState(false);
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
+  const [slow, setSlow] = useState(RATE < 1);
+  const flipVoice = () => { const n = !slow; setSlow(n); RATE = n ? 0.7 : 1; try { localStorage.setItem('learn-chinese-voice', n ? 'slow' : 'normal'); } catch { /* ignore */ } };
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [msgs, busy, showHint]);
   useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* ignore */ } }, []);
@@ -128,7 +131,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
 
   return (
     <div className="pb-44">
-      <div className="flex items-center justify-between text-sm mb-2"><button onClick={() => { window.speechSynthesis?.cancel(); setScene(null); }} className="flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Scenes</button><span className="font-mono text-xs">{scene.name} · lessons 1–{upTo}</span></div>
+      <div className="flex items-center justify-between text-sm mb-2"><button onClick={() => { window.speechSynthesis?.cancel(); setScene(null); }} className="flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Scenes</button><span className="font-mono text-xs">{scene.name} · lessons 1–{upTo}</span><button onClick={flipVoice} className="text-xs border border-[#111] rounded-full px-2.5 py-1 bg-white">Voice: <b>{slow ? 'slow' : 'normal'}</b></button></div>
       <div className="grid gap-2">
         {msgs.map((m, k) => m.who === 'ai' ? (
           <div key={k} className="max-w-[88%] bg-white border border-neutral-300 rounded-lg rounded-tl-none p-3">

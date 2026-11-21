@@ -5,7 +5,8 @@
 // The API key lives only in Vercel (ANTHROPIC_API_KEY). Caller must be a logged-in CRM user.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mhvkhqexkorjjzuldqzp.supabase.co';
-const MODEL = process.env.CHINESE_MODEL || process.env.ASSISTANT_MODEL || 'claude-sonnet-5-5';
+// A fast model on purpose: a spoken conversation must answer in about a second or two.
+const MODEL = process.env.CHINESE_MODEL || 'claude-haiku-5-5';
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -68,23 +69,27 @@ module.exports = async (req, res) => {
 
   const messages = [];
   history.forEach((m) => { if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim()) messages.push({ role: m.role, content: m.text.slice(0, 600) }); });
-  const ctx = 'SCENE: ' + scene + '\n\nALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
+  // the word list is the same on every turn -> its own cached system block (faster and cheaper from the 2nd line on)
+  const words = 'ALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
+  const ctx = 'SCENE: ' + scene;
   if (!messages.length || messages[0].role !== 'user') messages.unshift({ role: 'user', content: '(start the conversation)' });
   messages[0] = { role: 'user', content: ctx + '\n\n' + messages[0].content };
 
+  const t0 = Date.now();
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45000);
   try {
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: MODEL, max_tokens: 700, system, messages }),
+      body: JSON.stringify({ model: MODEL, max_tokens: 450, system: [{ type: 'text', text: system }, { type: 'text', text: words, cache_control: { type: 'ephemeral' } }], messages }),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return send(res, 502, { error: 'AI_ERROR', message: (data && data.error && data.error.message) || ('AI service answered ' + r.status) });
     const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
     const out = extractJson(text);
     if (!out || !out.reply || !out.reply.chinese) return send(res, 502, { error: 'EMPTY', message: 'The AI gave no usable line. Tap again.' });
+    out.ms = Date.now() - t0;
     return send(res, 200, out);
   } catch (e) {
     return send(res, 504, { error: 'TIMEOUT', message: e && e.name === 'AbortError' ? 'The AI took too long. Try again.' : String(e && e.message || e) });
