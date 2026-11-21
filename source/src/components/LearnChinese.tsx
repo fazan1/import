@@ -83,16 +83,21 @@ function explain(user: string, answer: string, meaningOf: Map<string, string>): 
 }
 
 /* Lenient English compare for the meaning quiz: small grammar slips (he have / he has, a / the, don't / do not) still count. */
-const ENG: Record<string, string> = { has: 'have', had: 'have', is: 'be', are: 'be', am: 'be', was: 'be', were: 'be', does: 'do', did: 'do', goods: 'stock', stocks: 'stock', cant: 'can not', cannot: 'can not', wont: 'will not', dont: 'do not', doesnt: 'do not', didnt: 'do not', isnt: 'be not', arent: 'be not', havent: 'have not', hasnt: 'have not', id: 'i would', ill: 'i will', im: 'i be', its: 'it be', whats: 'what be', ok: 'okay', yuan: 'rmb', him: 'he', me: 'i', them: 'they', us: 'we' };
+const ENG: Record<string, string> = { has: 'have', had: 'have', is: 'be', are: 'be', am: 'be', was: 'be', were: 'be', does: 'do', did: 'do', goods: 'stock', stocks: 'stock', cant: 'can not', cannot: 'can not', wont: 'will not', dont: 'do not', doesnt: 'do not', didnt: 'do not', isnt: 'be not', arent: 'be not', havent: 'have not', hasnt: 'have not', id: 'i would', ill: 'i will', im: 'i be', its: 'it be', whats: 'what be', ok: 'okay', yuan: 'rmb', him: 'he', me: 'i', them: 'they', us: 'we', she: 'he', her: 'he', no: 'not', nothing: 'not' };
 const engNorm = (t: string) => t.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/[’']/g, '').replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
   .map((w) => ENG[w] ?? w).join(' ').split(' ').filter((w) => !['a', 'an', 'the'].includes(w)).map((w) => (w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)).join(' ');
 
 const FILL = ['it', 'to', 'there', 'will', 'going'];
 const engToks = (t: string) => t.replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean).flatMap((o) => engNorm(o).split(' ').filter(Boolean).map((n) => ({ o: o.replace(/[^A-Za-z0-9’']/g, ''), n }))).filter((x) => !FILL.includes(x.n));
 /* Meaning quiz: marked by the system. Right when the same idea words are there; otherwise say which ideas are missing or do not fit. */
-function checkMeaning(user: string, answer: string): { ok: boolean; notes: string[] } {
+function checkMeaning(user: string, answer: string, prompt = '', meaningOf?: Map<string, string>): { ok: boolean; notes: string[] } {
   const U = engToks(user), A = engToks(answer);
-  const miss = A.filter((a) => !U.some((u) => u.n === a.n)), extra = U.filter((u) => !A.some((a) => a.n === u.n));
+  // a one-word prompt may be answered with its word-list meaning ("yǒu" -> "have")
+  const wm = meaningOf?.get(norm(prompt));
+  if (wm && U.length && wm.replace(/\([^)]*\)/g, '').split(',').some((alt) => engNorm(alt) === engNorm(user))) return { ok: true, notes: [] };
+  // helper words the Chinese does not carry: "do" in questions, "yes"; "I" when the Chinese has no wǒ; "no" when "not" is there
+  const soft = ['do', 'yes']; if (!/\bwo(men)?\b/.test(prompt.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase())) soft.push('i');
+  const miss = A.filter((a) => !U.some((u) => u.n === a.n) && !soft.includes(a.n)), extra = U.filter((u) => !A.some((a) => a.n === u.n) && !soft.includes(u.n));
   if (!miss.length && !extra.length && U.length) return { ok: true, notes: [] };
   const uniq = (x: { o: string }[]) => [...new Set(x.map((y) => `“${y.o}”`))].join(', ');
   const notes: string[] = [];
@@ -461,17 +466,17 @@ export default function LearnChinese() {
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
         onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => (mode === 'mistakes' || mode === 'review') ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; mode: Mode; onAnswer: () => void; onRestart: () => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, mode, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; mode: Mode; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   // an unfinished lesson quiz is kept on this device, so it continues from the same question; a new quiz is in random order
-  const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean }[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
+  const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean; a?: string }[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
   const qs: Q[] = useMemo(() => {
     if (preset) return preset;
     if (kept) return kept.qs;
@@ -489,7 +494,7 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
   const [state, setState] = useState<'ask' | 'shown' | 'right' | 'wrong'>('ask');
   const [score, setScore] = useState(kept ? kept.score : 0);
   const [saved, setSaved] = useState(false);
-  const [res, setRes] = useState<{ q: Q; ok: boolean }[]>(kept ? kept.res : []);
+  const [res, setRes] = useState<{ q: Q; ok: boolean; a?: string }[]>(kept ? kept.res : []);
   const [hearing, setHearing] = useState(false);
   const [spTry, setSpTry] = useState(0);
   const [spMsg, setSpMsg] = useState('');
@@ -510,8 +515,9 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
         <div className="text-xl font-bold mt-4">{preset ? `${MODENAME[mode]} finished` : pass ? (hasNext ? `Well done! Lesson ${lesson.number + 1} is unlocked.` : 'Well done! Course complete.') : 'Repeat this lesson'}</div>
         {!pass && !preset && <p className="text-sm text-neutral-600 mt-1">You need {PASS}% to open the next lesson.</p>}
         <div className="grid grid-cols-2 gap-2 mt-4 max-w-sm mx-auto text-left">{Object.entries(ALLNAME).map(([k, nm]) => { const r = res.filter((x) => x.q.kind === k); return r.length ? <div key={k} className="bg-[#f4f3f1] rounded p-2 text-sm"><div className="text-xs text-neutral-600">{nm}</div><b>{r.filter((x) => x.ok).length} / {r.length}</b></div> : null; })}</div>
-        {res.some((r) => !r.ok) && <div className="mt-4 text-left max-w-md mx-auto border border-neutral-300 rounded-lg bg-white"><div className="p-2 font-mono text-[11px] tracking-[0.14em] uppercase font-semibold text-neutral-600">To revise</div>{res.filter((r) => !r.ok).map((r, k) => <div key={k} className="px-3 py-2 border-t text-sm"><div className="text-neutral-600">{r.q.ask}</div><div className="font-mono font-semibold">{r.q.kind === 'fillGap' ? r.q.ask.replace(/_+/, r.q.answer) : r.q.answer}</div></div>)}</div>}
+        {res.some((r) => !r.ok) && <div className="mt-4 text-left max-w-md mx-auto border border-neutral-300 rounded-lg bg-white"><div className="p-2 font-mono text-[11px] tracking-[0.14em] uppercase font-semibold text-neutral-600">To revise</div>{res.filter((r) => !r.ok).map((r, k) => <div key={k} className="px-3 py-2 border-t text-sm"><div className="text-neutral-600">{r.q.ask}</div>{r.a ? <div className="font-mono text-red-700 line-through">{r.a}</div> : null}<div className="font-mono font-semibold text-green-700">{r.q.kind === 'fillGap' ? r.q.ask.replace(/_+/, r.q.answer) : r.q.answer}</div></div>)}</div>}
         <div className="grid gap-2 mt-6 max-w-xs mx-auto">
+          {res.some((r) => !r.ok) && mode === 'lesson' && <button onClick={() => onPractice(res.filter((r) => !r.ok).map((r) => r.q))} className="bg-[#111] text-white font-bold rounded-lg py-3">Practise the {res.filter((r) => !r.ok).length} I got wrong</button>}
           {pass && hasNext && !preset && <button onClick={onNext} className="bg-[#e8552a] text-white font-bold rounded-lg py-3">Next lesson</button>}
           <button onClick={onLesson} className="border border-[#111] rounded-lg py-3 flex items-center justify-center gap-2"><RotateCcw className="w-4 h-4" /> {preset ? (mode === 'mistakes' || mode === 'review' ? 'Back to lessons' : 'Back to the lesson') : pass ? 'Review this lesson' : 'Repeat this lesson'}</button>
           <button onClick={onHome} className="border border-neutral-300 rounded-lg py-3">All lessons</button>
@@ -525,14 +531,15 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
   const zh = q.chinese || chineseOf.get(norm(full));
   const shownPinyin = q.kind === 'meaning' || q.kind === 'speak' ? q.ask : full;
 
-  const mark = (ok: boolean) => {
-    onAnswer(); setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok }]); if (ok) setScore((s) => s + 1);
-    if (!preset) { if (i + 1 >= qs.length) { try { localStorage.removeItem(RKEY); } catch { /* ignore */ } } else saveJ(RKEY, { n: lesson.number, qs, i: i + 1, score: score + (ok ? 1 : 0), res: [...res, { q, ok }] }); }
+  const mark = (ok: boolean, given?: string) => {
+    const ans = given ?? (q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val);
+    onAnswer(); setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok, a: ans }]); if (ok) setScore((s) => s + 1);
+    if (!preset) { if (i + 1 >= qs.length) { try { localStorage.removeItem(RKEY); } catch { /* ignore */ } } else saveJ(RKEY, { n: lesson.number, qs, i: i + 1, score: score + (ok ? 1 : 0), res: [...res, { q, ok, a: ans }] }); }
   };
   const restart = () => { if (!confirm('Start this quiz again from question 1? Your answers so far in this quiz will be dropped.')) return; try { localStorage.removeItem(RKEY); } catch { /* ignore */ } onRestart(); };
   const check = () => {
     if (q.kind === 'wordOrder') mark(norm(picked.map((k) => q.words![k]).join('')) === norm(q.answer));
-    else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer).ok);
+    else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer, q.ask, meaningOf).ok);
     else mark(norm(val) === norm(q.answer));
   };
   const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); setSpTry(0); setSpMsg(''); };
@@ -547,7 +554,7 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
         const alts: string[] = Array.from(e.results[0] as ArrayLike<{ transcript: string }>).map((a) => a.transcript);
         const ok = alts.some((a) => hanOnly(a) === hanOnly(q.chinese || ''));
         setVal(alts[0] || '');
-        if (ok || spTry >= 2) mark(ok); else { setSpTry(spTry + 1); setSpMsg(`The phone heard “${alts[0] || '…'}”. Listen once more and try again (${2 - spTry} ${2 - spTry === 1 ? 'try' : 'tries'} left).`); }
+        if (ok || spTry >= 2) mark(ok, alts[0] || ''); else { setSpTry(spTry + 1); setSpMsg(`The phone heard “${alts[0] || '…'}”. Listen once more and try again (${2 - spTry} ${2 - spTry === 1 ? 'try' : 'tries'} left).`); }
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onerror = (e: any) => { setSpMsg(e.error === 'not-allowed' ? 'The microphone is blocked. Allow the microphone for this site in the browser settings.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the button and speak.' : 'The phone could not listen (' + e.error + '). Try again.'); };
@@ -561,7 +568,7 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
   const fb = state === 'wrong'
     ? (q.kind === 'tone' ? { notes: [`You chose “${val}”. The right one is “${q.answer}”.`], marks: [] as { w: string; ok: boolean }[] }
       : q.kind === 'speak' ? { notes: [val ? `The phone heard “${val}”.` : 'The phone did not catch it.', 'Play the sentence, copy the sound slowly, then say it at normal speed.'], marks: [] as { w: string; ok: boolean }[] }
-      : q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
+      : q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer, q.ask, meaningOf).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
       ? { notes: [val.trim() ? `You wrote “${val.trim()}”, but the missing word is “${q.answer}”${meaningOf.get(norm(q.answer)) ? ` (${q.answer} = ${meaningOf.get(norm(q.answer))})` : ''}.` : 'You did not type an answer.'], marks: full.split(/\s+/).map((w) => ({ w, ok: norm(w) !== norm(q.answer) })) }
       : explain(typed, q.answer, meaningOf))
     : null;
@@ -585,13 +592,13 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, chineseOf, meaningOf,
         {q.sub && <div className="text-sm text-neutral-600 mt-1">{q.sub}</div>}
 
         {q.kind === 'tone' ? (
-          <div className="grid grid-cols-2 gap-2 mt-4">{q.opts!.map((o) => <button key={o} disabled={answered} onClick={() => { setVal(o); mark(o === q.answer); }} className={`py-3 rounded-lg border font-mono text-xl ${answered && o === q.answer ? 'bg-green-600 text-white border-green-600' : answered && o === val ? 'bg-red-600 text-white border-red-600' : 'border-[#111] bg-[#f4f3f1]'}`}>{o}</button>)}</div>
+          <div className="grid grid-cols-2 gap-2 mt-4">{q.opts!.map((o) => <button key={o} disabled={answered} onClick={() => { setVal(o); mark(o === q.answer, o); }} className={`py-3 rounded-lg border font-mono text-xl ${answered && o === q.answer ? 'bg-green-600 text-white border-green-600' : answered && o === val ? 'bg-red-600 text-white border-red-600' : 'border-[#111] bg-[#f4f3f1]'}`}>{o}</button>)}</div>
         ) : q.kind === 'speak' ? (
           <div className="mt-4">
             {!SR ? <div className="text-sm text-red-700">This browser cannot listen to your voice. Use Chrome on Android or Safari on iPhone. You can still listen and repeat out loud.</div>
               : !answered && <button onClick={listenToMe} disabled={hearing} className={`w-full rounded-lg py-4 font-bold text-white flex items-center justify-center gap-2 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#111]'}`}><Mic className="w-5 h-5" /> {hearing ? 'Listening… speak now' : 'Tap and say it in Chinese'}</button>}
             {spMsg && !answered && <div className="text-sm text-[#b3261e] mt-2">{spMsg}</div>}
-            {!answered && <button onClick={() => { setVal(''); mark(false); }} className="mt-2 w-full text-sm underline text-neutral-600">Skip this one</button>}
+            {!answered && <button onClick={() => { setVal(''); mark(false, ''); }} className="mt-2 w-full text-sm underline text-neutral-600">Skip this one</button>}
           </div>
         ) : q.kind === 'wordOrder' ? (
           <div className="mt-4">
