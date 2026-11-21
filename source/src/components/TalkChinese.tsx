@@ -1,0 +1,153 @@
+import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Eye, Lightbulb, Mic, RotateCcw, Send, Volume2 } from 'lucide-react';
+import { supabase, supabaseAnonKey } from '../lib/supabase';
+
+/* Learn Chinese -> Talk. A spoken role-play with an AI partner (/api/chinese) that uses only the words of the lessons done.
+   The phone listens (speech recognition zh-CN) and speaks (speech synthesis); typing pinyin works too. */
+
+interface W { pinyin: string; chinese?: string; meaning: string }
+export interface TalkLesson { number: number; title: string; words: W[]; extraWords?: W[]; examples?: W[] }
+interface Line { chinese: string; pinyin: string; english: string }
+interface Fb { ok: boolean; heard?: string; better?: Line | null; note?: string }
+type Msg = { who: 'ai'; line: Line; show?: boolean } | { who: 'me'; text: string; fb?: Fb | null };
+
+const SCENES: { id: string; name: string; from: number; scene: string }[] = [
+  { id: 'meet', name: 'Meet a supplier', from: 1, scene: 'First meeting with a supplier at his shop. Greet, ask what he has, say what you want and do not want.' },
+  { id: 'price', name: 'Ask stock and price', from: 4, scene: 'The buyer asks if there is stock, how much for one, and says how many he wants.' },
+  { id: 'bargain', name: 'Bargain on the price', from: 6, scene: 'The price is too expensive. The buyer bargains for a cheaper price; the supplier gives a little.' },
+  { id: 'pay', name: 'Payment and shipping', from: 7, scene: 'Agreeing when the buyer pays and when the supplier ships; checking if the goods were sent.' },
+  { id: 'visit', name: 'Visit the factory', from: 8, scene: 'The buyer is coming to China to visit the factory: when, where, how, and why.' },
+  { id: 'problem', name: 'A problem with the goods', from: 11, scene: 'There is a problem with the goods or the price is wrong. The buyer explains, the supplier answers.' },
+  { id: 'order', name: 'Samples and an order', from: 16, scene: 'The buyer asks for a sample, checks quality, and places an order.' },
+  { id: 'free', name: 'Free talk', from: 1, scene: 'Free small talk between a buyer and a Chinese supplier who are friends.' },
+];
+
+function speak(text: string) {
+  try {
+    const synth = window.speechSynthesis; if (!synth) return;
+    synth.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = 0.8;
+    const v = synth.getVoices().find((x) => /^zh[-_]CN/i.test(x.lang)) || synth.getVoices().find((x) => /^zh/i.test(x.lang));
+    if (v) u.voice = v;
+    synth.speak(u);
+  } catch { /* ignore */ }
+}
+const Spk = ({ text }: { text: string }) => <button onClick={() => speak(text)} aria-label="Listen" className="shrink-0 w-8 h-8 rounded-full border border-current flex items-center justify-center"><Volume2 className="w-4 h-4" /></button>;
+
+export default function TalkChinese({ lessons, level, onBack, onAnswer }: { lessons: TalkLesson[]; level: number; onBack: () => void; onAnswer: () => void }) {
+  const [upTo, setUpTo] = useState(level);
+  const [scene, setScene] = useState<typeof SCENES[number] | null>(null);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [hint, setHint] = useState<Line | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+  const [text, setText] = useState('');
+  const [hearing, setHearing] = useState(false);
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [msgs, busy, showHint]);
+  useEffect(() => () => { try { window.speechSynthesis?.cancel(); } catch { /* ignore */ } }, []);
+
+  const used = lessons.filter((l) => l.number <= upTo);
+  const vocab = used.flatMap((l) => [...l.words, ...(l.extraWords || [])]).map((w) => `${w.pinyin} | ${w.chinese || ''} | ${w.meaning}`).join('\n');
+  const examples = used.flatMap((l) => (l.examples || []).slice(0, 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
+
+  const call = async (sc: typeof SCENES[number], list: Msg[]) => {
+    setBusy(true); setErr(''); setShowHint(false);
+    try {
+      const { data } = await supabase.auth.getSession();
+      const r = await fetch('/api/chinese', {
+        method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + (data.session?.access_token || ''), 'x-supabase-key': supabaseAnonKey || '' },
+        body: JSON.stringify({ scene: sc.scene, vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(j.message || j.error || 'The AI partner could not answer (' + r.status + ').'); return; }
+      const next = [...list];
+      if (j.feedback && next.length && next[next.length - 1].who === 'me') next[next.length - 1] = { ...(next[next.length - 1] as Extract<Msg, { who: 'me' }>), fb: j.feedback };
+      next.push({ who: 'ai', line: j.reply });
+      setMsgs(next); setHint(j.hint || null); setDone(!!j.done);
+      speak(j.reply.chinese);
+    } catch (e) { setErr('No connection to the AI partner. ' + String((e as Error).message || e)); }
+    finally { setBusy(false); }
+  };
+  const begin = (sc: typeof SCENES[number]) => { setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, []); };
+  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); onAnswer(); const list: Msg[] = [...msgs, { who: 'me', text: v }]; setMsgs(list); call(scene, list); };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const listen = () => {
+    if (!SR || hearing || busy) return;
+    try {
+      window.speechSynthesis?.cancel();
+      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1; setHearing(true); setErr('');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      r.onresult = (e: any) => say(e.results[0][0].transcript || '');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      r.onerror = (e: any) => setErr(e.error === 'not-allowed' ? 'The microphone is blocked. Allow the microphone for this site in the browser settings.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : 'The phone could not listen (' + e.error + ').');
+      r.onend = () => setHearing(false);
+      r.start();
+    } catch { setHearing(false); setErr('The phone could not start listening.'); }
+  };
+
+  const mine = msgs.filter((m) => m.who === 'me') as Extract<Msg, { who: 'me' }>[];
+  const good = mine.filter((m) => m.fb?.ok).length;
+
+  if (!scene) return (
+    <>
+      <button onClick={onBack} className="flex items-center gap-1 text-sm mb-3"><ArrowLeft className="w-4 h-4" /> All lessons</button>
+      <h1 className="text-2xl font-bold">Talk — AI conversation partner</h1>
+      <p className="text-neutral-600 text-sm">Speak with a Chinese "supplier". It uses only the words from your lessons, answers out loud, and corrects you after every line.</p>
+      <div className="border border-neutral-300 rounded-lg bg-white p-3 mt-3 flex items-center justify-between gap-3">
+        <span className="text-sm">Use the words of lessons 1 to</span>
+        <select value={upTo} onChange={(e) => setUpTo(Number(e.target.value))} className="border border-neutral-400 rounded-lg px-3 py-2 font-mono">{lessons.map((l) => <option key={l.number} value={l.number}>{l.number}</option>)}</select>
+      </div>
+      <div className="grid gap-2 mt-3">
+        {SCENES.map((sc) => { const open = upTo >= sc.from; return (
+          <button key={sc.id} disabled={!open} onClick={() => begin(sc)} className={`text-left border rounded-lg p-3 bg-white ${open ? 'border-[#111]' : 'border-neutral-200 opacity-50'}`}>
+            <b>{sc.name}</b><span className="block text-xs text-neutral-600">{open ? sc.scene : `Opens with the words of lesson ${sc.from}`}</span>
+          </button>); })}
+      </div>
+      {!SR && <p className="text-sm text-red-700 mt-3">This browser cannot listen to your voice — you can still type in pinyin. For speaking use Chrome on Android or Safari on iPhone.</p>}
+    </>
+  );
+
+  return (
+    <div className="pb-44">
+      <div className="flex items-center justify-between text-sm mb-2"><button onClick={() => { window.speechSynthesis?.cancel(); setScene(null); }} className="flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Scenes</button><span className="font-mono text-xs">{scene.name} · lessons 1–{upTo}</span></div>
+      <div className="grid gap-2">
+        {msgs.map((m, k) => m.who === 'ai' ? (
+          <div key={k} className="max-w-[88%] bg-white border border-neutral-300 rounded-lg rounded-tl-none p-3">
+            <div className="flex items-start gap-2"><div className="flex-1"><div className="text-2xl">{m.line.chinese}</div><div className="font-mono text-[15px]">{m.line.pinyin}</div>
+              {m.show ? <div className="text-sm text-neutral-600">{m.line.english}</div> : <button onClick={() => setMsgs(msgs.map((x, j) => (j === k ? { ...x, show: true } : x)))} className="text-xs underline text-neutral-600 flex items-center gap-1 mt-0.5"><Eye className="w-3 h-3" /> show English</button>}</div><Spk text={m.line.chinese} /></div>
+          </div>
+        ) : (
+          <div key={k} className="max-w-[88%] justify-self-end">
+            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}</div>
+            {m.fb && <div className={`mt-1 rounded-lg p-2 text-sm border ${m.fb.ok ? 'bg-green-50 border-green-600' : 'bg-amber-50 border-amber-500'}`}>
+              <b className={m.fb.ok ? 'text-green-700' : 'text-amber-700'}>{m.fb.ok ? 'Good' : 'Say it this way'}</b>{m.fb.note ? ' — ' + m.fb.note : ''}
+              {m.fb.better && <div className="flex items-center gap-2 mt-1 text-[#111]"><div className="flex-1"><div className="text-xl">{m.fb.better.chinese}</div><div className="font-mono">{m.fb.better.pinyin}</div><div className="text-xs text-neutral-600">{m.fb.better.english}</div></div><Spk text={m.fb.better.chinese} /></div>}
+            </div>}
+          </div>
+        ))}
+        {busy && <div className="text-sm text-neutral-600">The partner is thinking…</div>}
+        {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err} <button onClick={() => call(scene, msgs)} className="underline font-semibold">Try again</button></div>}
+        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time</div><button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene again</button></div>}
+        <div ref={endRef} />
+      </div>
+
+      <div className="fixed left-0 right-0 bottom-0 bg-[#f4f3f1] border-t border-neutral-300 p-3 pb-[4.25rem] lg:pb-3">
+        <div className="max-w-3xl mx-auto">
+          {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">You could say</div><div className="font-mono">{hint.pinyin}</div><div className="text-xs text-neutral-600">{hint.english}</div></div><Spk text={hint.chinese} /></div>}
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowHint(!showHint)} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
+            <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />
+            {text.trim() ? <button onClick={() => say(text)} disabled={busy} className="w-11 h-11 rounded-full bg-[#111] text-white flex items-center justify-center" aria-label="Send"><Send className="w-5 h-5" /></button>
+              : <button onClick={listen} disabled={!SR || busy} className={`w-14 h-14 rounded-full text-white flex items-center justify-center disabled:opacity-40 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#e8552a]'}`} aria-label="Speak"><Mic className="w-6 h-6" /></button>}
+          </div>
+          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? 'Listening… speak Chinese now' : 'Tap the microphone and answer in Chinese · bulb = hint'}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
