@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { ArrowLeft, Check, Lock, Mic, RotateCcw, Volume2, X } from 'lucide-react';
 
 /* Learn Chinese (Tools). The ONLY data source is /chinese_lessons.json (shown as it is, never rewritten).
@@ -140,6 +141,38 @@ export default function LearnChinese() {
   const [goal, setGoal] = useState<number>(() => loadJ('learn-chinese-goal-v1', 40));
   const [extra, setExtra] = useState<Record<number, Record<string, number>>>(() => loadJ(XKEY, {}));
   const practice = mode !== 'lesson';
+  /* Database copy (table learn_chinese_progress, one row per login): newest copy wins when the page opens, then every change is saved. */
+  const [cloud, setCloud] = useState<'wait' | 'on' | 'off'>('wait');
+  const uid = useRef<string | null>(null); const skip = useRef(true); const timer = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession(); uid.current = sess.session?.user?.id || null;
+        if (!uid.current) { setCloud('off'); return; }
+        const { data, error } = await supabase.from('learn_chinese_progress').select('data').eq('user_id', uid.current).maybeSingle();
+        if (error) { setCloud('off'); return; }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r: any = data?.data; const mine = Number(loadJ('learn-chinese-stamp-v1', 0));
+        if (r && r.stamp && r.stamp > mine) {
+          skip.current = true;
+          setProg(r.prog || {}); saveProg(r.prog || {}); setMist(r.mist || []); saveMist(r.mist || []); setSrs(r.srs || {}); saveJ(SKEY, r.srs || {});
+          setDays(r.days || {}); saveJ(DKEY, r.days || {}); setExtra(r.extra || {}); saveJ(XKEY, r.extra || {}); if (r.goal) { setGoal(r.goal); saveJ('learn-chinese-goal-v1', r.goal); }
+          saveJ('learn-chinese-stamp-v1', r.stamp);
+        } else if (mine || Object.keys(loadProg()).length) { skip.current = false; }
+        setCloud('on');
+      } catch { setCloud('off'); }
+    })();
+  }, []);
+  useEffect(() => {
+    if (cloud !== 'on' || !uid.current) return;
+    if (skip.current) { skip.current = false; return; }
+    const stamp = Date.now(); saveJ('learn-chinese-stamp-v1', stamp);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(async () => {
+      const { error } = await supabase.from('learn_chinese_progress').upsert({ user_id: uid.current, data: { prog, mist, srs, days, extra, goal, stamp }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      if (error) setCloud('off');
+    }, 1200);
+  }, [cloud, prog, mist, srs, days, extra, goal]); // eslint-disable-line
 
   useEffect(() => {
     fetch('/chinese_lessons.json').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -246,7 +279,8 @@ export default function LearnChinese() {
       {route.page === 'home' && (
         <>
           <h1 className="text-2xl font-bold">Learn Chinese</h1>
-          <p className="text-neutral-600 text-sm mb-3">16 lessons. Score 80% or more in a lesson's quiz to open the next one.</p>
+          <p className="text-neutral-600 text-sm mb-1">16 lessons. Score 80% or more in a lesson's quiz to open the next one.</p>
+          <p className={`text-xs mb-3 ${cloud === 'off' ? 'text-red-700' : 'text-neutral-500'}`}>{cloud === 'on' ? 'Progress is saved to your account — it follows you to any phone or computer.' : cloud === 'off' ? 'Progress is saved on this device only (the database table is not there yet, or no connection).' : 'Checking your saved progress…'}</p>
           <div className="border border-neutral-300 rounded-lg bg-white p-3 mb-4">
             <div className="flex items-end justify-between"><div><div className="font-mono text-[11px] tracking-[0.14em] uppercase text-neutral-600 font-semibold">My progress</div><div className="text-3xl font-bold">{doneN} <span className="text-base font-normal text-neutral-600">of {lessons.length} lessons passed</span></div></div><div className="text-right"><div className="text-3xl font-bold text-[#e8552a]">{avg}%</div><div className="text-xs text-neutral-600">average best mark</div></div></div>
             <div className="h-2.5 bg-[#f4f3f1] rounded mt-2"><div className="h-full bg-green-600 rounded" style={{ width: `${(doneN / lessons.length) * 100}%` }} /></div>

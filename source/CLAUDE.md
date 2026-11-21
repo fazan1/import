@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js at the repo root (Vercel functions: guide-page ask box; nightly backup).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V239)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V240)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v240 Learn Chinese progress in the DATABASE: sql/learn-chinese-progress.sql (table learn_chinese_progress: user_id PK default auth.uid(), data jsonb {prog,mist,srs,days,extra,goal,stamp}; policy 'own row' + members only; NOT booked; tested twice). On open the newer of local (learn-chinese-stamp-v1) / remote wins; every change upserts after 1.2 s; falls back to this-device-only with a red line when the table is missing.
   v239 Learn Chinese 'Full progress report' page (route page 'progress'): level, tiles, course bars + 16-lesson strip, daily goal (learn-chinese-goal-v1, default 40 answers), 14-day chart, 7 skill bars + weakest, memory (known/learning/new), lesson-by-lesson with mark history, Copy my progress, Reset.
   v238 Learn Chinese study system: Today's plan (Daily review = spaced repetition over words+examples of tried lessons, boxes GAP days, localStorage learn-chinese-srs-v1; mistakes; next lesson), streak (learn-chinese-days-v1), extra practice per lesson Listening / Speaking (webkitSpeechRecognition zh-CN, 3 tries) / Tones (learn-chinese-extra-v1), English synonyms from the word list. Modes via Quiz preset + mode.
   v237 Learn Chinese: meaning quiz fully system-marked (checkMeaning, no self-marking); every answer shows a word-by-word breakdown() whether right or wrong.
