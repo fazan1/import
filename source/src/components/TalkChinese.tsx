@@ -9,7 +9,7 @@ interface W { pinyin: string; chinese?: string; meaning: string }
 export interface TalkLesson { number: number; title: string; words: W[]; extraWords?: W[]; examples?: W[] }
 interface Line { chinese: string; pinyin: string; english: string }
 interface Fb { ok: boolean; heard?: string; better?: Line | null; note?: string }
-type Msg = { who: 'ai'; line: Line; show?: boolean } | { who: 'me'; text: string; fb?: Fb | null };
+type Msg = { who: 'ai'; line: Line; show?: boolean } | { who: 'me'; text: string; fb?: Fb | null; secs?: number };
 
 const SCENES: { id: string; name: string; from: number; scene: string }[] = [
   { id: 'meet', name: 'Meet a supplier', from: 1, scene: 'First meeting with a supplier at his shop. Greet, ask what he has, say what you want and do not want.' },
@@ -33,13 +33,14 @@ const twist = () => [
 ].join(' ');
 
 let RATE = (() => { try { return localStorage.getItem('learn-chinese-voice') === 'slow' ? 0.7 : 1; } catch { return 1; } })();
-function speak(text: string) {
+function speak(text: string, onEnd?: () => void) {
   try {
     const synth = window.speechSynthesis; if (!synth) return;
     synth.cancel();
     const u = new SpeechSynthesisUtterance(text); u.lang = 'zh-CN'; u.rate = RATE;
     const v = synth.getVoices().find((x) => /^zh[-_]CN/i.test(x.lang)) || synth.getVoices().find((x) => /^zh/i.test(x.lang));
     if (v) u.voice = v;
+    if (onEnd) u.onend = onEnd;
     synth.speak(u);
   } catch { /* ignore */ }
 }
@@ -57,6 +58,10 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [done, setDone] = useState(false);
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
+  const [quick, setQuick] = useState(false);
+  const [tick, setTick] = useState(0);
+  const t0 = useRef(0);
+  useEffect(() => { const id = window.setInterval(() => setTick((x) => x + 1), 250); return () => window.clearInterval(id); }, []);
   const [slow, setSlow] = useState(RATE < 1);
   const flipVoice = () => { const n = !slow; setSlow(n); RATE = n ? 0.7 : 1; try { localStorage.setItem('learn-chinese-voice', n ? 'slow' : 'normal'); } catch { /* ignore */ } };
   const endRef = useRef<HTMLDivElement>(null);
@@ -73,7 +78,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       const { data } = await supabase.auth.getSession();
       const r = await fetch('/api/chinese', {
         method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + (data.session?.access_token || ''), 'x-supabase-key': supabaseAnonKey || '' },
-        body: JSON.stringify({ scene: sc.scene + ' ' + t, vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
+        body: JSON.stringify({ scene: sc.scene + ' ' + t + (quick ? ' QUICK-FIRE DRILL: ask ONE very short, simple question per turn (3 to 6 words) that he can answer in 2 to 4 words; reuse the same few question types again and again with different words so his answers become automatic; no long sentences; about 12 exchanges before closing.' : ''), vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(j.message || j.error || 'The AI partner could not answer (' + r.status + ').'); return; }
@@ -81,13 +86,13 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       if (j.feedback && next.length && next[next.length - 1].who === 'me') next[next.length - 1] = { ...(next[next.length - 1] as Extract<Msg, { who: 'me' }>), fb: j.feedback };
       next.push({ who: 'ai', line: j.reply });
       setMsgs(next); setHint(j.hint || null); setDone(!!j.done);
-      speak(j.reply.chinese);
+      t0.current = Date.now(); speak(j.reply.chinese, () => { t0.current = Date.now(); });
     } catch (e) { setErr('No connection to the AI partner. ' + String((e as Error).message || e)); }
     finally { setBusy(false); }
   };
   const begin = (sc: typeof SCENES[number]) => { const t = twist(); setTw(t); setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, [], t); };
   const surprise = () => begin(pick(SCENES.filter((x) => upTo >= x.from)));
-  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); onAnswer(); const list: Msg[] = [...msgs, { who: 'me', text: v }]; setMsgs(list); call(scene, list); };
+  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); onAnswer(); const secs = t0.current ? Math.round((Date.now() - t0.current) / 100) / 10 : undefined; t0.current = 0; const list: Msg[] = [...msgs, { who: 'me', text: v, secs }]; setMsgs(list); call(scene, list); };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -107,6 +112,9 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
 
   const mine = msgs.filter((m) => m.who === 'me') as Extract<Msg, { who: 'me' }>[];
   const good = mine.filter((m) => m.fb?.ok).length;
+  const timed = mine.filter((m) => m.secs !== undefined && m.secs < 120);
+  const avgSecs = timed.length ? Math.round((timed.reduce((a, m) => a + (m.secs || 0), 0) / timed.length) * 10) / 10 : null;
+  const waiting = !busy && !done && t0.current ? (Date.now() - t0.current) / 1000 : 0; void tick;
 
   if (!scene) return (
     <>
@@ -117,6 +125,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <span className="text-sm">Use the words of lessons 1 to</span>
         <select value={upTo} onChange={(e) => setUpTo(Number(e.target.value))} className="border border-neutral-400 rounded-lg px-3 py-2 font-mono">{lessons.map((l) => <option key={l.number} value={l.number}>{l.number}</option>)}</select>
       </div>
+      <label className="border border-neutral-300 rounded-lg bg-white p-3 mt-3 flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} className="mt-1 w-5 h-5" /><span><b>Quick-fire drill</b><span className="block text-xs text-neutral-600">Very short questions, short answers, again and again. This trains you to answer straight in Chinese without going through English first.</span></span></label>
       <button onClick={surprise} className="mt-3 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5">Random conversation — surprise me</button>
       <p className="text-xs text-neutral-600 mt-1">Every conversation is different: the supplier's mood, his opening line, his stock and his questions change each time. Or pick a scene:</p>
       <div className="grid gap-2 mt-3">
@@ -140,7 +149,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
           </div>
         ) : (
           <div key={k} className="max-w-[88%] justify-self-end">
-            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}</div>
+            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}{m.secs !== undefined && m.secs < 120 && <div className={`text-[11px] font-mono mt-0.5 ${m.secs <= 3 ? 'text-green-400' : m.secs <= 6 ? 'text-amber-300' : 'text-red-300'}`}>answered in {m.secs} s</div>}</div>
             {m.fb && <div className={`mt-1 rounded-lg p-2 text-sm border ${m.fb.ok ? 'bg-green-50 border-green-600' : 'bg-amber-50 border-amber-500'}`}>
               <b className={m.fb.ok ? 'text-green-700' : 'text-amber-700'}>{m.fb.ok ? 'Good' : 'Say it this way'}</b>{m.fb.note ? ' — ' + m.fb.note : ''}
               {m.fb.better && <div className="flex items-center gap-2 mt-1 text-[#111]"><div className="flex-1"><div className="text-xl">{m.fb.better.chinese}</div><div className="font-mono">{m.fb.better.pinyin}</div><div className="text-xs text-neutral-600">{m.fb.better.english}</div></div><Spk text={m.fb.better.chinese} /></div>}
@@ -149,13 +158,14 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         ))}
         {busy && <div className="text-sm text-neutral-600">The partner is thinking…</div>}
         {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err} <button onClick={() => call(scene, msgs)} className="underline font-semibold">Try again</button></div>}
-        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time</div><button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
+        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time{avgSecs !== null ? ` · average answer time ${avgSecs} s` : ''}</div>{avgSecs !== null && <div className="text-xs text-neutral-600">{avgSecs <= 3 ? 'Fast — you are starting to answer without translating.' : 'Aim for under 3 seconds. Repeat the same scene: the second time is always faster.'}</div>}<button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
         <div ref={endRef} />
       </div>
 
       <div className="fixed left-0 right-0 bottom-0 bg-[#f4f3f1] border-t border-neutral-300 p-3 pb-[4.25rem] lg:pb-3">
         <div className="max-w-3xl mx-auto">
           {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">You could say</div><div className="font-mono">{hint.pinyin}</div><div className="text-xs text-neutral-600">{hint.english}</div></div><Spk text={hint.chinese} /></div>}
+          {waiting > 0 && <div className="h-1.5 bg-white rounded mb-2 overflow-hidden"><div className={`h-full ${waiting <= 3 ? 'bg-green-600' : waiting <= 6 ? 'bg-amber-500' : 'bg-red-600'}`} style={{ width: `${Math.min(100, (waiting / 8) * 100)}%` }} /></div>}
           <div className="flex items-center gap-2">
             <button onClick={() => setShowHint(!showHint)} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />
