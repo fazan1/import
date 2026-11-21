@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js at the repo root (Vercel functions: guide-page ask box; nightly backup).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V242)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V243)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v243 Learn Chinese pass mark = 75% (owner), PASS constant; earlier marks of 75+ count as passed (fixP on load).
   v242 Learn Chinese (owner screenshot 75%, fair answers marked wrong): meaning check accepts the word-list meaning for a one-word prompt (yǒu -> have) and ignores helper words (do, yes; I when no wǒ; no when 'not' typed); result 'To revise' shows what was typed (red) vs right (green); 'Practise the N I got wrong' button.
   v241 Learn Chinese quiz: questions in random order inside each quiz type (chips shuffled too); an unfinished lesson quiz is kept (learn-chinese-resume-v1: qs, i, score, res) and continues from the same question; 'Start again' link.
   v240 Learn Chinese progress in the DATABASE: sql/learn-chinese-progress.sql (table learn_chinese_progress: user_id PK default auth.uid(), data jsonb {prog,mist,srs,days,extra,goal,stamp}; policy 'own row' + members only; NOT booked; tested twice). On open the newer of local (learn-chinese-stamp-v1) / remote wins; every change upserts after 1.2 s; falls back to this-device-only with a red line when the table is missing.

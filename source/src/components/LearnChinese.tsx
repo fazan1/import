@@ -45,10 +45,11 @@ const TONETXT = ['1st tone: high and flat', '2nd tone: rises, like asking “wha
 const toneAt = (p: string): { i: number; base: string; t: number } | null => { for (let i = 0; i < p.length; i++) for (const [b, set] of Object.entries(TONE)) { const t = set.indexOf(p[i]); if (t >= 0) return { i, base: b, t }; } return null; };
 const toneless = (p: string) => p.normalize('NFD').replace(/[\u0300\u0301\u0304\u030c]/g, '').normalize('NFC');
 const hanOnly = (t: string) => t.replace(/[^\u4e00-\u9fff]/g, '').replace(/[她它]/g, '他');
-const PASS = 80;
+const PASS = 75;
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const loadProg = (): Record<number, Prog> => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
+const fixP = (p: Record<number, Prog>) => { Object.values(p || {}).forEach((x) => { if (x && x.best >= PASS) x.passed = true; }); return p || {}; };
+const loadProg = (): Record<number, Prog> => { try { return fixP(JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return {}; } };
 const saveProg = (p: Record<number, Prog>) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ } };
 
 /* Compare the typed pinyin with the right answer word by word, and say in plain words where it went wrong. */
@@ -161,7 +162,7 @@ export default function LearnChinese() {
         const r: any = data?.data; const mine = Number(loadJ('learn-chinese-stamp-v1', 0));
         if (r && r.stamp && r.stamp > mine) {
           skip.current = true;
-          setProg(r.prog || {}); saveProg(r.prog || {}); setMist(r.mist || []); saveMist(r.mist || []); setSrs(r.srs || {}); saveJ(SKEY, r.srs || {});
+          setProg(fixP(r.prog)); saveProg(fixP(r.prog)); setMist(r.mist || []); saveMist(r.mist || []); setSrs(r.srs || {}); saveJ(SKEY, r.srs || {});
           setDays(r.days || {}); saveJ(DKEY, r.days || {}); setExtra(r.extra || {}); saveJ(XKEY, r.extra || {}); if (r.goal) { setGoal(r.goal); saveJ('learn-chinese-goal-v1', r.goal); }
           saveJ('learn-chinese-stamp-v1', r.stamp);
         } else if (mine || Object.keys(loadProg()).length) { skip.current = false; }
@@ -285,7 +286,7 @@ export default function LearnChinese() {
       {route.page === 'home' && (
         <>
           <h1 className="text-2xl font-bold">Learn Chinese</h1>
-          <p className="text-neutral-600 text-sm mb-1">16 lessons. Score 80% or more in a lesson's quiz to open the next one.</p>
+          <p className="text-neutral-600 text-sm mb-1">16 lessons. Score {PASS}% or more in a lesson's quiz to open the next one.</p>
           <p className={`text-xs mb-3 ${cloud === 'off' ? 'text-red-700' : 'text-neutral-500'}`}>{cloud === 'on' ? 'Progress is saved to your account — it follows you to any phone or computer.' : cloud === 'off' ? 'Progress is saved on this device only (the database table is not there yet, or no connection).' : 'Checking your saved progress…'}</p>
           <div className="border border-neutral-300 rounded-lg bg-white p-3 mb-4">
             <div className="flex items-end justify-between"><div><div className="font-mono text-[11px] tracking-[0.14em] uppercase text-neutral-600 font-semibold">My progress</div><div className="text-3xl font-bold">{doneN} <span className="text-base font-normal text-neutral-600">of {lessons.length} lessons passed</span></div></div><div className="text-right"><div className="text-3xl font-bold text-[#e8552a]">{avg}%</div><div className="text-xs text-neutral-600">average best mark</div></div></div>
