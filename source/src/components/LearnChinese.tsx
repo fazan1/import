@@ -45,10 +45,10 @@ const TONETXT = ['1st tone: high and flat', '2nd tone: rises, like asking “wha
 const toneAt = (p: string): { i: number; base: string; t: number } | null => { for (let i = 0; i < p.length; i++) for (const [b, set] of Object.entries(TONE)) { const t = set.indexOf(p[i]); if (t >= 0) return { i, base: b, t }; } return null; };
 const toneless = (p: string) => p.normalize('NFD').replace(/[\u0300\u0301\u0304\u030c]/g, '').normalize('NFC');
 const hanOnly = (t: string) => t.replace(/[^\u4e00-\u9fff]/g, '').replace(/[她它]/g, '他');
-const PASS = 75;
+const PASS = 80;
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-const fixP = (p: Record<number, Prog>) => { Object.values(p || {}).forEach((x) => { if (x && x.best >= PASS) x.passed = true; }); return p || {}; };
+const fixP = (p: Record<number, Prog>) => { Object.values(p || {}).forEach((x) => { if (x && (x.best >= PASS || (x.best >= 75 && String(x.last) < '2026-11-22'))) x.passed = true; /* 75+ earned under the old strict marking counts */ }); return p || {}; };
 const loadProg = (): Record<number, Prog> => { try { return fixP(JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { return {}; } };
 const saveProg = (p: Record<number, Prog>) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* ignore */ } };
 
