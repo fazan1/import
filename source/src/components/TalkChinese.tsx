@@ -55,6 +55,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [showHint, setShowHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
+  const [micErr, setMicErr] = useState('');   // microphone trouble is shown apart: 'Try again' there must not re-ask the AI
   const [done, setDone] = useState(false);
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
@@ -96,7 +97,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   };
   const begin = (sc: typeof SCENES[number]) => { const t = twist(); setTw(t); setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, [], t); };
   const surprise = () => begin(pick(SCENES.filter((x) => upTo >= x.from)));
-  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); onAnswer(); const secs = t0.current ? Math.round((Date.now() - t0.current) / 100) / 10 : undefined; t0.current = 0; const list: Msg[] = [...msgs, { who: 'me', text: v, secs }]; setMsgs(list); call(scene, list); };
+  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); setMicErr(''); onAnswer(); const secs = t0.current ? Math.round((Date.now() - t0.current) / 100) / 10 : undefined; t0.current = 0; const list: Msg[] = [...msgs, { who: 'me', text: v, secs }]; setMsgs(list); call(scene, list); };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -104,14 +105,14 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
     if (!SR || hearing || busy) return;
     try {
       window.speechSynthesis?.cancel();
-      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1; setHearing(true); setErr('');
+      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1; setHearing(true); setMicErr('');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onresult = (e: any) => say(e.results[0][0].transcript || '');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      r.onerror = (e: any) => setErr(e.error === 'not-allowed' ? 'The microphone is blocked. Allow the microphone for this site in the browser settings.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : 'The phone could not listen (' + e.error + ').');
+      r.onerror = (e: any) => setMicErr(e.error === 'not-allowed' ? 'The microphone is blocked. Tap the icon left of the address bar → Permissions → Microphone → Allow, then reload. Until then, type pinyin in the box.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : 'The phone could not listen (' + e.error + ').');
       r.onend = () => setHearing(false);
       r.start();
-    } catch { setHearing(false); setErr('The phone could not start listening.'); }
+    } catch { setHearing(false); setMicErr('The phone could not start listening.'); }
   };
 
   const mine = msgs.filter((m) => m.who === 'me') as Extract<Msg, { who: 'me' }>[];
@@ -163,6 +164,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         ))}
         {busy && <div className="text-sm text-neutral-600">The partner is thinking…</div>}
         {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err} <button onClick={() => call(scene, msgs)} className="underline font-semibold">Try again</button></div>}
+        {micErr && <div className="text-sm text-amber-800 border border-amber-500 bg-amber-50 rounded-lg p-2">{micErr}</div>}
         {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time{timerOn && avgSecs !== null ? ` · average answer time ${avgSecs} s` : ''}</div>{timerOn && avgSecs !== null && <div className="text-xs text-neutral-600">{avgSecs <= 3 ? 'Fast — you are starting to answer without translating.' : 'Aim for under 3 seconds. Repeat the same scene: the second time is always faster.'}</div>}<button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
         <div ref={endRef} />
       </div>

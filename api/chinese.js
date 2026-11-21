@@ -72,6 +72,8 @@ module.exports = async (req, res) => {
   // the word list is the same on every turn -> its own cached system block (faster and cheaper from the 2nd line on)
   const words = 'ALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
   const ctx = 'SCENE: ' + scene;
+  // the request must end with HIS line: a trailing partner line (e.g. a retry with nothing new said) is dropped and asked again
+  while (messages.length && messages[messages.length - 1].role === 'assistant') messages.pop();
   if (!messages.length || messages[0].role !== 'user') messages.unshift({ role: 'user', content: '(start the conversation)' });
   messages[0] = { role: 'user', content: ctx + '\n\n' + messages[0].content };
 
