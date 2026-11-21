@@ -22,6 +22,16 @@ const SCENES: { id: string; name: string; from: number; scene: string }[] = [
   { id: 'free', name: 'Free talk', from: 1, scene: 'Free small talk between a buyer and a Chinese supplier who are friends.' },
 ];
 
+/* Every conversation gets a random twist, so the same scene never runs the same way twice. */
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const twist = () => [
+  pick(['The supplier is friendly and talkative.', 'The supplier is busy and answers very shortly.', 'The supplier is a tough bargainer.', 'The supplier is polite and a little shy.', 'The supplier is in a hurry.']),
+  pick(['The supplier opens with a greeting.', 'The supplier opens by asking what the buyer wants.', 'The supplier opens by asking who the buyer is.', 'The supplier opens by asking where the buyer is.', 'The supplier opens by saying he has goods today.']),
+  pick(['He has plenty of stock.', 'He has only a little stock.', 'He has no stock today.', 'His goods are good but expensive.', 'His goods are cheap.', 'His boss is not here today.']),
+  pick(['Use different numbers and prices from usual.', 'Ask at least one "why" or "when" question if those words are allowed.', 'Ask the buyer about himself once.', 'Say no to the buyer once, then agree.', 'Ask one question the buyer must answer with a number, if number words are allowed.']),
+  'Variation code ' + Math.floor(Math.random() * 100000) + ': make this conversation clearly different from a standard one.',
+].join(' ');
+
 function speak(text: string) {
   try {
     const synth = window.speechSynthesis; if (!synth) return;
@@ -37,6 +47,7 @@ const Spk = ({ text }: { text: string }) => <button onClick={() => speak(text)} 
 export default function TalkChinese({ lessons, level, onBack, onAnswer }: { lessons: TalkLesson[]; level: number; onBack: () => void; onAnswer: () => void }) {
   const [upTo, setUpTo] = useState(level);
   const [scene, setScene] = useState<typeof SCENES[number] | null>(null);
+  const [tw, setTw] = useState('');
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hint, setHint] = useState<Line | null>(null);
   const [showHint, setShowHint] = useState(false);
@@ -53,13 +64,13 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const vocab = used.flatMap((l) => [...l.words, ...(l.extraWords || [])]).map((w) => `${w.pinyin} | ${w.chinese || ''} | ${w.meaning}`).join('\n');
   const examples = used.flatMap((l) => (l.examples || []).slice(0, 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
 
-  const call = async (sc: typeof SCENES[number], list: Msg[]) => {
+  const call = async (sc: typeof SCENES[number], list: Msg[], t = tw) => {
     setBusy(true); setErr(''); setShowHint(false);
     try {
       const { data } = await supabase.auth.getSession();
       const r = await fetch('/api/chinese', {
         method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + (data.session?.access_token || ''), 'x-supabase-key': supabaseAnonKey || '' },
-        body: JSON.stringify({ scene: sc.scene, vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
+        body: JSON.stringify({ scene: sc.scene + ' ' + t, vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(j.message || j.error || 'The AI partner could not answer (' + r.status + ').'); return; }
@@ -71,7 +82,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
     } catch (e) { setErr('No connection to the AI partner. ' + String((e as Error).message || e)); }
     finally { setBusy(false); }
   };
-  const begin = (sc: typeof SCENES[number]) => { setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, []); };
+  const begin = (sc: typeof SCENES[number]) => { const t = twist(); setTw(t); setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, [], t); };
+  const surprise = () => begin(pick(SCENES.filter((x) => upTo >= x.from)));
   const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); onAnswer(); const list: Msg[] = [...msgs, { who: 'me', text: v }]; setMsgs(list); call(scene, list); };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -102,6 +114,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <span className="text-sm">Use the words of lessons 1 to</span>
         <select value={upTo} onChange={(e) => setUpTo(Number(e.target.value))} className="border border-neutral-400 rounded-lg px-3 py-2 font-mono">{lessons.map((l) => <option key={l.number} value={l.number}>{l.number}</option>)}</select>
       </div>
+      <button onClick={surprise} className="mt-3 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5">Random conversation — surprise me</button>
+      <p className="text-xs text-neutral-600 mt-1">Every conversation is different: the supplier's mood, his opening line, his stock and his questions change each time. Or pick a scene:</p>
       <div className="grid gap-2 mt-3">
         {SCENES.map((sc) => { const open = upTo >= sc.from; return (
           <button key={sc.id} disabled={!open} onClick={() => begin(sc)} className={`text-left border rounded-lg p-3 bg-white ${open ? 'border-[#111]' : 'border-neutral-200 opacity-50'}`}>
@@ -132,7 +146,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         ))}
         {busy && <div className="text-sm text-neutral-600">The partner is thinking…</div>}
         {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err} <button onClick={() => call(scene, msgs)} className="underline font-semibold">Try again</button></div>}
-        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time</div><button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene again</button></div>}
+        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time</div><button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
         <div ref={endRef} />
       </div>
 

@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js AND source/api/chinese.cjs to /api/chinese.js at the repo root (Vercel functions: guide-page ask box; nightly backup; Learn Chinese Talk).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V245)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V246)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v246 Talk: every conversation random (twist(): supplier mood, opening, stock situation, a task, variation code appended to the scene) + 'Random conversation — surprise me' button (random open scene).
   v245 Learn Chinese TALK (owner: 'AI voice conversation from the lessons so I can talk'): TalkChinese.tsx (route page 'talk', item 4 of Today's plan) = scenes (SCENES, opened by lesson level) + chat; phone listens (webkitSpeechRecognition zh-CN) or pinyin typed, AI line spoken with speechSynthesis; source/api/chinese.cjs -> /api/chinese.js (same auth + ANTHROPIC_API_KEY as assistant; model CHINESE_MODEL||ASSISTANT_MODEL||claude-sonnet-5-5) gets scene + allowed words of lessons 1..N + examples + history and returns JSON {reply{chinese,pinyin,english}, feedback{ok,heard,better,note}, hint, done}. Unit test /tmp/claude-0/pgtest/chapi.cjs.
   v244 Learn Chinese pass mark back to 80% (owner left it to me); marks of 75+ earned before 22 Nov 2026 (old strict marking) still count as passed.
   v243 Learn Chinese pass mark = 75% (owner), PASS constant; earlier marks of 75+ count as passed (fixP on load).
