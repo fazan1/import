@@ -59,6 +59,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
   const [quick, setQuick] = useState(false);
+  const [timerOn, setTimerOn] = useState(false);   // off by default: a learner needs thinking time, not pressure
+  const [hintStep, setHintStep] = useState(0);     // 0 hidden, 1 the first word only, 2 the whole line
   const [tick, setTick] = useState(0);
   const t0 = useRef(0);
   useEffect(() => { const id = window.setInterval(() => setTick((x) => x + 1), 250); return () => window.clearInterval(id); }, []);
@@ -73,7 +75,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const examples = used.flatMap((l) => (l.examples || []).slice(0, 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
 
   const call = async (sc: typeof SCENES[number], list: Msg[], t = tw) => {
-    setBusy(true); setErr(''); setShowHint(false);
+    setBusy(true); setErr(''); setShowHint(false); setHintStep(0);
     try {
       const { data } = await supabase.auth.getSession();
       const post = () => fetch('/api/chinese', {
@@ -128,6 +130,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <select value={upTo} onChange={(e) => setUpTo(Number(e.target.value))} className="border border-neutral-400 rounded-lg px-3 py-2 font-mono">{lessons.map((l) => <option key={l.number} value={l.number}>{l.number}</option>)}</select>
       </div>
       <label className="border border-neutral-300 rounded-lg bg-white p-3 mt-3 flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} className="mt-1 w-5 h-5" /><span><b>Quick-fire drill</b><span className="block text-xs text-neutral-600">Very short questions, short answers, again and again. This trains you to answer straight in Chinese without going through English first.</span></span></label>
+      <label className="border border-neutral-300 rounded-lg bg-white p-3 mt-2 flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={timerOn} onChange={(e) => setTimerOn(e.target.checked)} className="mt-1 w-5 h-5" /><span><b>Show my answer time</b><span className="block text-xs text-neutral-600">Leave this off while you are learning — take all the time you need. Turn it on later to build speed.</span></span></label>
       <button onClick={surprise} className="mt-3 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5">Random conversation — surprise me</button>
       <p className="text-xs text-neutral-600 mt-1">Every conversation is different: the supplier's mood, his opening line, his stock and his questions change each time. Or pick a scene:</p>
       <div className="grid gap-2 mt-3">
@@ -151,7 +154,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
           </div>
         ) : (
           <div key={k} className="max-w-[88%] justify-self-end">
-            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}{m.secs !== undefined && m.secs < 120 && <div className={`text-[11px] font-mono mt-0.5 ${m.secs <= 3 ? 'text-green-400' : m.secs <= 6 ? 'text-amber-300' : 'text-red-300'}`}>answered in {m.secs} s</div>}</div>
+            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}{timerOn && m.secs !== undefined && m.secs < 120 && <div className={`text-[11px] font-mono mt-0.5 ${m.secs <= 3 ? 'text-green-400' : m.secs <= 6 ? 'text-amber-300' : 'text-red-300'}`}>answered in {m.secs} s</div>}</div>
             {m.fb && <div className={`mt-1 rounded-lg p-2 text-sm border ${m.fb.ok ? 'bg-green-50 border-green-600' : 'bg-amber-50 border-amber-500'}`}>
               <b className={m.fb.ok ? 'text-green-700' : 'text-amber-700'}>{m.fb.ok ? 'Good' : 'Say it this way'}</b>{m.fb.note ? ' — ' + m.fb.note : ''}
               {m.fb.better && <div className="flex items-center gap-2 mt-1 text-[#111]"><div className="flex-1"><div className="text-xl">{m.fb.better.chinese}</div><div className="font-mono">{m.fb.better.pinyin}</div><div className="text-xs text-neutral-600">{m.fb.better.english}</div></div><Spk text={m.fb.better.chinese} /></div>}
@@ -160,21 +163,21 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         ))}
         {busy && <div className="text-sm text-neutral-600">The partner is thinking…</div>}
         {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err} <button onClick={() => call(scene, msgs)} className="underline font-semibold">Try again</button></div>}
-        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time{avgSecs !== null ? ` · average answer time ${avgSecs} s` : ''}</div>{avgSecs !== null && <div className="text-xs text-neutral-600">{avgSecs <= 3 ? 'Fast — you are starting to answer without translating.' : 'Aim for under 3 seconds. Repeat the same scene: the second time is always faster.'}</div>}<button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
+        {done && <div className="border-2 border-[#111] rounded-lg bg-white p-3 text-center"><b>Conversation finished</b><div className="text-sm text-neutral-600">{mine.length} lines spoken · {good} good first time{timerOn && avgSecs !== null ? ` · average answer time ${avgSecs} s` : ''}</div>{timerOn && avgSecs !== null && <div className="text-xs text-neutral-600">{avgSecs <= 3 ? 'Fast — you are starting to answer without translating.' : 'Aim for under 3 seconds. Repeat the same scene: the second time is always faster.'}</div>}<button onClick={() => begin(scene)} className="mt-2 bg-[#e8552a] text-white font-bold rounded-lg px-4 py-2 inline-flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Same scene, new conversation</button><button onClick={surprise} className="mt-2 ml-2 border border-[#111] font-bold rounded-lg px-4 py-2">Random scene</button></div>}
         <div ref={endRef} />
       </div>
 
       <div className="fixed left-0 right-0 bottom-0 bg-[#f4f3f1] border-t border-neutral-300 p-3 pb-[4.25rem] lg:pb-3">
         <div className="max-w-3xl mx-auto">
-          {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">You could say</div><div className="font-mono">{hint.pinyin}</div><div className="text-xs text-neutral-600">{hint.english}</div></div><Spk text={hint.chinese} /></div>}
-          {waiting > 0 && <div className="h-1.5 bg-white rounded mb-2 overflow-hidden"><div className={`h-full ${waiting <= 3 ? 'bg-green-600' : waiting <= 6 ? 'bg-amber-500' : 'bg-red-600'}`} style={{ width: `${Math.min(100, (waiting / 8) * 100)}%` }} /></div>}
+          {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">{hintStep < 2 ? 'Start with…' : 'You could say'}</div><div className="font-mono">{hintStep < 2 ? hint.pinyin.split(/\s+/)[0] + ' …' : hint.pinyin}</div>{hintStep >= 2 && <div className="text-xs text-neutral-600">{hint.english}</div>}{hintStep < 2 && <button onClick={() => setHintStep(2)} className="text-xs underline text-[#e8552a] font-semibold">Show the whole line</button>}</div>{hintStep >= 2 && <Spk text={hint.chinese} />}</div>}
+          {timerOn && waiting > 0 && <div className="h-1.5 bg-white rounded mb-2 overflow-hidden"><div className={`h-full ${waiting <= 3 ? 'bg-green-600' : waiting <= 6 ? 'bg-amber-500' : 'bg-red-600'}`} style={{ width: `${Math.min(100, (waiting / 8) * 100)}%` }} /></div>}
           <div className="flex items-center gap-2">
-            <button onClick={() => setShowHint(!showHint)} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
+            <button onClick={() => { setShowHint(!showHint); if (!showHint) setHintStep(1); }} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />
             {text.trim() ? <button onClick={() => say(text)} disabled={busy} className="w-11 h-11 rounded-full bg-[#111] text-white flex items-center justify-center" aria-label="Send"><Send className="w-5 h-5" /></button>
               : <button onClick={listen} disabled={!SR || busy} className={`w-14 h-14 rounded-full text-white flex items-center justify-center disabled:opacity-40 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#e8552a]'}`} aria-label="Speak"><Mic className="w-6 h-6" /></button>}
           </div>
-          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? 'Listening… speak Chinese now' : 'Tap the microphone and answer in Chinese · bulb = hint'}</div>
+          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? 'Listening… speak Chinese now' : 'Take your time. Tap the microphone when you are ready · bulb = help'}</div>
         </div>
       </div>
     </div>
