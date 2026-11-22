@@ -57,7 +57,7 @@ module.exports = async (req, res) => {
 
   const system = [
     'You are a patient Chinese speaking partner for a beginner, Fazeem, an importer who buys from Chinese suppliers. You play the OTHER person in a short spoken role-play (usually the supplier / factory boss). He speaks into his phone; his line reaches you as Chinese characters from speech recognition (it may contain wrong characters that SOUND the same) or as pinyin typed without tone marks.',
-    'HARD RULE: speak ONLY with the words in ALLOWED WORDS (plus numbers built from the number words there, and the particles in the list). Never use a word that is not in the list. Keep your line to ONE or TWO short sentences, at most 10 words, in the sentence patterns shown in EXAMPLE SENTENCES. End with a question when you can, so he has something to answer.',
+    'HARD RULE (checked by a program after you answer; a line with any other word is rejected): speak ONLY with the words in ALLOWED WORDS (plus numbers built from the number words there, and the particles in the list). Never use a word that is not in the list. Keep your line to ONE or TWO short sentences, at most 10 words, in the sentence patterns shown in EXAMPLE SENTENCES. End with a question when you can, so he has something to answer.',
     'Stay in the SCENE and move it forward naturally (greet, ask, price, bargain, pay, ship, thank). After about 8 exchanges, close the conversation politely.',
     'FEEDBACK on his last line: judge by SOUND and meaning, not by the characters (他/她, homophones and missing tone marks are fine). ok=true when a Chinese listener would understand it. If it has a real mistake (wrong word, wrong order, missing word), ok=false, give the corrected sentence in "better" and ONE short plain-English reason in "note" (max 18 words, name the word). If ok=true, "note" is a few encouraging words about what he did right (max 10 words) and "better" may be null. If you cannot understand the line at all, ok=false, note = "I could not follow that. Try the hint.", and repeat your previous question as the reply.',
     'HINT: one good line HE could say next, using only the allowed words.',
@@ -88,11 +88,15 @@ module.exports = async (req, res) => {
     hint: { anyOf: [line, { type: 'null' }] },
     done: { type: 'boolean' },
   }, required: ['reply', 'done'] } };
-  const ask = async (forced) => {
+  // Guard: every Chinese character the partner uses must come from the learner's lessons (the model sometimes slips in a later word).
+  const allowed = new Set(((str(body.chars, 8000) || '') + vocab + examples).replace(/[^\u4e00-\u9fff]/g, '').split(''));
+  const outside = (o) => { if (!o) return ''; const t = [o.reply, o.hint, o.feedback && o.feedback.better].map((l) => (l && l.chinese) || '').join(''); return [...new Set(t.replace(/[^\u4e00-\u9fff]/g, '').split('').filter((c) => !allowed.has(c)))].join(''); };
+  const ask = async (forced, note) => {
+    const msgs = note ? messages.slice(0, -1).concat([{ role: 'user', content: messages[messages.length - 1].content + '\n\n' + note }]) : messages;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctrl.signal,
       headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify(Object.assign({ model: MODEL, max_tokens: 1200, system: [{ type: 'text', text: system }, { type: 'text', text: words, cache_control: { type: 'ephemeral' } }], messages }, forced ? { tools: [tool], tool_choice: { type: 'tool', name: 'say' } } : {})),
+      body: JSON.stringify(Object.assign({ model: MODEL, max_tokens: 1200, system: [{ type: 'text', text: system }, { type: 'text', text: words, cache_control: { type: 'ephemeral' } }], messages: msgs }, forced ? { tools: [tool], tool_choice: { type: 'tool', name: 'say' } } : {})),
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return { err: (data && data.error && data.error.message) || ('AI service answered ' + r.status), status: r.status };
@@ -107,8 +111,15 @@ module.exports = async (req, res) => {
     if (a.err && a.status === 400) a = await ask(false);          // a model that refuses forced tools: plain JSON instead
     if (!a.err && !(a.out && a.out.reply && a.out.reply.chinese)) { const b = await ask(false); if (b.out && b.out.reply && b.out.reply.chinese) a = b; else if (!a.why && b.why) a.why = b.why; }
     if (a.err) return send(res, 502, { error: 'AI_ERROR', message: a.err });
+    // words from later lessons? ask again (up to twice), naming the characters that are not allowed
+    for (let n = 0; n < 2 && a.out && a.out.reply && a.out.reply.chinese && outside(a.out); n++) {
+      const bad = outside(a.out);
+      const b = await ask(true, '(SYSTEM NOTE: your last attempt used characters he has NOT learned: ' + bad + '. Write the line again using ONLY words from ALLOWED WORDS. The reply, the hint and the corrected sentence must all stay inside the list. If you cannot ask that question with the list, ask a simpler one.)');
+      if (b.out && b.out.reply && b.out.reply.chinese) a = b; else break;
+    }
     const out = a.out;
     if (!out || !out.reply || !out.reply.chinese) return send(res, 502, { error: 'EMPTY', message: 'The AI gave no usable line (' + (a.why || 'no answer') + ', model ' + MODEL + '). Tap again.' });
+    out.outside = outside(out);
     out.ms = Date.now() - t0;
     return send(res, 200, out);
   } catch (e) {

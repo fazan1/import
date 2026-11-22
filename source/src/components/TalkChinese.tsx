@@ -6,7 +6,7 @@ import { supabase, supabaseAnonKey } from '../lib/supabase';
    The phone listens (speech recognition zh-CN) and speaks (speech synthesis); typing pinyin works too. */
 
 interface W { pinyin: string; chinese?: string; meaning: string }
-export interface TalkLesson { number: number; title: string; words: W[]; extraWords?: W[]; examples?: W[] }
+export interface TalkLesson { number: number; title: string; words: W[]; extraWords?: W[]; examples?: W[]; conversation?: { chinese?: string }[]; quizzes?: { meaning?: { chinese?: string }[] } }
 interface Line { chinese: string; pinyin: string; english: string }
 interface Fb { ok: boolean; heard?: string; better?: Line | null; note?: string }
 type Msg = { who: 'ai'; line: Line; show?: boolean } | { who: 'me'; text: string; fb?: Fb | null; secs?: number };
@@ -73,7 +73,9 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
 
   const used = lessons.filter((l) => l.number <= upTo);
   const vocab = used.flatMap((l) => [...l.words, ...(l.extraWords || [])]).map((w) => `${w.pinyin} | ${w.chinese || ''} | ${w.meaning}`).join('\n');
-  const examples = used.flatMap((l) => (l.examples || []).slice(0, 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
+  // every Chinese character that appears anywhere in the lessons done = what the partner may use (checked on the server)
+  const chars = [...new Set(used.flatMap((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.conversation || []), ...(l.quizzes?.meaning || [])]).map((x) => x.chinese || '').join('').replace(/[^\u4e00-\u9fff]/g, '').split(''))].join('');
+  const examples = used.flatMap((l) => (l.examples || []).slice(0, upTo <= 3 ? 20 : 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
 
   const call = async (sc: typeof SCENES[number], list: Msg[], t = tw) => {
     setBusy(true); setErr(''); setShowHint(false); setHintStep(0);
@@ -81,7 +83,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       const { data } = await supabase.auth.getSession();
       const post = () => fetch('/api/chinese', {
         method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + (data.session?.access_token || ''), 'x-supabase-key': supabaseAnonKey || '' },
-        body: JSON.stringify({ scene: sc.scene + ' ' + t + (quick ? ' QUICK-FIRE DRILL: ask ONE very short, simple question per turn (3 to 6 words) that he can answer in 2 to 4 words; reuse the same few question types again and again with different words so his answers become automatic; no long sentences; about 12 exchanges before closing.' : ''), vocab, examples, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
+        body: JSON.stringify({ scene: sc.scene + ' ' + t + (quick ? ' QUICK-FIRE DRILL: ask ONE very short, simple question per turn (3 to 6 words) that he can answer in 2 to 4 words; reuse the same few question types again and again with different words so his answers become automatic; no long sentences; about 12 exchanges before closing.' : ''), vocab, examples, chars, messages: list.map((m) => (m.who === 'ai' ? { role: 'assistant', text: m.line.chinese } : { role: 'user', text: m.text })) }),
       });
       let r = await post();
       if (r.status === 502 || r.status === 504) r = await post();   // one quiet second try before showing an error
