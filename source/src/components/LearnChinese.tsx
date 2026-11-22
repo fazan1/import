@@ -211,6 +211,13 @@ export default function LearnChinese() {
     return m;
   }, [lessons]);
 
+  /* every pinyin word of the course with its tone marks and the first lesson it appears in: the quiz offers these while he types */
+  const bank = useMemo(() => {
+    const m = new Map<string, { t: string; n: number }>();
+    (lessons || []).forEach((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.buildSteps || [])].forEach((w) => w.pinyin.split(/[\s,]+/).forEach((raw) => { const t = raw.replace(/[?.!，。？！]/g, ''); const k = t.toLowerCase(); if (t && norm(t) && !m.has(k)) m.set(k, { t, n: l.number }); })));
+    return [...m.values()];
+  }, [lessons]);
+
   if (err) return <div className="p-4 text-red-700">{err}</div>;
   if (!lessons) return <div className="p-4 text-neutral-600">Loading…</div>;
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed;
@@ -475,14 +482,14 @@ export default function LearnChinese() {
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} bank={bank} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
         onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => (mode === 'mistakes' || mode === 'review') ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, mode, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; mode: Mode; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, mode, bank, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; mode: Mode; bank: { t: string; n: number }[]; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   // an unfinished lesson quiz is kept on this device, so it continues from the same question; a new quiz is in random order
   const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean; a?: string }[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
@@ -504,6 +511,7 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, onPractice, chineseOf
   const [score, setScore] = useState(kept ? kept.score : 0);
   const [saved, setSaved] = useState(false);
   const [res, setRes] = useState<{ q: Q; ok: boolean; a?: string }[]>(kept ? kept.res : []);
+  const inputRef = useRef<HTMLInputElement>(null);
   const [hearing, setHearing] = useState(false);
   const [spTry, setSpTry] = useState(0);
   const [spMsg, setSpMsg] = useState('');
@@ -582,6 +590,12 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, onPractice, chineseOf
       : explain(typed, q.answer, meaningOf))
     : null;
   const noCheck = q.kind === 'tone' || q.kind === 'speak';
+  // words to pick from while typing pinyin: those of his lessons so far that start with what he has typed
+  const typesPinyin = q.kind === 'fillGap' || q.kind === 'translate' || q.kind === 'listen';
+  const lastTok = val.split(/\s+/).pop() || '';
+  const upto = q.n || lesson.number;
+  const picks = typesPinyin && state === 'ask' && norm(lastTok) ? bank.filter((b) => b.n <= upto && norm(b.t).startsWith(norm(lastTok))).sort((a, b) => norm(a.t).length - norm(b.t).length).slice(0, 8) : [];
+  const pickWord = (t: string) => { const parts = val.split(/\s+/); parts[parts.length - 1] = t; setVal(parts.join(' ') + (q.kind === 'fillGap' ? '' : ' ')); inputRef.current?.focus(); };
   const canCheck = q.kind === 'wordOrder' ? picked.length === q.words!.length : val.trim().length > 0;
   const answered = state !== 'ask';
 
@@ -619,9 +633,13 @@ function Quiz({ lesson, preset, mode, onAnswer, onRestart, onPractice, chineseOf
             </div>
           </div>
         ) : (
-          <input value={val} disabled={answered} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && canCheck && state === 'ask') check(); }}
+<>
+          <input ref={inputRef} value={val} disabled={answered} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && canCheck && state === 'ask') check(); }}
             autoFocus autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder={q.kind === 'meaning' ? 'English meaning' : 'pinyin'}
             className="mt-4 w-full border border-neutral-400 rounded-lg px-3 py-3 text-lg font-mono disabled:bg-[#f4f3f1]" />
+          {picks.length > 0 && <div className="flex flex-wrap gap-2 mt-2">{picks.map((b) => <button key={b.t} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickWord(b.t)} className="px-3 py-2 rounded-lg border border-[#111] bg-[#f4f3f1] font-mono text-lg touch-manipulation">{b.t}</button>)}</div>}
+          {typesPinyin && state === 'ask' && !val && <div className="text-xs text-neutral-500 mt-1">Start typing — matching words appear, tap one to put it in.</div>}
+          </>
         )}
 
         {state === 'ask' && !noCheck && <button disabled={!canCheck} onClick={check} className="mt-4 w-full bg-[#111] text-white font-bold rounded-lg py-3 disabled:opacity-40">Check</button>}
