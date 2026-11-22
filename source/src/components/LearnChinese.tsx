@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import TalkChinese from './TalkChinese';
+import AskChinese from './AskChinese';
 import { ArrowLeft, Check, Lock, Mic, RotateCcw, Volume2, X } from 'lucide-react';
 
 /* Learn Chinese (Tools). The ONLY data source is /chinese_lessons.json (shown as it is, never rewritten).
@@ -327,6 +328,7 @@ export default function LearnChinese() {
         <>
           <button onClick={() => go('home')} className="flex items-center gap-1 text-sm mb-3"><ArrowLeft className="w-4 h-4" /> All lessons</button>
           <h1 className="text-2xl font-bold">Lesson {lesson.number}: {lesson.title}</h1>
+          <button onClick={() => document.getElementById('ask-lesson')?.scrollIntoView({ behavior: 'smooth' })} className="mt-2 text-sm border border-[#111] rounded-full px-3 py-1.5 bg-white font-semibold">Have a doubt? Ask the teacher ↓</button>
           <p className="text-neutral-600 text-sm">{lesson.subtitle}</p>
 
           <H>New words</H>
@@ -395,6 +397,8 @@ export default function LearnChinese() {
           </>}
 
           <button onClick={() => go('quiz')} className="mt-6 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5 text-base">{(() => { const r = loadJ<{ n: number; i: number; qs: unknown[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? `Continue the quiz (question ${r.i + 1} of ${r.qs.length})` : 'Take the quiz'; })()}</button>
+          <H>Have a doubt?</H>
+          <AskChinese key={lesson.number} lesson={lesson} earlier={lessons.filter((l) => l.number < lesson.number)} />
           <H>Extra practice — ear, mouth and tones (does not change the quiz mark)</H>
           <div className="grid sm:grid-cols-3 gap-2">
             {([['listen', 'Listening', 'Hear a sentence, type it', listenQs], ['speak', 'Speaking', 'Say it, the phone checks you', speakQs], ['tone', 'Tones', 'Pick the right tone', toneQs]] as [Mode, string, string, (l: Lesson) => Q[]][]).map(([m, nm, d, mk]) => (

@@ -49,6 +49,40 @@ module.exports = async (req, res) => {
   const anonKey = req.headers['x-supabase-key'] || body.anonKey || process.env.SUPABASE_ANON_KEY;
   if (!(await userIsMember(token, anonKey))) return send(res, 401, { error: 'Not signed in', message: 'Sign in to the CRM again and retry.' });
 
+  // ---- "Ask about this lesson": a teacher chat inside each lesson (plain text answer)
+  if (body.mode === 'ask') {
+    const lesson = str(body.lesson, 30000), earlier = str(body.earlier, 12000), question = str(body.question, 2000).trim();
+    if (!lesson || !question) return send(res, 400, { error: 'Nothing asked' });
+    const sysAsk = [
+      'You are the teacher of a 16-lesson spoken business Chinese course. The learner, Fazeem, is a beginner importer who reads on a phone. He is studying ONE lesson (given as LESSON) and asks you a doubt about it.',
+      'Answer the doubt directly, in simple English, short: 3 to 7 lines. No markdown, no headings, no bullet symbols; plain lines.',
+      'Every Chinese word or sentence you write must be given as: pinyin with tone marks, then the characters, then the English meaning. Example: wǒ yào huò (我要货) = I want goods.',
+      'Explain with the words of this lesson and of the EARLIER LESSONS first. If the doubt needs a word he has not learned, you may give it but mark it "(new word, not in your lessons yet)".',
+      'Base grammar explanations on the lesson\'s own pattern and notes; do not contradict them. If the lesson text itself answers the doubt, point to it ("as the note says...").',
+      'If he asks for more examples, give at most 5. If he asks you to test him, ask ONE question at a time and wait for his answer; then say if it is right and why.',
+      'If the question is not about Chinese, say in one line that this chat is only for the lesson.',
+    ].join('\n');
+    const hist = (Array.isArray(body.messages) ? body.messages.slice(-10) : []).filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim()).map((m) => ({ role: m.role, content: m.text.slice(0, 2500) }));
+    while (hist.length && hist[0].role !== 'user') hist.shift();
+    hist.push({ role: 'user', content: question });
+    for (let k = hist.length - 2; k >= 0; k--) if (hist[k].role === hist[k + 1].role) hist.splice(k, 1);
+    const c2 = new AbortController(); const tm = setTimeout(() => c2.abort(), 60000);
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', signal: c2.signal,
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({ model: process.env.CHINESE_ASK_MODEL || process.env.ASSISTANT_MODEL || 'claude-sonnet-5-5', max_tokens: 900, system: [{ type: 'text', text: sysAsk }, { type: 'text', text: 'LESSON:\n' + lesson + (earlier ? '\n\nEARLIER LESSONS (words he already knows):\n' + earlier : ''), cache_control: { type: 'ephemeral' } }], messages: hist }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) return send(res, 502, { error: 'AI_ERROR', message: (data && data.error && data.error.message) || ('AI service answered ' + r.status) });
+      const text = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n').trim();
+      if (!text) return send(res, 502, { error: 'EMPTY', message: 'The teacher gave no answer (' + (data.stop_reason || '?') + '). Ask again.' });
+      return send(res, 200, { text });
+    } catch (e) {
+      return send(res, 504, { error: 'TIMEOUT', message: e && e.name === 'AbortError' ? 'The teacher took too long. Ask again.' : String(e && e.message || e) });
+    } finally { clearTimeout(tm); }
+  }
+
   const vocab = str(body.vocab, 30000);
   const examples = str(body.examples, 12000);
   const scene = str(body.scene, 600) || 'Free talk between a buyer and a Chinese supplier.';
