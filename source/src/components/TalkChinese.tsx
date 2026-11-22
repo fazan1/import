@@ -58,6 +58,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [micErr, setMicErr] = useState('');
   const [micOn, setMicOn] = useState(false);
   const [live, setLive] = useState('');
+  const [pending, setPending] = useState('');
+  const pendTimer = useRef<number | undefined>(undefined);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);   // microphone trouble is shown apart: 'Try again' there must not re-ask the AI
   const [done, setDone] = useState(false);
@@ -79,6 +81,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const vocab = used.flatMap((l) => [...l.words, ...(l.extraWords || [])]).map((w) => `${w.pinyin} | ${w.chinese || ''} | ${w.meaning}`).join('\n');
   // every Chinese character that appears anywhere in the lessons done = what the partner may use (checked on the server)
   const chars = [...new Set(used.flatMap((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.conversation || []), ...(l.quizzes?.meaning || [])]).map((x) => x.chinese || '').join('').replace(/[^\u4e00-\u9fff]/g, '').split(''))].join('');
+  const pyMap = new Map<string, string>(); used.forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => { const z = (w.chinese || '').trim(); if (z && !/[ ,]/.test(z) && !pyMap.has(z)) pyMap.set(z, w.pinyin); }));
+  ['吗|ma', '不|bù', '没|méi', '的|de', '了|le', '个|ge'].forEach((x) => { const [z, p] = x.split('|'); if (!pyMap.has(z)) pyMap.set(z, p); });
   const examples = used.flatMap((l) => (l.examples || []).slice(0, upTo <= 3 ? 20 : 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
 
   const call = async (sc: typeof SCENES[number], list: Msg[], t = tw) => {
@@ -107,25 +111,46 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  /* What the phone heard is first SHOWN (in pinyin, from the lesson words) and sent after a short pause, so a wrong
+     hearing can be thrown away with "Say again". The whole utterance is taken when the phone stops listening - it is no
+     longer cut at the first pause. Of the phone's guesses, the one made of lesson characters wins. */
+  const toPinyin = (zh: string) => {
+    let out = ''; let i = 0;
+    while (i < zh.length) {
+      let hit = '';
+      for (let n = Math.min(4, zh.length - i); n >= 1 && !hit; n--) { const p = pyMap.get(zh.slice(i, i + n)); if (p) { hit = p; i += n; } }
+      if (hit) out += hit + ' '; else { out += /[\u4e00-\u9fff]/.test(zh[i]) ? zh[i] + ' ' : ''; i++; }
+    }
+    return out.trim();
+  };
+  const sendPending = (t: string) => { window.clearTimeout(pendTimer.current); setPending(''); say(t); };
+  const dropPending = () => { window.clearTimeout(pendTimer.current); setPending(''); };
   const listen = () => {
     if (hearing) { try { recRef.current?.stop(); } catch { /* ignore */ } return; }   // second tap = I have finished speaking
     if (!SR || busy) return;
     try {
-      window.speechSynthesis?.cancel();
-      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1; setHearing(true); setMicOn(false); setLive(''); setMicErr('');
-      recRef.current = r; let sent = false;
-      r.onaudiostart = () => setMicOn(true);          // the phone needs a moment to open the microphone: show when it is really listening
-      r.onspeechend = () => { try { r.stop(); } catch { /* ignore */ } };   // stop as soon as he stops talking, do not wait for the long silence
+      window.speechSynthesis?.cancel(); dropPending();
+      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 5; setHearing(true); setMicOn(false); setLive(''); setMicErr('');
+      recRef.current = r; let heard = '';
+      const fit = (t: string) => { const c = t.replace(/[^\u4e00-\u9fff]/g, ''); return c ? c.split('').filter((x) => chars.includes(x)).length / c.length : 0; };
+      r.onaudiostart = () => setMicOn(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onresult = (e: any) => {
-        let fin = '', part = '';
-        for (let k = 0; k < e.results.length; k++) { if (e.results[k].isFinal) fin += e.results[k][0].transcript; else part += e.results[k][0].transcript; }
-        setLive(fin || part);
-        if (fin && !sent) { sent = true; setLive(''); say(fin); }
+        let t = '';
+        for (let k = 0; k < e.results.length; k++) {
+          const res = e.results[k]; let best = res[0].transcript as string;
+          if (res.isFinal) for (let a = 1; a < res.length; a++) if (fit(res[a].transcript) > fit(best) + 0.001) best = res[a].transcript;
+          t += best;
+        }
+        heard = t; setLive(t);
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      r.onerror = (e: any) => setMicErr(e.error === 'not-allowed' ? 'The microphone is blocked. Tap the icon left of the address bar → Permissions → Microphone → Allow, then reload. Until then, type pinyin in the box.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : 'The phone could not listen (' + e.error + ').');
-      r.onend = () => { setHearing(false); setMicOn(false); recRef.current = null; };
+      r.onerror = (e: any) => setMicErr(e.error === 'not-allowed' ? 'The microphone is blocked. Tap the icon left of the address bar → Permissions → Microphone → Allow, then reload. Until then, type pinyin in the box.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : e.error === 'aborted' ? '' : 'The phone could not listen (' + e.error + ').');
+      r.onend = () => {
+        setHearing(false); setMicOn(false); recRef.current = null; setLive('');
+        const t = heard.trim(); if (!t) return;
+        setPending(t); window.clearTimeout(pendTimer.current); pendTimer.current = window.setTimeout(() => sendPending(t), 3000);
+      };
       r.start();
     } catch { setHearing(false); setMicErr('The phone could not start listening.'); }
   };
@@ -188,13 +213,14 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <div className="max-w-3xl mx-auto">
           {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">{hintStep < 2 ? 'Start with…' : 'You could say'}</div><div className="font-mono">{hintStep < 2 ? hint.pinyin.split(/\s+/)[0] + ' …' : hint.pinyin}</div>{hintStep >= 2 && <div className="text-xs text-neutral-600">{hint.english}</div>}{hintStep < 2 && <button onClick={() => setHintStep(2)} className="text-xs underline text-[#e8552a] font-semibold">Show the whole line</button>}</div>{hintStep >= 2 && <Spk text={hint.chinese} />}</div>}
           {timerOn && waiting > 0 && <div className="h-1.5 bg-white rounded mb-2 overflow-hidden"><div className={`h-full ${waiting <= 3 ? 'bg-green-600' : waiting <= 6 ? 'bg-amber-500' : 'bg-red-600'}`} style={{ width: `${Math.min(100, (waiting / 8) * 100)}%` }} /></div>}
+          {pending && <div className="bg-white border-2 border-[#111] rounded-lg p-2 mb-2"><div className="text-xs text-neutral-600">The phone heard — is this what you said?</div><div className="font-mono text-lg">{toPinyin(pending)}</div><div className="text-sm text-neutral-600">{pending}</div><div className="grid grid-cols-2 gap-2 mt-2"><button onClick={dropPending} className="border border-[#111] rounded-lg py-2 font-semibold">No — say again</button><button onClick={() => sendPending(pending)} className="bg-[#e8552a] text-white rounded-lg py-2 font-bold">Yes — send</button></div><div className="text-[11px] text-neutral-500 mt-1 text-center">Sends by itself in 3 seconds</div></div>}
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowHint(!showHint); if (!showHint) setHintStep(1); }} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />
             {text.trim() ? <button onClick={() => say(text)} disabled={busy} className="w-11 h-11 rounded-full bg-[#111] text-white flex items-center justify-center" aria-label="Send"><Send className="w-5 h-5" /></button>
               : <button onClick={listen} disabled={!SR || busy} className={`w-14 h-14 rounded-full text-white flex items-center justify-center disabled:opacity-40 touch-manipulation ${hearing ? (micOn ? 'bg-red-600 animate-pulse' : 'bg-neutral-500') : 'bg-[#e8552a]'}`} aria-label="Speak"><Mic className="w-6 h-6" /></button>}
           </div>
-          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? (live ? `Heard: ${live}` : micOn ? 'Listening… speak now · tap again when you finish' : 'Opening the microphone… wait for “Listening”') : busy ? 'Sending your line to the partner…' : 'Take your time. Tap the microphone when you are ready · bulb = help'}</div>
+          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? (live ? `Hearing: ${toPinyin(live) || live} · tap the button when you finish` : micOn ? 'Listening… speak now · tap again when you finish' : 'Opening the microphone… wait for “Listening”') : busy ? 'Sending your line to the partner…' : 'Take your time. Tap the microphone when you are ready · bulb = help'}</div>
         </div>
       </div>
     </div>
