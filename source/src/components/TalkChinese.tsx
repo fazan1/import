@@ -52,6 +52,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [tw, setTw] = useState('');
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [hint, setHint] = useState<Line | null>(null);
+  const [opts, setOpts] = useState<Line[]>([]);
   const [showHint, setShowHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -66,7 +67,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
   const [quick, setQuick] = useState(false);
-  const [timerOn, setTimerOn] = useState(false);   // off by default: a learner needs thinking time, not pressure
+  const timerOn = false;   // off by default: a learner needs thinking time, not pressure
   const [hintStep, setHintStep] = useState(0);     // 0 hidden, 1 the first word only, 2 the whole line
   const [tick, setTick] = useState(0);
   const t0 = useRef(0);
@@ -101,14 +102,14 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       const next = [...list];
       if (j.feedback && next.length && next[next.length - 1].who === 'me') next[next.length - 1] = { ...(next[next.length - 1] as Extract<Msg, { who: 'me' }>), fb: j.feedback };
       next.push({ who: 'ai', line: j.reply });
-      setMsgs(next); setHint(j.hint || null); setDone(!!j.done);
+      setMsgs(next); setHint(j.hint || null); setOpts(Array.isArray(j.options) ? j.options : []); setDone(!!j.done);
       t0.current = Date.now(); speak(j.reply.chinese, () => { t0.current = Date.now(); });
     } catch (e) { setErr('No connection to the AI partner. ' + String((e as Error).message || e)); }
     finally { setBusy(false); }
   };
-  const begin = (sc: typeof SCENES[number]) => { const t = twist(); setTw(t); setScene(sc); setMsgs([]); setDone(false); setHint(null); call(sc, [], t); };
+  const begin = (sc: typeof SCENES[number]) => { const t = twist(); setTw(t); setScene(sc); setMsgs([]); setDone(false); setHint(null); setOpts([]); call(sc, [], t); };
   const surprise = () => begin(pick(SCENES.filter((x) => upTo >= x.from)));
-  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); setMicErr(''); onAnswer(); const secs = t0.current ? Math.round((Date.now() - t0.current) / 100) / 10 : undefined; t0.current = 0; const list: Msg[] = [...msgs, { who: 'me', text: v, secs }]; setMsgs(list); call(scene, list); };
+  const say = (t: string) => { const v = t.trim(); if (!v || busy || !scene) return; setText(''); setMicErr(''); setOpts([]); onAnswer(); const secs = t0.current ? Math.round((Date.now() - t0.current) / 100) / 10 : undefined; t0.current = 0; const list: Msg[] = [...msgs, { who: 'me', text: v, secs }]; setMsgs(list); call(scene, list); };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -155,7 +156,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       r.onend = () => {
         setHearing(false); setMicOn(false); recRef.current = null; setLive('');
         const t = heard.trim(); if (!t) return;
-        setPending(t); window.clearTimeout(pendTimer.current); pendTimer.current = window.setTimeout(() => sendPending(t), 3000);
+        setPending(t);   // waits for his tap: no countdown
       };
       r.start();
     } catch { setHearing(false); setMicErr('The phone could not start listening.'); }
@@ -177,7 +178,6 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <select value={upTo} onChange={(e) => setUpTo(Number(e.target.value))} className="border border-neutral-400 rounded-lg px-3 py-2 font-mono">{lessons.map((l) => <option key={l.number} value={l.number}>{l.number}</option>)}</select>
       </div>
       <label className="border border-neutral-300 rounded-lg bg-white p-3 mt-3 flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={quick} onChange={(e) => setQuick(e.target.checked)} className="mt-1 w-5 h-5" /><span><b>Quick-fire drill</b><span className="block text-xs text-neutral-600">Very short questions, short answers, again and again. This trains you to answer straight in Chinese without going through English first.</span></span></label>
-      <label className="border border-neutral-300 rounded-lg bg-white p-3 mt-2 flex items-start gap-3 cursor-pointer"><input type="checkbox" checked={timerOn} onChange={(e) => setTimerOn(e.target.checked)} className="mt-1 w-5 h-5" /><span><b>Show my answer time</b><span className="block text-xs text-neutral-600">Leave this off while you are learning — take all the time you need. Turn it on later to build speed.</span></span></label>
       <button onClick={surprise} className="mt-3 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5">Random conversation — surprise me</button>
       <p className="text-xs text-neutral-600 mt-1">Every conversation is different: the supplier's mood, his opening line, his stock and his questions change each time. Or pick a scene:</p>
       <div className="grid gap-2 mt-3">
@@ -191,7 +191,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   );
 
   return (
-    <div className="pb-44">
+    <div className="pb-[26rem]">
       <div className="flex items-center justify-between text-sm mb-2"><button onClick={() => { window.speechSynthesis?.cancel(); setScene(null); }} className="flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Scenes</button><span className="font-mono text-xs">{scene.name} · lessons 1–{upTo}</span><button onClick={flipVoice} className="text-xs border border-[#111] rounded-full px-2.5 py-1 bg-white">Voice: <b>{slow ? 'slow' : 'normal'}</b></button></div>
       <div className="grid gap-2">
         {msgs.map((m, k) => m.who === 'ai' ? (
@@ -219,7 +219,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
         <div className="max-w-3xl mx-auto">
           {showHint && hint && <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-lg p-2 mb-2"><div className="flex-1"><div className="text-xs text-neutral-600">{hintStep < 2 ? 'Start with…' : 'You could say'}</div><div className="font-mono">{hintStep < 2 ? hint.pinyin.split(/\s+/)[0] + ' …' : hint.pinyin}</div>{hintStep >= 2 && <div className="text-xs text-neutral-600">{hint.english}</div>}{hintStep < 2 && <button onClick={() => setHintStep(2)} className="text-xs underline text-[#e8552a] font-semibold">Show the whole line</button>}</div>{hintStep >= 2 && <Spk text={hint.chinese} />}</div>}
           {timerOn && waiting > 0 && <div className="h-1.5 bg-white rounded mb-2 overflow-hidden"><div className={`h-full ${waiting <= 3 ? 'bg-green-600' : waiting <= 6 ? 'bg-amber-500' : 'bg-red-600'}`} style={{ width: `${Math.min(100, (waiting / 8) * 100)}%` }} /></div>}
-          {pending && <div className="bg-white border-2 border-[#111] rounded-lg p-2 mb-2"><div className="text-xs text-neutral-600">The phone heard — is this what you said?</div><div className="font-mono text-lg">{toPinyin(pending)}</div><div className="text-sm text-neutral-600">{pending}</div><div className="grid grid-cols-2 gap-2 mt-2"><button onClick={dropPending} className="border border-[#111] rounded-lg py-2 font-semibold">No — say again</button><button onClick={() => sendPending(pending)} className="bg-[#e8552a] text-white rounded-lg py-2 font-bold">Yes — send</button></div><div className="text-[11px] text-neutral-500 mt-1 text-center">Sends by itself in 3 seconds</div></div>}
+          {!busy && !done && !pending && !hearing && opts.length > 0 && <div className="mb-2"><div className="text-xs text-neutral-600 mb-1">Tap an answer to send it — or speak / type your own</div><div className="grid gap-1.5">{opts.map((o, k) => <button key={k} onClick={() => { speak(o.chinese); say(o.chinese); }} className="text-left bg-white border border-[#111] rounded-lg px-3 py-2 touch-manipulation"><span className="font-mono text-[16px] font-semibold">{o.pinyin}</span><span className="text-neutral-500"> · {o.chinese}</span><span className="block text-sm text-neutral-600">{o.english}</span></button>)}</div></div>}
+          {pending && <div className="bg-white border-2 border-[#111] rounded-lg p-2 mb-2"><div className="text-xs text-neutral-600">The phone heard — is this what you said?</div><div className="font-mono text-lg">{toPinyin(pending)}</div><div className="text-sm text-neutral-600">{pending}</div><div className="grid grid-cols-2 gap-2 mt-2"><button onClick={dropPending} className="border border-[#111] rounded-lg py-2 font-semibold">No — say again</button><button onClick={() => sendPending(pending)} className="bg-[#e8552a] text-white rounded-lg py-2 font-bold">Yes — send</button></div></div>}
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowHint(!showHint); if (!showHint) setHintStep(1); }} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />

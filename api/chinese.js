@@ -97,10 +97,11 @@ module.exports = async (req, res) => {
     'In feedback ALWAYS fill "heard" (his line in pinyin with tone marks) and "english" (the plain English meaning of what he actually said, even if it was wrong or odd), so he can see what he said.',
     'MISHEARD SPEECH (very important): the phone often mishears a beginner. When his line contains characters that are NOT in the allowed list, or makes no sense as an answer (e.g. 嘻嘻 xīxī, 他他, 西, 细), do NOT take it literally. Convert it to its SOUND and find the allowed word or short sentence that sounds closest, ignoring tones and treating these pairs as the same sound: x/sh/s, q/ch/c, j/zh/z, n/l, in/ing, en/eng, an/ang, and a doubled syllable as one word said twice. Example: 嘻嘻 (xī xī) as an answer to a 是-question is almost certainly 是是 / 是 (shì) = "yes". If a close allowed word exists and it fits as an answer, ACCEPT it as that: ok=true, heard = the intended words in pinyin, english = their meaning, and note = "The phone heard <what it wrote>; I took it as <intended>." plus, when the confusion is x/sh, q/ch or j/zh, one short pronunciation tip (for sh/ch/zh: curl the tongue tip back, no "ee" sound). Only if nothing close exists, say you could not follow.',
     'Your own lines must be sensible things a real supplier or business friend would say. Never ask absurd or empty questions (for example "are you a person?"). With a small word list, prefer simple real questions about goods, money, wanting, having, who someone is, whose something is.',
+    'OPTIONS: give exactly 3 DIFFERENT lines HE could say next, each a correct and natural answer to your line but with a different meaning (for example a yes, a no, and a question back), each with chinese, pinyin and english, using only the allowed words. He taps one to send it, so they must all be good Chinese.',
     'HINT: one good line HE could say next, using only the allowed words.',
     'On the first turn (no line from him yet) there is no feedback: set "feedback" to null and open the scene.',
     'Answer with ONE JSON object and nothing else, exactly this shape:',
-    '{"reply":{"chinese":"…","pinyin":"… (with tone marks)","english":"…"},"feedback":null | {"ok":true|false,"heard":"his line in pinyin with tone marks","english":"what his line means in English","better":null | {"chinese":"…","pinyin":"…","english":"…"},"note":"…"},"hint":{"chinese":"…","pinyin":"…","english":"…"},"done":false}',
+    '{"reply":{"chinese":"…","pinyin":"… (with tone marks)","english":"…"},"feedback":null | {"ok":true|false,"heard":"his line in pinyin with tone marks","english":"what his line means in English","better":null | {"chinese":"…","pinyin":"…","english":"…"},"note":"…"},"hint":{"chinese":"…","pinyin":"…","english":"…"},"options":[{"chinese":"…","pinyin":"…","english":"…"},{…},{…}],"done":false}',
     'Set "done" to true on the line that closes the conversation.',
   ].join('\n');
 
@@ -108,7 +109,7 @@ module.exports = async (req, res) => {
   history.forEach((m) => { if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim()) messages.push({ role: m.role, content: m.text.slice(0, 600) }); });
   // Guard: every Chinese character the partner uses must come from the learner's lessons (the model sometimes slips in a later word).
   const allowed = new Set(((str(body.chars, 8000) || '') + vocab + examples).replace(/[^\u4e00-\u9fff]/g, '').split(''));
-  const outside = (o) => { if (!o) return ''; const t = [o.reply, o.hint, o.feedback && o.feedback.better].map((l) => (l && l.chinese) || '').join(''); return [...new Set(t.replace(/[^\u4e00-\u9fff]/g, '').split('').filter((c) => !allowed.has(c)))].join(''); };
+  const outside = (o) => { if (!o) return ''; const t = [o.reply, o.hint, o.feedback && o.feedback.better].concat(Array.isArray(o.options) ? o.options : []).map((l) => (l && l.chinese) || '').join(''); return [...new Set(t.replace(/[^\u4e00-\u9fff]/g, '').split('').filter((c) => !allowed.has(c)))].join(''); };
   // the word list is the same on every turn -> its own cached system block (faster and cheaper from the 2nd line on)
   const words = 'ALLOWED CHARACTERS (every Chinese character you write must be one of these, nothing else): ' + [...allowed].join('') + '\n\nALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
   const ctx = 'SCENE: ' + scene;
@@ -126,8 +127,9 @@ module.exports = async (req, res) => {
     reply: line,
     feedback: { type: ['object', 'null'], properties: { ok: { type: 'boolean' }, heard: { type: 'string' }, english: { type: 'string', description: 'English meaning of what the learner said' }, better: { anyOf: [line, { type: 'null' }] }, note: { type: 'string' } } },
     hint: { anyOf: [line, { type: 'null' }] },
+    options: { type: 'array', items: line, description: 'Exactly 3 different lines the learner could say next' },
     done: { type: 'boolean' },
-  }, required: ['reply', 'done'] } };
+  }, required: ['reply', 'options', 'done'] } };
   const ask = async (forced, note) => {
     const msgs = note ? messages.slice(0, -1).concat([{ role: 'user', content: messages[messages.length - 1].content + '\n\n' + note }]) : messages;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -170,6 +172,15 @@ module.exports = async (req, res) => {
       }
     }
     if (!out.hint) { const ex2 = examples.split('\n').map((l) => l.split(' | ')).filter((x) => x.length >= 3 && x[1] && !/[吗?？]/.test(x[1])); if (ex2.length) { const h2 = ex2[Math.floor(Math.random() * ex2.length)]; out.hint = { chinese: h2[1], pinyin: h2[0], english: h2[2] }; } }
+    // tap-to-send options: keep only the ones inside his lessons, top up from his own example sentences
+    {
+      const exAll = examples.split('\n').map((l) => l.split(' | ')).filter((x) => x.length >= 3 && x[1]).map((x) => ({ chinese: x[1], pinyin: x[0], english: x[2] }));
+      let opts = (Array.isArray(out.options) ? out.options : []).filter((o) => o && o.chinese && o.pinyin && !outside({ reply: o }));
+      const seen = new Set(opts.map((o) => o.chinese));
+      const pool = exAll.filter((o) => !seen.has(o.chinese)).sort(() => Math.random() - 0.5);
+      while (opts.length < 3 && pool.length) opts.push(pool.pop());
+      out.options = out.done ? [] : opts.slice(0, 3);
+    }
     out.outside = outside(out);
     out.ms = Date.now() - t0;
     return send(res, 200, out);
