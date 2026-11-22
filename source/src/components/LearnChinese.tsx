@@ -34,6 +34,8 @@ const MODENAME: Record<Mode, string> = { lesson: 'Lesson quiz', mistakes: 'Pract
 const KEY = 'learn-chinese-progress-v1';
 /* Daily review (spaced repetition): each word / sentence sits in a box; right = next box (comes back later), wrong = back to the start. */
 const RKEY = 'learn-chinese-resume-v1';
+/* one half-done quiz is kept PER LESSON (one shared slot meant that opening another lesson's quiz wiped it) */
+const rKey = (n: number) => `${RKEY}:${n}`;
 const SKEY = 'learn-chinese-srs-v1', DKEY = 'learn-chinese-days-v1', XKEY = 'learn-chinese-extra-v1';
 const GAP = [0, 1, 2, 4, 8, 16, 32];
 const dayStr = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -218,6 +220,13 @@ export default function LearnChinese() {
     return [...m.values()];
   }, [lessons]);
 
+  /* English words of the lessons' meanings: offered while he types in the Meaning quiz */
+  const engBank = useMemo(() => {
+    const m = new Map<string, { t: string; n: number }>();
+    (lessons || []).forEach((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.quizzes?.meaning || []).map((q) => ({ meaning: q.answer }))].forEach((w) => (w.meaning.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g) || []).forEach((t) => { if (!m.has(t)) m.set(t, { t, n: l.number }); })));
+    return [...m.values()];
+  }, [lessons]);
+
   if (err) return <div className="p-4 text-red-700">{err}</div>;
   if (!lessons) return <div className="p-4 text-neutral-600">Loading…</div>;
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed;
@@ -280,7 +289,7 @@ export default function LearnChinese() {
   const changeGoal = (d: number) => { const g = Math.max(10, Math.min(200, goal + d)); setGoal(g); saveJ('learn-chinese-goal-v1', g); };
   const progressText = () => [`*My Chinese progress* — ${level}`, `Lessons passed: ${doneN} of ${lessons.length} · course mastery ${mastery}%`, `Streak: ${streak} days (best ${bestStreak}) · days studied ${dayKeys.length} · answers ${totalAns}`, `Today: ${todayN} of ${goal} answers`, `Memory: ${mem.known} known well, ${mem.learning} learning, ${mem.fresh} new`, '', '*Skills*', ...skills.map(([n, v]) => `${n}: ${v === null ? 'not tried' : v + '%'}`), '', '*Lessons*', ...lessons.filter((l) => prog[l.number]).map((l) => `${l.number}. ${l.title}: best ${prog[l.number].best}% (${prog[l.number].tries} tries)${prog[l.number].passed ? ' passed' : ''}`)].join('\n');
   const copyProgress = async () => { try { await navigator.clipboard.writeText(progressText()); alert('Progress copied. Paste it in WhatsApp.'); } catch { alert(progressText()); } };
-  const resetAll = () => { if (!confirm('Delete ALL Learn Chinese progress on this device? Marks, review, mistakes and streak will be gone.')) return; if (!confirm('Are you sure? This cannot be undone.')) return; [KEY, MKEY, SKEY, DKEY, XKEY, RKEY].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } }); setProg({}); setMist([]); setSrs({}); setDays({}); setExtra({}); go('home'); };
+  const resetAll = () => { if (!confirm('Delete ALL Learn Chinese progress on this device? Marks, review, mistakes and streak will be gone.')) return; if (!confirm('Are you sure? This cannot be undone.')) return; [KEY, MKEY, SKEY, DKEY, XKEY, RKEY, ...lessons.map((l) => rKey(l.number))].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } }); setProg({}); setMist([]); setSrs({}); setDays({}); setExtra({}); go('home'); };
   const Bar = ({ v, color = 'bg-green-600' }: { v: number; color?: string }) => <div className="h-2.5 bg-[#f4f3f1] rounded"><div className={`h-full rounded ${color}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></div>;
   const nextLesson = lessons.find((l) => !prog[l.number]?.passed);
   const listenQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 10).map((e) => ({ kind: 'listen', title: 'Listening practice', n: l.number, ask: 'Listen, then type what you hear', sub: 'Type it in pinyin (tone marks not needed)', answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
@@ -403,7 +412,7 @@ export default function LearnChinese() {
             </div>
           </>}
 
-          <button onClick={() => go('quiz')} className="mt-6 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5 text-base">{(() => { const r = loadJ<{ n: number; i: number; qs: unknown[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? `Continue the quiz (question ${r.i + 1} of ${r.qs.length})` : 'Take the quiz'; })()}</button>
+          <button onClick={() => go('quiz')} className="mt-6 w-full bg-[#e8552a] text-white font-bold rounded-lg py-3.5 text-base">{(() => { const r = loadJ<{ n: number; i: number; qs: unknown[] } | null>(rKey(lesson.number), null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? `Continue the quiz (question ${r.i + 1} of ${r.qs.length})` : 'Take the quiz'; })()}</button>
           <H>Have a doubt?</H>
           <AskChinese key={lesson.number} lesson={lesson} earlier={lessons.filter((l) => l.number < lesson.number)} />
           <H>Extra practice — ear, mouth and tones (does not change the quiz mark)</H>
@@ -482,17 +491,17 @@ export default function LearnChinese() {
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} bank={bank} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} bank={bank} engBank={engBank} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
         onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => (mode === 'mistakes' || mode === 'review') ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, mode, bank, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; mode: Mode; bank: { t: string; n: number }[]; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; mode: Mode; bank: { t: string; n: number }[]; engBank: { t: string; n: number }[]; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   // an unfinished lesson quiz is kept on this device, so it continues from the same question; a new quiz is in random order
-  const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean; a?: string }[] } | null>(RKEY, null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
+  const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean; a?: string }[] } | null>(rKey(lesson.number), null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
   const qs: Q[] = useMemo(() => {
     if (preset) return preset;
     if (kept) return kept.qs;
@@ -551,9 +560,9 @@ function Quiz({ lesson, preset, mode, bank, onAnswer, onRestart, onPractice, chi
   const mark = (ok: boolean, given?: string) => {
     const ans = given ?? (q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val);
     onAnswer(); setState(ok ? 'right' : 'wrong'); setRes((r) => [...r, { q, ok, a: ans }]); if (ok) setScore((s) => s + 1);
-    if (!preset) { if (i + 1 >= qs.length) { try { localStorage.removeItem(RKEY); } catch { /* ignore */ } } else saveJ(RKEY, { n: lesson.number, qs, i: i + 1, score: score + (ok ? 1 : 0), res: [...res, { q, ok, a: ans }] }); }
+    if (!preset) { if (i + 1 >= qs.length) { try { localStorage.removeItem(rKey(lesson.number)); } catch { /* ignore */ } } else saveJ(rKey(lesson.number), { n: lesson.number, qs, i: i + 1, score: score + (ok ? 1 : 0), res: [...res, { q, ok, a: ans }] }); }
   };
-  const restart = () => { if (!confirm('Start this quiz again from question 1? Your answers so far in this quiz will be dropped.')) return; try { localStorage.removeItem(RKEY); } catch { /* ignore */ } onRestart(); };
+  const restart = () => { if (!confirm('Start this quiz again from question 1? Your answers so far in this quiz will be dropped.')) return; try { localStorage.removeItem(rKey(lesson.number)); } catch { /* ignore */ } onRestart(); };
   const check = () => {
     if (q.kind === 'wordOrder') mark(norm(picked.map((k) => q.words![k]).join('')) === norm(q.answer));
     else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer, q.ask, meaningOf).ok);
@@ -594,7 +603,9 @@ function Quiz({ lesson, preset, mode, bank, onAnswer, onRestart, onPractice, chi
   const typesPinyin = q.kind === 'fillGap' || q.kind === 'translate' || q.kind === 'listen';
   const lastTok = val.split(/\s+/).pop() || '';
   const upto = q.n || lesson.number;
-  const picks = typesPinyin && state === 'ask' && norm(lastTok) ? bank.filter((b) => b.n <= upto && norm(b.t).startsWith(norm(lastTok))).sort((a, b) => norm(a.t).length - norm(b.t).length).slice(0, 8) : [];
+  const lt = lastTok.toLowerCase().replace(/[^a-z']/g, '');
+  const picks = state !== 'ask' ? [] : typesPinyin && norm(lastTok) ? bank.filter((b) => b.n <= upto && norm(b.t).startsWith(norm(lastTok))).sort((a, b) => norm(a.t).length - norm(b.t).length).slice(0, 8)
+    : q.kind === 'meaning' && lt ? engBank.filter((b) => b.n <= upto && b.t.startsWith(lt) && b.t !== lt).sort((a, b) => a.t.length - b.t.length).slice(0, 8) : [];
   const pickWord = (t: string) => { const parts = val.split(/\s+/); parts[parts.length - 1] = t; setVal(parts.join(' ') + (q.kind === 'fillGap' ? '' : ' ')); inputRef.current?.focus(); };
   const canCheck = q.kind === 'wordOrder' ? picked.length === q.words!.length : val.trim().length > 0;
   const answered = state !== 'ask';
@@ -638,7 +649,7 @@ function Quiz({ lesson, preset, mode, bank, onAnswer, onRestart, onPractice, chi
             autoFocus autoCapitalize="off" autoCorrect="off" spellCheck={false} placeholder={q.kind === 'meaning' ? 'English meaning' : 'pinyin'}
             className="mt-4 w-full border border-neutral-400 rounded-lg px-3 py-3 text-lg font-mono disabled:bg-[#f4f3f1]" />
           {picks.length > 0 && <div className="flex flex-wrap gap-2 mt-2">{picks.map((b) => <button key={b.t} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickWord(b.t)} className="px-3 py-2 rounded-lg border border-[#111] bg-[#f4f3f1] font-mono text-lg touch-manipulation">{b.t}</button>)}</div>}
-          {typesPinyin && state === 'ask' && !val && <div className="text-xs text-neutral-500 mt-1">Start typing — matching words appear, tap one to put it in.</div>}
+          {(typesPinyin || q.kind === 'meaning') && state === 'ask' && !val && <div className="text-xs text-neutral-500 mt-1">Start typing — matching words appear, tap one to put it in.</div>}
           </>
         )}
 
