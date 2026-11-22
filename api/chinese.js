@@ -94,10 +94,11 @@ module.exports = async (req, res) => {
     'HARD RULE (checked by a program after you answer; a line with any other word is rejected): speak ONLY with the words in ALLOWED WORDS (plus numbers built from the number words there, and the particles in the list). Never use a word that is not in the list. Keep your line to ONE or TWO short sentences, at most 10 words, in the sentence patterns shown in EXAMPLE SENTENCES. End with a question when you can, so he has something to answer.',
     'The scene and the mood are only a direction: show them ONLY with allowed words. If the list has no greeting, do not greet; if it has no word for a mood (busy, hurry...), do not say it. Stay in the SCENE and move it forward naturally. After about 8 exchanges, close the conversation politely.',
     'FEEDBACK on his last line: judge by SOUND and meaning, not by the characters (他/她, homophones and missing tone marks are fine). ok=true when a Chinese listener would understand it. If it has a real mistake (wrong word, wrong order, missing word), ok=false, give the corrected sentence in "better" and ONE short plain-English reason in "note" (max 18 words, name the word). If ok=true, "note" is a few encouraging words about what he did right (max 10 words) and "better" may be null. If you cannot understand the line at all, ok=false, note = "I could not follow that. Try the hint.", and repeat your previous question as the reply.',
+    'In feedback ALWAYS fill "heard" (his line in pinyin with tone marks) and "english" (the plain English meaning of what he actually said, even if it was wrong or odd), so he can see what he said.',
     'HINT: one good line HE could say next, using only the allowed words.',
     'On the first turn (no line from him yet) there is no feedback: set "feedback" to null and open the scene.',
     'Answer with ONE JSON object and nothing else, exactly this shape:',
-    '{"reply":{"chinese":"…","pinyin":"… (with tone marks)","english":"…"},"feedback":null | {"ok":true|false,"heard":"his line in pinyin with tone marks","better":null | {"chinese":"…","pinyin":"…","english":"…"},"note":"…"},"hint":{"chinese":"…","pinyin":"…","english":"…"},"done":false}',
+    '{"reply":{"chinese":"…","pinyin":"… (with tone marks)","english":"…"},"feedback":null | {"ok":true|false,"heard":"his line in pinyin with tone marks","english":"what his line means in English","better":null | {"chinese":"…","pinyin":"…","english":"…"},"note":"…"},"hint":{"chinese":"…","pinyin":"…","english":"…"},"done":false}',
     'Set "done" to true on the line that closes the conversation.',
   ].join('\n');
 
@@ -121,7 +122,7 @@ module.exports = async (req, res) => {
   const line = { type: 'object', properties: { chinese: { type: 'string' }, pinyin: { type: 'string' }, english: { type: 'string' } }, required: ['chinese', 'pinyin', 'english'] };
   const tool = { name: 'say', description: 'Give the partner\'s next line, the feedback on the learner\'s last line, and a hint.', input_schema: { type: 'object', properties: {
     reply: line,
-    feedback: { type: ['object', 'null'], properties: { ok: { type: 'boolean' }, heard: { type: 'string' }, better: { anyOf: [line, { type: 'null' }] }, note: { type: 'string' } } },
+    feedback: { type: ['object', 'null'], properties: { ok: { type: 'boolean' }, heard: { type: 'string' }, english: { type: 'string', description: 'English meaning of what the learner said' }, better: { anyOf: [line, { type: 'null' }] }, note: { type: 'string' } } },
     hint: { anyOf: [line, { type: 'null' }] },
     done: { type: 'boolean' },
   }, required: ['reply', 'done'] } };

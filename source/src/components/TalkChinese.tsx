@@ -8,7 +8,7 @@ import { supabase, supabaseAnonKey } from '../lib/supabase';
 interface W { pinyin: string; chinese?: string; meaning: string }
 export interface TalkLesson { number: number; title: string; words: W[]; extraWords?: W[]; examples?: W[]; conversation?: { chinese?: string }[]; quizzes?: { meaning?: { chinese?: string }[] } }
 interface Line { chinese: string; pinyin: string; english: string }
-interface Fb { ok: boolean; heard?: string; better?: Line | null; note?: string }
+interface Fb { ok: boolean; heard?: string; english?: string; better?: Line | null; note?: string }
 type Msg = { who: 'ai'; line: Line; show?: boolean } | { who: 'me'; text: string; fb?: Fb | null; secs?: number };
 
 const SCENES: { id: string; name: string; from: number; scene: string }[] = [
@@ -170,7 +170,7 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
           </div>
         ) : (
           <div key={k} className="max-w-[88%] justify-self-end">
-            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}{timerOn && m.secs !== undefined && m.secs < 120 && <div className={`text-[11px] font-mono mt-0.5 ${m.secs <= 3 ? 'text-green-400' : m.secs <= 6 ? 'text-amber-300' : 'text-red-300'}`}>answered in {m.secs} s</div>}</div>
+            <div className="bg-[#111] text-white rounded-lg rounded-tr-none p-3 text-lg">{m.text}{m.fb?.heard && <div className="font-mono text-sm opacity-80">{m.fb.heard}</div>}{m.fb?.english && <div className="text-sm opacity-80">“{m.fb.english}”</div>}{timerOn && m.secs !== undefined && m.secs < 120 && <div className={`text-[11px] font-mono mt-0.5 ${m.secs <= 3 ? 'text-green-400' : m.secs <= 6 ? 'text-amber-300' : 'text-red-300'}`}>answered in {m.secs} s</div>}</div>
             {m.fb && <div className={`mt-1 rounded-lg p-2 text-sm border ${m.fb.ok ? 'bg-green-50 border-green-600' : 'bg-amber-50 border-amber-500'}`}>
               <b className={m.fb.ok ? 'text-green-700' : 'text-amber-700'}>{m.fb.ok ? 'Good' : 'Say it this way'}</b>{m.fb.note ? ' — ' + m.fb.note : ''}
               {m.fb.better && <div className="flex items-center gap-2 mt-1 text-[#111]"><div className="flex-1"><div className="text-xl">{m.fb.better.chinese}</div><div className="font-mono">{m.fb.better.pinyin}</div><div className="text-xs text-neutral-600">{m.fb.better.english}</div></div><Spk text={m.fb.better.chinese} /></div>}

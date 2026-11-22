@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js AND source/api/chinese.cjs to /api/chinese.js at the repo root (Vercel functions: guide-page ask box; nightly backup; Learn Chinese Talk).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V254)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V255)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v255 Talk: the learner's own bubble now shows the English meaning of what he said (feedback.english) under the pinyin.
   v254 Learn Chinese 'Ask about this lesson' (owner: 'live chat in each lesson to clear doubts'): AskChinese.tsx on every lesson page (above Extra practice, jump button under the title); /api/chinese mode 'ask' (lesson text + earlier words in a cached system block, model CHINESE_ASK_MODEL||ASSISTANT_MODEL||claude-sonnet-5-5, plain text 3-7 lines, pinyin + characters + English); chats kept per lesson in localStorage learn-chinese-ask-v1; Chinese in answers is tappable (spoken); 4 suggested questions.
   v253 Talk (owner: v252 still said 'nǐ hǎo, wǒ hěn máng' at lessons 1-1; 'recording is slow'): api/chinese puts the ALLOWED CHARACTERS string in the prompt, mood/scene only via allowed words, and after the 2 retries falls back to a real example sentence of his lessons (fallback:true) + always returns a hint. Microphone: interimResults (shows 'Heard: …' live), onaudiostart -> 'Listening' (grey button + 'Opening the microphone…' before), onspeechend -> stop at once, second tap = finished, touch-manipulation.
   v252 Talk (owner screenshot: lessons 1-1 but the partner said 'shénme', a lesson-3 word): the page sends `chars` = every Chinese character in the lessons done; api/chinese checks reply + hint + corrected sentence against it and asks again (max 2) naming the characters not allowed; result carries `outside` (what is still outside, normally '').
