@@ -149,6 +149,7 @@ export default function LearnChinese() {
   const [preset, setPreset] = useState<Q[] | undefined>(undefined);
   const [srs, setSrs] = useState<Record<string, { box: number; due: string }>>(() => loadJ(SKEY, {}));
   const [days, setDays] = useState<Record<string, number>>(() => loadJ(DKEY, {}));
+  const [openL, setOpenL] = useState<number[]>(() => loadJ('learn-chinese-unlocked-v1', []));   // lessons he opened by hand
   const [goal, setGoal] = useState<number>(() => loadJ('learn-chinese-goal-v1', 40));
   const [extra, setExtra] = useState<Record<number, Record<string, number>>>(() => loadJ(XKEY, {}));
   const practice = mode !== 'lesson';
@@ -167,7 +168,7 @@ export default function LearnChinese() {
         if (r && r.stamp && r.stamp > mine) {
           skip.current = true;
           setProg(fixP(r.prog)); saveProg(fixP(r.prog)); setMist(r.mist || []); saveMist(r.mist || []); setSrs(r.srs || {}); saveJ(SKEY, r.srs || {});
-          setDays(r.days || {}); saveJ(DKEY, r.days || {}); setExtra(r.extra || {}); saveJ(XKEY, r.extra || {}); if (r.goal) { setGoal(r.goal); saveJ('learn-chinese-goal-v1', r.goal); }
+          setDays(r.days || {}); saveJ(DKEY, r.days || {}); setExtra(r.extra || {}); saveJ(XKEY, r.extra || {}); if (r.goal) { setGoal(r.goal); saveJ('learn-chinese-goal-v1', r.goal); } if (Array.isArray(r.open)) { setOpenL(r.open); saveJ('learn-chinese-unlocked-v1', r.open); }
           saveJ('learn-chinese-stamp-v1', r.stamp);
         } else if (mine || Object.keys(loadProg()).length) { skip.current = false; }
         setCloud('on');
@@ -180,10 +181,10 @@ export default function LearnChinese() {
     const stamp = Date.now(); saveJ('learn-chinese-stamp-v1', stamp);
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(async () => {
-      const { error } = await supabase.from('learn_chinese_progress').upsert({ user_id: uid.current, data: { prog, mist, srs, days, extra, goal, stamp }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      const { error } = await supabase.from('learn_chinese_progress').upsert({ user_id: uid.current, data: { prog, mist, srs, days, extra, goal, open: openL, stamp }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
       if (error) setCloud('off');
     }, 1200);
-  }, [cloud, prog, mist, srs, days, extra, goal]); // eslint-disable-line
+  }, [cloud, prog, mist, srs, days, extra, goal, openL]); // eslint-disable-line
 
   useEffect(() => {
     fetch('/chinese_lessons.json').then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -229,7 +230,8 @@ export default function LearnChinese() {
 
   if (err) return <div className="p-4 text-red-700">{err}</div>;
   if (!lessons) return <div className="p-4 text-neutral-600">Loading…</div>;
-  const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed;
+  const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed || openL.includes(n);
+  const unlockByHand = (n: number) => { if (!confirm(`Open Lesson ${n} now, without passing Lesson ${n - 1}?`)) return; const nx = [...new Set([...openL, n])]; setOpenL(nx); saveJ('learn-chinese-unlocked-v1', nx); };
   const lesson = lessons.find((l) => l.number === route.n) || lessons[0];
   const go = (page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
 
@@ -289,7 +291,7 @@ export default function LearnChinese() {
   const changeGoal = (d: number) => { const g = Math.max(10, Math.min(200, goal + d)); setGoal(g); saveJ('learn-chinese-goal-v1', g); };
   const progressText = () => [`*My Chinese progress* — ${level}`, `Lessons passed: ${doneN} of ${lessons.length} · course mastery ${mastery}%`, `Streak: ${streak} days (best ${bestStreak}) · days studied ${dayKeys.length} · answers ${totalAns}`, `Today: ${todayN} of ${goal} answers`, `Memory: ${mem.known} known well, ${mem.learning} learning, ${mem.fresh} new`, '', '*Skills*', ...skills.map(([n, v]) => `${n}: ${v === null ? 'not tried' : v + '%'}`), '', '*Lessons*', ...lessons.filter((l) => prog[l.number]).map((l) => `${l.number}. ${l.title}: best ${prog[l.number].best}% (${prog[l.number].tries} tries)${prog[l.number].passed ? ' passed' : ''}`)].join('\n');
   const copyProgress = async () => { try { await navigator.clipboard.writeText(progressText()); alert('Progress copied. Paste it in WhatsApp.'); } catch { alert(progressText()); } };
-  const resetAll = () => { if (!confirm('Delete ALL Learn Chinese progress on this device? Marks, review, mistakes and streak will be gone.')) return; if (!confirm('Are you sure? This cannot be undone.')) return; [KEY, MKEY, SKEY, DKEY, XKEY, RKEY, ...lessons.map((l) => rKey(l.number))].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } }); setProg({}); setMist([]); setSrs({}); setDays({}); setExtra({}); go('home'); };
+  const resetAll = () => { if (!confirm('Delete ALL Learn Chinese progress on this device? Marks, review, mistakes and streak will be gone.')) return; if (!confirm('Are you sure? This cannot be undone.')) return; ['learn-chinese-unlocked-v1', KEY, MKEY, SKEY, DKEY, XKEY, RKEY, ...lessons.map((l) => rKey(l.number))].forEach((k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } }); setProg({}); setMist([]); setSrs({}); setDays({}); setExtra({}); setOpenL([]); go('home'); };
   const Bar = ({ v, color = 'bg-green-600' }: { v: number; color?: string }) => <div className="h-2.5 bg-[#f4f3f1] rounded"><div className={`h-full rounded ${color}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} /></div>;
   const nextLesson = lessons.find((l) => !prog[l.number]?.passed);
   const listenQs = (l: Lesson): Q[] => shuffle((l.examples || []).filter((e) => e.chinese)).slice(0, 10).map((e) => ({ kind: 'listen', title: 'Listening practice', n: l.number, ask: 'Listen, then type what you hear', sub: 'Type it in pinyin (tone marks not needed)', answer: e.pinyin, chinese: e.chinese, mean: e.meaning }));
@@ -328,12 +330,12 @@ export default function LearnChinese() {
             {lessons.map((l) => {
               const p = prog[l.number]; const open = unlocked(l.number);
               return (
-                <button key={l.number} disabled={!open} onClick={() => go('lesson', l.number)}
-                  className={`flex items-center gap-3 text-left border rounded-lg p-3 bg-white ${open ? 'border-neutral-300 hover:border-[#111]' : 'border-neutral-200 opacity-60'}`}>
+                <div key={l.number} role="button" tabIndex={0} onClick={() => { if (open) go('lesson', l.number); }}
+                  className={`flex items-center gap-3 text-left border rounded-lg p-3 bg-white ${open ? 'border-neutral-300 hover:border-[#111] cursor-pointer' : 'border-neutral-200'}`}>
                   <span className={`w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 ${p?.passed ? 'bg-green-600 text-white' : 'bg-[#f4f3f1]'}`}>{p?.passed ? <Check className="w-5 h-5" /> : l.number}</span>
-                  <span className="flex-1 min-w-0"><span className="block font-semibold">{l.number}. {l.title}</span><span className="block text-xs text-neutral-600">{l.subtitle}</span>{p?.sec && <span className="block text-[11px] font-mono text-neutral-600 mt-0.5">{Object.entries(SECNAME).map(([k, nm]) => p.sec![k] ? `${nm.split(' ')[0]} ${p.sec![k][0]}/${p.sec![k][1]}` : '').filter(Boolean).join(' · ')}</span>}</span>
-                  <span className="text-xs font-mono text-right shrink-0">{!open ? <Lock className="w-4 h-4 inline" /> : p ? <>{p.passed ? <span className="text-green-700">Passed</span> : <span className="text-[#e8552a]">Repeat</span>}<br />best {p.best}%<br />{p.tries}× tried</> : <span className="text-neutral-500">Not started</span>}</span>
-                </button>
+                  <span className={`flex-1 min-w-0 ${open ? '' : 'opacity-50'}`}><span className="block font-semibold">{l.number}. {l.title}</span><span className="block text-xs text-neutral-600">{l.subtitle}</span>{p?.sec && <span className="block text-[11px] font-mono text-neutral-600 mt-0.5">{Object.entries(SECNAME).map(([k, nm]) => p.sec![k] ? `${nm.split(' ')[0]} ${p.sec![k][0]}/${p.sec![k][1]}` : '').filter(Boolean).join(' · ')}</span>}</span>
+                  <span className="text-xs font-mono text-right shrink-0">{!open ? <button onClick={(e) => { e.stopPropagation(); unlockByHand(l.number); }} className="border border-[#111] rounded-lg px-2.5 py-1.5 bg-white font-sans font-semibold text-xs inline-flex items-center gap-1"><Lock className="w-3.5 h-3.5" /> Unlock</button> : p ? <>{p.passed ? <span className="text-green-700">Passed</span> : <span className="text-[#e8552a]">Repeat</span>}<br />best {p.best}%<br />{p.tries}× tried</> : <span className="text-neutral-500">Not started</span>}</span>
+                </div>
               );
             })}
           </div>
@@ -344,7 +346,7 @@ export default function LearnChinese() {
         <>
           <button onClick={() => go('home')} className="flex items-center gap-1 text-sm mb-3"><ArrowLeft className="w-4 h-4" /> All lessons</button>
           <h1 className="text-2xl font-bold">Lesson {lesson.number}: {lesson.title}</h1>
-          <button onClick={() => document.getElementById('ask-lesson')?.scrollIntoView({ behavior: 'smooth' })} className="mt-2 text-sm border border-[#111] rounded-full px-3 py-1.5 bg-white font-semibold">Have a doubt? Ask the teacher ↓</button>
+          <button onClick={() => { const el = document.getElementById('ask-lesson'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (el?.querySelector('button') as HTMLButtonElement | null)?.focus(); }} className="mt-2 text-sm border border-[#111] rounded-full px-3 py-1.5 bg-white font-semibold">Have a doubt? Ask the teacher ↓</button>
           <p className="text-neutral-600 text-sm">{lesson.subtitle}</p>
 
           <H>New words</H>

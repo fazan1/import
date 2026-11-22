@@ -36,10 +36,11 @@ export default function AskChinese({ lesson, earlier }: { lesson: AskLesson; ear
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);   // closed by default: a small bar, so the lesson page stays short
   const turns = all[lesson.number] || [];
-  const first = useRef(true);
-  useEffect(() => { if (first.current) { first.current = false; return; } endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [turns.length, busy]);
+  // the chat scrolls inside its own small box; the page itself does not move
+  useEffect(() => { const b = boxRef.current; if (b) b.scrollTop = b.scrollHeight; }, [turns.length, busy, open]);
   const keep = (t: Turn[]) => { const nx = { ...all, [lesson.number]: t.slice(-40) }; setAll(nx); try { localStorage.setItem(KEY, JSON.stringify(nx)); } catch { /* ignore */ } };
 
   const ask = async (text: string) => {
@@ -61,22 +62,26 @@ export default function AskChinese({ lesson, earlier }: { lesson: AskLesson; ear
   const SUGGEST = ['Explain this lesson\'s pattern in a simple way', 'Give me 5 more example sentences', 'What mistakes do beginners make in this lesson?', 'Test me: ask me one question'];
 
   return (
-    <div id="ask-lesson" className="border-2 border-[#111] rounded-lg bg-white p-3">
-      <div className="flex items-center justify-between"><div><b>Ask about this lesson</b><div className="text-xs text-neutral-600">A doubt? Ask the teacher in English. It answers from this lesson. Tap any Chinese to hear it.</div></div>
-        {turns.length > 0 && <button onClick={() => { if (confirm('Clear this lesson\'s chat?')) keep([]); }} aria-label="Clear chat" className="text-neutral-500 p-1"><Trash2 className="w-4 h-4" /></button>}</div>
-      {turns.length === 0 && <div className="flex flex-wrap gap-2 mt-3">{SUGGEST.map((x) => <button key={x} onClick={() => ask(x)} disabled={busy} className="text-sm border border-neutral-400 rounded-full px-3 py-1.5 bg-[#f4f3f1] text-left">{x}</button>)}</div>}
-      <div className="grid gap-2 mt-3">
-        {turns.map((t, k) => t.role === 'user'
-          ? <div key={k} className="justify-self-end max-w-[88%] bg-[#111] text-white rounded-lg rounded-tr-none px-3 py-2">{t.text}</div>
-          : <div key={k} className="max-w-[94%] bg-[#f4f3f1] rounded-lg rounded-tl-none px-3 py-2 text-[15px] leading-relaxed">{t.text.split('\n').map((ln, i) => ln.trim() ? <p key={i} className="mb-1.5 last:mb-0"><Line t={ln.replace(/\*\*/g, '')} /></p> : null)}</div>)}
-        {busy && <div className="text-sm text-neutral-600">The teacher is writing…</div>}
-        {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err}</div>}
-        <div ref={endRef} />
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ask(q); }} placeholder="Type your doubt… e.g. when do I use bù and when méi?" className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5" />
-        <button onClick={() => ask(q)} disabled={busy || !q.trim()} aria-label="Send" className="w-11 h-11 rounded-full bg-[#e8552a] text-white flex items-center justify-center disabled:opacity-40"><Send className="w-5 h-5" /></button>
-      </div>
+    <div id="ask-lesson" className="border-2 border-[#111] rounded-lg bg-white">
+      <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between gap-2 p-3 text-left">
+        <span><b>Ask the teacher about this lesson</b><span className="block text-xs text-neutral-600">{open ? 'Type your doubt in English. Tap any Chinese to hear it.' : turns.length ? `${Math.ceil(turns.length / 2)} question${turns.length > 2 ? 's' : ''} asked — tap to open` : 'A doubt? Tap to open the chat'}</span></span>
+        <span className="shrink-0 border border-[#111] rounded-full px-3 py-1 text-sm font-semibold">{open ? 'Close' : 'Open'}</span>
+      </button>
+      {open && <div className="px-3 pb-3">
+        {turns.length === 0 && <div className="flex flex-wrap gap-2">{SUGGEST.map((x) => <button key={x} onClick={() => ask(x)} disabled={busy} className="text-sm border border-neutral-400 rounded-full px-3 py-1.5 bg-[#f4f3f1] text-left">{x}</button>)}</div>}
+        {(turns.length > 0 || busy || err) && <div ref={boxRef} className="grid gap-2 max-h-[42vh] overflow-y-auto overscroll-contain border border-neutral-200 rounded-lg p-2 bg-white">
+          {turns.map((t, k) => t.role === 'user'
+            ? <div key={k} className="justify-self-end max-w-[88%] bg-[#111] text-white rounded-lg rounded-tr-none px-3 py-2">{t.text}</div>
+            : <div key={k} className="max-w-[94%] bg-[#f4f3f1] rounded-lg rounded-tl-none px-3 py-2 text-[15px] leading-relaxed">{t.text.split('\n').map((ln, i) => ln.trim() ? <p key={i} className="mb-1.5 last:mb-0"><Line t={ln.replace(/\*\*/g, '')} /></p> : null)}</div>)}
+          {busy && <div className="text-sm text-neutral-600">The teacher is writing…</div>}
+          {err && <div className="text-sm text-red-700 border border-red-600 bg-red-50 rounded-lg p-2">{err}</div>}
+        </div>}
+        <div className="flex items-center gap-2 mt-2">
+          <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ask(q); }} placeholder="Type your doubt…" className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5" />
+          <button onClick={() => ask(q)} disabled={busy || !q.trim()} aria-label="Send" className="w-11 h-11 rounded-full bg-[#e8552a] text-white flex items-center justify-center disabled:opacity-40"><Send className="w-5 h-5" /></button>
+        </div>
+        {turns.length > 0 && <button onClick={() => { if (confirm('Clear this lesson\'s chat?')) keep([]); }} className="mt-2 text-xs text-neutral-500 underline inline-flex items-center gap-1"><Trash2 className="w-3 h-3" /> Clear this chat</button>}
+      </div>}
     </div>
   );
 }
