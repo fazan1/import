@@ -81,7 +81,8 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const vocab = used.flatMap((l) => [...l.words, ...(l.extraWords || [])]).map((w) => `${w.pinyin} | ${w.chinese || ''} | ${w.meaning}`).join('\n');
   // every Chinese character that appears anywhere in the lessons done = what the partner may use (checked on the server)
   const chars = [...new Set(used.flatMap((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.conversation || []), ...(l.quizzes?.meaning || [])]).map((x) => x.chinese || '').join('').replace(/[^\u4e00-\u9fff]/g, '').split(''))].join('');
-  const pyMap = new Map<string, string>(); used.forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => { const z = (w.chinese || '').trim(); if (z && !/[ ,]/.test(z) && !pyMap.has(z)) pyMap.set(z, w.pinyin); }));
+  const courseChars = [...new Set(lessons.flatMap((l) => [...l.words, ...(l.extraWords || []), ...(l.examples || []), ...(l.conversation || []), ...(l.quizzes?.meaning || [])]).map((x) => x.chinese || '').join('').replace(/[^\u4e00-\u9fff]/g, '').split(''))].join('');
+  const pyMap = new Map<string, string>(); lessons.forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => { const z = (w.chinese || '').trim(); if (z && !/[ ,]/.test(z) && !pyMap.has(z)) pyMap.set(z, w.pinyin); }));
   ['吗|ma', '不|bù', '没|méi', '的|de', '了|le', '个|ge'].forEach((x) => { const [z, p] = x.split('|'); if (!pyMap.has(z)) pyMap.set(z, p); });
   const examples = used.flatMap((l) => (l.examples || []).slice(0, upTo <= 3 ? 20 : 6)).slice(-60).map((e) => `${e.pinyin} | ${e.chinese || ''} | ${e.meaning}`).join('\n');
 
@@ -132,14 +133,19 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
       window.speechSynthesis?.cancel(); dropPending();
       const r = new SR(); r.lang = 'zh-CN'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 5; setHearing(true); setMicOn(false); setLive(''); setMicErr('');
       recRef.current = r; let heard = '';
-      const fit = (t: string) => { const c = t.replace(/[^\u4e00-\u9fff]/g, ''); return c ? c.split('').filter((x) => chars.includes(x)).length / c.length : 0; };
+      // true when every character of a guess is a character of the COURSE (all 16 lessons, not only the lessons chosen:
+      // judging by the chosen lessons turned a correctly heard later word, e.g. 是 shì, into an earlier one, e.g. 他 tā)
+      const inCourse = (t: string) => { const c = t.replace(/[^\u4e00-\u9fff]/g, ''); return !!c && c.split('').every((x) => courseChars.includes(x)); };
+      const android = /Android/i.test(navigator.userAgent);
       r.onaudiostart = () => setMicOn(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onresult = (e: any) => {
         let t = '';
-        for (let k = 0; k < e.results.length; k++) {
+        // Chrome on Android repeats the growing sentence as several results: joining them doubles the words -> take the last one only
+        for (let k = android ? e.results.length - 1 : 0; k < e.results.length; k++) {
           const res = e.results[k]; let best = res[0].transcript as string;
-          if (res.isFinal) for (let a = 1; a < res.length; a++) if (fit(res[a].transcript) > fit(best) + 0.001) best = res[a].transcript;
+          // the phone's own first guess is kept; another guess replaces it only when the first has a character that is in no lesson at all
+          if (res.isFinal && !inCourse(best)) for (let a = 1; a < res.length; a++) if (inCourse(res[a].transcript)) { best = res[a].transcript; break; }
           t += best;
         }
         heard = t; setLive(t);
