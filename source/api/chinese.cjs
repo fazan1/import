@@ -5,8 +5,8 @@
 // The API key lives only in Vercel (ANTHROPIC_API_KEY). Caller must be a logged-in CRM user.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://mhvkhqexkorjjzuldqzp.supabase.co';
-// A fast model on purpose: a spoken conversation must answer in about a second or two.
-const MODEL = process.env.CHINESE_MODEL || 'claude-haiku-5-5';
+// Conversation quality matters more than a second of speed (the learner himself needs time to answer).
+const MODEL = process.env.CHINESE_MODEL || 'claude-sonnet-5-5';   // the fast model asked odd questions and judged misheard lines literally
 
 function send(res, status, body) {
   res.statusCode = status;
@@ -95,6 +95,8 @@ module.exports = async (req, res) => {
     'The scene and the mood are only a direction: show them ONLY with allowed words. If the list has no greeting, do not greet; if it has no word for a mood (busy, hurry...), do not say it. Stay in the SCENE and move it forward naturally. After about 8 exchanges, close the conversation politely.',
     'FEEDBACK on his last line: judge by SOUND and meaning, not by the characters (他/她, homophones and missing tone marks are fine). ok=true when a Chinese listener would understand it. If it has a real mistake (wrong word, wrong order, missing word), ok=false, give the corrected sentence in "better" and ONE short plain-English reason in "note" (max 18 words, name the word). If ok=true, "note" is a few encouraging words about what he did right (max 10 words) and "better" may be null. If you cannot understand the line at all, ok=false, note = "I could not follow that. Try the hint.", and repeat your previous question as the reply.',
     'In feedback ALWAYS fill "heard" (his line in pinyin with tone marks) and "english" (the plain English meaning of what he actually said, even if it was wrong or odd), so he can see what he said.',
+    'MISHEARD SPEECH (very important): the phone often mishears a beginner. When his line contains characters that are NOT in the allowed list, or makes no sense as an answer (e.g. 嘻嘻 xīxī, 他他, 西, 细), do NOT take it literally. Convert it to its SOUND and find the allowed word or short sentence that sounds closest, ignoring tones and treating these pairs as the same sound: x/sh/s, q/ch/c, j/zh/z, n/l, in/ing, en/eng, an/ang, and a doubled syllable as one word said twice. Example: 嘻嘻 (xī xī) as an answer to a 是-question is almost certainly 是是 / 是 (shì) = "yes". If a close allowed word exists and it fits as an answer, ACCEPT it as that: ok=true, heard = the intended words in pinyin, english = their meaning, and note = "The phone heard <what it wrote>; I took it as <intended>." plus, when the confusion is x/sh, q/ch or j/zh, one short pronunciation tip (for sh/ch/zh: curl the tongue tip back, no "ee" sound). Only if nothing close exists, say you could not follow.',
+    'Your own lines must be sensible things a real supplier or business friend would say. Never ask absurd or empty questions (for example "are you a person?"). With a small word list, prefer simple real questions about goods, money, wanting, having, who someone is, whose something is.',
     'HINT: one good line HE could say next, using only the allowed words.',
     'On the first turn (no line from him yet) there is no feedback: set "feedback" to null and open the scene.',
     'Answer with ONE JSON object and nothing else, exactly this shape:',

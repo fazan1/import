@@ -7,7 +7,7 @@ Owner: Fazeem (not a developer). He wants exact copy-paste SQL and files, not de
 
 ## How to build and deliver (always do this)
 1. `npx tsc -b && npx vite build --assetsDir .`  → produces dist/ with index.html, index-*.js, index-*.css + the public/ pages (trade-finder.html, glove-*.html). Also copy source/api/assistant.cjs to /api/assistant.js AND source/api/backup.cjs to /api/backup.js AND source/api/chinese.cjs to /api/chinese.js at the repo root (Vercel functions: guide-page ask box; nightly backup; Learn Chinese Talk).
-2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V257)
+2. Bump the version in src/App.tsx: `{APP_TITLE} / VNN` and `">vNN<` (version on the Sign out button) (current: V258)
 3. Zip: site-flat-vNN.zip (the 3 files inside dist/) and source-full-vNN.zip (src, index.html, package.json, vite.config.ts, tsconfig*.json, postcss.config.js, tailwind.config.js)
 4. He uploads the 3 flat files to the TOP LEVEL of the GitHub repo (replace), Vercel deploys. Header shows VNN.
 5. Any database change goes in a separate .sql file for Supabase SQL Editor. Always: safe to re-run, nothing deleted, say it must run on the MAIN project only, and test on a local Postgres first (su postgres … pg_ctl, see history).
@@ -241,6 +241,7 @@ charity-setup, bulk-import-admin-only, item-charges-costing. Applied 14 Oct 2026
   v229 NG print headers darker/bolder (title, sub line, section titles, table head).
   v230 all NG prints bigger + black (ngPrint 15.5px body / 15px tables / 28px title; order PI/PO print the same sizes, A4 landscape).
   v231 NG prints fit a phone page: Items print = 7 columns (Item, China ₦, Duty ₦, Landed ₦, Selling ₦, Margin, Stock), Stock print = 6; print cells may wrap (no nowrap) so the browser does not shrink the page.
+  v258 Talk (owner screenshot: said shì, phone wrote 嘻嘻 xīxī, AI answered 'laughing is not an answer'; supplier asked 'nǐ shì rén?'): api/chinese prompt MISHEARD SPEECH rule (convert to sound, x/sh/s q/ch/c j/zh/z n/l pairs, accept the closest allowed word, note says what the phone heard + a pronunciation tip) and 'sensible questions only'; default model back to claude-sonnet-5-5 (CHINESE_MODEL overrides).
   v257 Talk microphone accuracy (owner: 'I say shì shì, it says he he'): MY BUG in v256 - the guess-picker preferred guesses made of the CHOSEN lessons' characters, so with lessons 1-1 a correctly heard 是 (lesson 2) was swapped for 他. Now the phone's first guess is kept unless it has a character found in NO lesson and another guess is fully inside the course (courseChars = all 16 lessons); pinyin display map covers all lessons; on Android only the LAST result is used (Chrome Android repeats the growing sentence as several results = doubled words).
   v256 Talk microphone (owner: 'voice cut, giving a different word'): no more stop at the first pause (onspeechend removed) - the whole utterance is taken at onend; maxAlternatives 5 and the guess made of lesson characters wins (fit()); heard text shown in pinyin (toPinyin from the word list) in a 'The phone heard — is this what you said?' box with 'No — say again' / 'Yes — send', auto-sends after 3 s.
   v255 Talk: the learner's own bubble now shows the English meaning of what he said (feedback.english) under the pinyin.
