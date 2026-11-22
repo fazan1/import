@@ -58,7 +58,7 @@ module.exports = async (req, res) => {
   const system = [
     'You are a patient Chinese speaking partner for a beginner, Fazeem, an importer who buys from Chinese suppliers. You play the OTHER person in a short spoken role-play (usually the supplier / factory boss). He speaks into his phone; his line reaches you as Chinese characters from speech recognition (it may contain wrong characters that SOUND the same) or as pinyin typed without tone marks.',
     'HARD RULE (checked by a program after you answer; a line with any other word is rejected): speak ONLY with the words in ALLOWED WORDS (plus numbers built from the number words there, and the particles in the list). Never use a word that is not in the list. Keep your line to ONE or TWO short sentences, at most 10 words, in the sentence patterns shown in EXAMPLE SENTENCES. End with a question when you can, so he has something to answer.',
-    'Stay in the SCENE and move it forward naturally (greet, ask, price, bargain, pay, ship, thank). After about 8 exchanges, close the conversation politely.',
+    'The scene and the mood are only a direction: show them ONLY with allowed words. If the list has no greeting, do not greet; if it has no word for a mood (busy, hurry...), do not say it. Stay in the SCENE and move it forward naturally. After about 8 exchanges, close the conversation politely.',
     'FEEDBACK on his last line: judge by SOUND and meaning, not by the characters (他/她, homophones and missing tone marks are fine). ok=true when a Chinese listener would understand it. If it has a real mistake (wrong word, wrong order, missing word), ok=false, give the corrected sentence in "better" and ONE short plain-English reason in "note" (max 18 words, name the word). If ok=true, "note" is a few encouraging words about what he did right (max 10 words) and "better" may be null. If you cannot understand the line at all, ok=false, note = "I could not follow that. Try the hint.", and repeat your previous question as the reply.',
     'HINT: one good line HE could say next, using only the allowed words.',
     'On the first turn (no line from him yet) there is no feedback: set "feedback" to null and open the scene.',
@@ -69,8 +69,11 @@ module.exports = async (req, res) => {
 
   const messages = [];
   history.forEach((m) => { if (m && (m.role === 'user' || m.role === 'assistant') && typeof m.text === 'string' && m.text.trim()) messages.push({ role: m.role, content: m.text.slice(0, 600) }); });
+  // Guard: every Chinese character the partner uses must come from the learner's lessons (the model sometimes slips in a later word).
+  const allowed = new Set(((str(body.chars, 8000) || '') + vocab + examples).replace(/[^\u4e00-\u9fff]/g, '').split(''));
+  const outside = (o) => { if (!o) return ''; const t = [o.reply, o.hint, o.feedback && o.feedback.better].map((l) => (l && l.chinese) || '').join(''); return [...new Set(t.replace(/[^\u4e00-\u9fff]/g, '').split('').filter((c) => !allowed.has(c)))].join(''); };
   // the word list is the same on every turn -> its own cached system block (faster and cheaper from the 2nd line on)
-  const words = 'ALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
+  const words = 'ALLOWED CHARACTERS (every Chinese character you write must be one of these, nothing else): ' + [...allowed].join('') + '\n\nALLOWED WORDS (pinyin | characters | meaning):\n' + vocab + (examples ? '\n\nEXAMPLE SENTENCES:\n' + examples : '');
   const ctx = 'SCENE: ' + scene;
   // the request must end with HIS line: a trailing partner line (e.g. a retry with nothing new said) is dropped and asked again
   while (messages.length && messages[messages.length - 1].role === 'assistant') messages.pop();
@@ -88,9 +91,6 @@ module.exports = async (req, res) => {
     hint: { anyOf: [line, { type: 'null' }] },
     done: { type: 'boolean' },
   }, required: ['reply', 'done'] } };
-  // Guard: every Chinese character the partner uses must come from the learner's lessons (the model sometimes slips in a later word).
-  const allowed = new Set(((str(body.chars, 8000) || '') + vocab + examples).replace(/[^\u4e00-\u9fff]/g, '').split(''));
-  const outside = (o) => { if (!o) return ''; const t = [o.reply, o.hint, o.feedback && o.feedback.better].map((l) => (l && l.chinese) || '').join(''); return [...new Set(t.replace(/[^\u4e00-\u9fff]/g, '').split('').filter((c) => !allowed.has(c)))].join(''); };
   const ask = async (forced, note) => {
     const msgs = note ? messages.slice(0, -1).concat([{ role: 'user', content: messages[messages.length - 1].content + '\n\n' + note }]) : messages;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -119,6 +119,20 @@ module.exports = async (req, res) => {
     }
     const out = a.out;
     if (!out || !out.reply || !out.reply.chinese) return send(res, 502, { error: 'EMPTY', message: 'The AI gave no usable line (' + (a.why || 'no answer') + ', model ' + MODEL + '). Tap again.' });
+    // still outside the lessons after the retries: use a real sentence from his own lessons instead (always inside the list)
+    if (outside(out)) {
+      const ex = examples.split('\n').map((l) => l.split(' | ')).filter((x) => x.length >= 3 && x[1]);
+      const qs = ex.filter((x) => /[吗?？]/.test(x[1])), pool = qs.length ? qs : ex;
+      if (pool.length) {
+        const pk = (arr) => arr[Math.floor(Math.random() * arr.length)];
+        const q = pk(pool), hx = pk(ex.filter((x) => !/[吗?？]/.test(x[1])).concat(ex.length ? [] : []));
+        out.reply = { chinese: q[1], pinyin: q[0], english: q[2] };
+        if (out.hint && outside({ reply: out.hint })) out.hint = hx ? { chinese: hx[1], pinyin: hx[0], english: hx[2] } : null;
+        if (out.feedback && out.feedback.better && outside({ reply: out.feedback.better })) out.feedback.better = null;
+        out.fallback = true;
+      }
+    }
+    if (!out.hint) { const ex2 = examples.split('\n').map((l) => l.split(' | ')).filter((x) => x.length >= 3 && x[1] && !/[吗?？]/.test(x[1])); if (ex2.length) { const h2 = ex2[Math.floor(Math.random() * ex2.length)]; out.hint = { chinese: h2[1], pinyin: h2[0], english: h2[2] }; } }
     out.outside = outside(out);
     out.ms = Date.now() - t0;
     return send(res, 200, out);

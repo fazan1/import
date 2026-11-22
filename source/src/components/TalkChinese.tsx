@@ -55,7 +55,11 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   const [showHint, setShowHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
-  const [micErr, setMicErr] = useState('');   // microphone trouble is shown apart: 'Try again' there must not re-ask the AI
+  const [micErr, setMicErr] = useState('');
+  const [micOn, setMicOn] = useState(false);
+  const [live, setLive] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);   // microphone trouble is shown apart: 'Try again' there must not re-ask the AI
   const [done, setDone] = useState(false);
   const [text, setText] = useState('');
   const [hearing, setHearing] = useState(false);
@@ -104,15 +108,24 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
   const listen = () => {
-    if (!SR || hearing || busy) return;
+    if (hearing) { try { recRef.current?.stop(); } catch { /* ignore */ } return; }   // second tap = I have finished speaking
+    if (!SR || busy) return;
     try {
       window.speechSynthesis?.cancel();
-      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = false; r.maxAlternatives = 1; setHearing(true); setMicErr('');
+      const r = new SR(); r.lang = 'zh-CN'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1; setHearing(true); setMicOn(false); setLive(''); setMicErr('');
+      recRef.current = r; let sent = false;
+      r.onaudiostart = () => setMicOn(true);          // the phone needs a moment to open the microphone: show when it is really listening
+      r.onspeechend = () => { try { r.stop(); } catch { /* ignore */ } };   // stop as soon as he stops talking, do not wait for the long silence
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      r.onresult = (e: any) => say(e.results[0][0].transcript || '');
+      r.onresult = (e: any) => {
+        let fin = '', part = '';
+        for (let k = 0; k < e.results.length; k++) { if (e.results[k].isFinal) fin += e.results[k][0].transcript; else part += e.results[k][0].transcript; }
+        setLive(fin || part);
+        if (fin && !sent) { sent = true; setLive(''); say(fin); }
+      };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onerror = (e: any) => setMicErr(e.error === 'not-allowed' ? 'The microphone is blocked. Tap the icon left of the address bar → Permissions → Microphone → Allow, then reload. Until then, type pinyin in the box.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the microphone and speak.' : 'The phone could not listen (' + e.error + ').');
-      r.onend = () => setHearing(false);
+      r.onend = () => { setHearing(false); setMicOn(false); recRef.current = null; };
       r.start();
     } catch { setHearing(false); setMicErr('The phone could not start listening.'); }
   };
@@ -179,9 +192,9 @@ export default function TalkChinese({ lessons, level, onBack, onAnswer }: { less
             <button onClick={() => { setShowHint(!showHint); if (!showHint) setHintStep(1); }} disabled={!hint} className="w-11 h-11 rounded-full border border-[#111] bg-white flex items-center justify-center disabled:opacity-40" aria-label="Hint"><Lightbulb className="w-5 h-5" /></button>
             <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') say(text); }} placeholder="or type pinyin…" autoCapitalize="off" autoCorrect="off" spellCheck={false} className="flex-1 min-w-0 border border-neutral-400 rounded-lg px-3 py-2.5 font-mono bg-white" />
             {text.trim() ? <button onClick={() => say(text)} disabled={busy} className="w-11 h-11 rounded-full bg-[#111] text-white flex items-center justify-center" aria-label="Send"><Send className="w-5 h-5" /></button>
-              : <button onClick={listen} disabled={!SR || busy} className={`w-14 h-14 rounded-full text-white flex items-center justify-center disabled:opacity-40 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#e8552a]'}`} aria-label="Speak"><Mic className="w-6 h-6" /></button>}
+              : <button onClick={listen} disabled={!SR || busy} className={`w-14 h-14 rounded-full text-white flex items-center justify-center disabled:opacity-40 touch-manipulation ${hearing ? (micOn ? 'bg-red-600 animate-pulse' : 'bg-neutral-500') : 'bg-[#e8552a]'}`} aria-label="Speak"><Mic className="w-6 h-6" /></button>}
           </div>
-          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? 'Listening… speak Chinese now' : 'Take your time. Tap the microphone when you are ready · bulb = help'}</div>
+          <div className="text-[11px] text-neutral-600 mt-1 text-center">{hearing ? (live ? `Heard: ${live}` : micOn ? 'Listening… speak now · tap again when you finish' : 'Opening the microphone… wait for “Listening”') : busy ? 'Sending your line to the partner…' : 'Take your time. Tap the microphone when you are ready · bulb = help'}</div>
         </div>
       </div>
     </div>
