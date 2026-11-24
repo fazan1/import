@@ -130,7 +130,7 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    id: 'ng', title: 'NG — Nigeria business', when: 'Own book in the switcher: items, orders, stock, sales, expenses, overview',
+    id: 'ng', title: 'NG — Nigeria business', when: 'Own book in the switcher: items, orders, stock, expenses, partner account',
     steps: [
       'Open it: click the book name in the header (LCL 2026) and pick "NG — NIGERIA". Only the NG pages show. "Back to LCL 2026" returns.',
       'Items NG — one row per product: product, specification, finish, unit (pcs), pieces per ton, price per ton or cost per piece in RMB, selling price in Naira. Separate from the Sri Lanka Items.',
@@ -138,10 +138,11 @@ const SECTIONS: Section[] = [
       'Pay the factory: Pay on the order card, amount in RMB, how paid, and what it cost you in LKR / NGN / USD. Tiles show Ordered / Paid / Outstanding; Payments tab lists them.',
       'When the goods land: Receive into stock on the order card. Check each line\'s Received quantity (change it if pieces are missing), arrival date, Put into stock. Once per order.',
       'Expenses NG — save the default rate (Naira per RMB) first. Duty, clearing, transport: pick the bill / shipment so the cost is spread over those goods (landed cost). Rent, salary, bank: General. Partner payouts: type "Partner payout", General.',
-      'Sales NG — New sale: item, quantity, selling price per piece (pre-filled), rate. Stock goes down; profit = sale − landed cost. Copy summary = WhatsApp text for the partner.',
-      'Stock NG — on hand per item and value at cost; Adjust with a minus quantity when pieces are missing (reason in Note); Stock in for extra goods; Movements shows every line.',
+      'Partner account — NO sales are typed. The partner keeps the stock himself. The page values everything he was given at SELLING price and takes off the money he sends: "Money received" → date, amount in Naira, how, Save. "Still to come" is what he owes.',
+      'Cost first, then profit — the money that comes in pays back our cost (goods + duty + expenses, all bills together). Only what comes in above the cost is profit; "can pull out now" shows it, split by the partner\'s share % (set at the bottom of that box). Record a pull-out in Expenses NG as "Partner payout" or "Owner withdrawal".',
+      'Stock NG — the goods GIVEN to the partner (nothing is sold in the system, so it is not what is left in his shop); Adjust with a minus quantity when pieces are missing or damaged (reason in Note) — his account drops by that quantity at selling price.',
       'Overview NG — the whole picture: ordered / paid / outstanding to China, duty, stock at landed cost, sales, gross profit, general expenses, net; profit by shipment; partner share % → due / paid / balance; by month. Print / PDF and Copy summary.',
-      'Month-end for NG: all sales typed, expenses typed, partner payout recorded, Overview → Copy summary to the group.',
+      'Month-end for NG: expenses typed, money received typed, any pull-out recorded, Partner account → Copy statement to the partner.',
     ],
     notes: ['Landed cost of a piece = its China cost + its share of the shipment\'s duty & expenses, spread by weight. An item that came on several shipments is costed at the weighted average of all its receipts (old stock and new mixed in proportion). Duty counts only once the order is fully received.', 'Never press "Receive into stock" twice for the same goods; a received order shows "Received" and is locked.'],
   },

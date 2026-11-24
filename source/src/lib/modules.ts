@@ -68,7 +68,8 @@ export interface AppUser { user_id: string; email: string; name: string | null; 
 // The screens of the shop book — the shop login gets these, and an admin who switches to the shop book sees only these.
 // The shop sees its own prices and costs, so Costing & Duty (landed cost) is part of its book too.
 /** NG book: only the Nigeria screens exist (plus Settings for the admin). */
-export const NG_MODULES = ['ng-overview', 'ng-items', 'ng-purchases', 'ng-stock', 'ng-sales', 'ng-expenses', 'ng-partner', 'ng-profit'];
+// Sales NG and Profit NG are hidden since v264 (owner + partner: no sale-by-sale entry; the Partner account replaces them). The screens and their data are kept.
+export const NG_MODULES = ['ng-overview', 'ng-items', 'ng-purchases', 'ng-stock', 'ng-expenses', 'ng-partner'];
 export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'investor', 'pl-input', 'packing-list', 'costing-duty', 'shipping', 'shipment-history', 'cn-reports', 'items', 'suppliers', 'clearing-agents'];
 
 // Presets to make setup fast

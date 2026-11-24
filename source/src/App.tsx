@@ -470,7 +470,7 @@ function App() {
     { key: 'reports', label: 'Reports', items: [bottomMenuItems[0]] },
     { key: 'warehouse', label: 'Warehouse', items: [bottomMenuItems[2]] },
     { key: 'factory', label: 'Factory', items: [bottomMenuItems[3], bottomMenuItems[4], bottomMenuItems[5], bottomMenuItems[6], bottomMenuItems[7]] },
-    { key: 'ng', label: 'NG', items: [{ id: 'ng-overview' as View, label: 'Overview NG', icon: LayoutDashboard }, { id: 'ng-items' as View, label: 'Items NG', icon: Globe }, { id: 'ng-purchases' as View, label: 'Purchases NG', icon: FileText }, { id: 'ng-stock' as View, label: 'Stock NG', icon: Boxes }, { id: 'ng-sales' as View, label: 'Sales NG', icon: ShoppingCart }, { id: 'ng-expenses' as View, label: 'Expenses NG', icon: Receipt }, { id: 'ng-partner' as View, label: 'Partner account', icon: Wallet }, { id: 'ng-profit' as View, label: 'Profit NG', icon: TrendingUp }] },
+    { key: 'ng', label: 'NG', items: [{ id: 'ng-overview' as View, label: 'Overview NG', icon: LayoutDashboard }, { id: 'ng-items' as View, label: 'Items NG', icon: Globe }, { id: 'ng-purchases' as View, label: 'Purchases NG', icon: FileText }, { id: 'ng-stock' as View, label: 'Stock NG', icon: Boxes }, { id: 'ng-expenses' as View, label: 'Expenses NG', icon: Receipt }, { id: 'ng-partner' as View, label: 'Partner account', icon: Wallet }] },
     { key: 'tools', label: 'Tools', items: [{ id: 'growth' as View, label: 'Capital', icon: TrendingUp }, { id: 'expenses' as View, label: 'Expenses', icon: Wallet }, { id: 'manual' as View, label: 'User Manual', icon: BookOpen }, { id: 'learn-chinese' as View, label: 'Learn Chinese', icon: BookOpen }, { id: 'trade-finder' as View, label: 'Trade Finder', icon: SearchIcon }, mainMenuItems[1], mainMenuItems[2], mainMenuItems[3], bottomMenuItems[1], bottomMenuItems[8]] },
   ].filter((g) => APP_MODE !== 'shop' || ['home', 'masters', 'cn', 'reports'].includes(g.key))
    .map((g) => ({ ...g, items: g.items.filter(canView).filter((i) => book !== BOOK_BRO || SHOP_MODULES.includes(i.id)).filter((i) => (book === BOOK_NG) === NG_MODULES.includes(i.id) || i.id === 'settings').filter((i) => i.id !== 'ceo' || book === BOOK_NEW).filter((i) => i.id !== 'cn-home' || book === BOOK_BRO).filter((i) => APP_MODE !== 'shop' || (g.key === 'cn' || ['main-dashboard', 'suppliers', 'items', 'reports'].includes(i.id))) })).filter((g) => g.items.length > 0);
@@ -495,7 +495,7 @@ function App() {
       {/* black portal strip */}
       <header className="bg-[#0a0a0a] text-white sticky top-0 z-50 border-b-[3px] border-[#e8552a]">
         <div className="px-3 sm:px-5 flex items-center h-11">
-          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V263</span></div>
+          <div className="font-extrabold text-[13px] tracking-[0.18em] mr-2 lg:mr-5 select-none whitespace-nowrap shrink-0">{companyFor(book).short}<span className="hidden xl:inline font-mono font-normal text-[11px] tracking-[0.12em] text-neutral-300 ml-2">{APP_TITLE} / V264</span></div>
           <div className="relative mr-2 lg:mr-4 shrink-0">
             <button onClick={() => { if (!bookLocked) setBookOpen((o) => !o); }} title={bookLocked ? 'Your books' : 'Which set of books you are working in'}
               className={`flex items-center gap-1.5 border px-2 h-[26px] font-mono text-[11px] tracking-[0.1em] uppercase whitespace-nowrap transition-colors ${book === BOOK_NEW || bookLocked ? 'border-neutral-700 text-neutral-300 hover:border-neutral-500' : 'border-amber-500 text-amber-400 hover:bg-amber-500/10'}`}>
@@ -524,7 +524,7 @@ function App() {
             <span className="hidden 2xl:inline whitespace-nowrap max-w-[180px] truncate font-mono text-[11px] text-neutral-300 mr-2" title={user?.email ?? ''}>{user?.email?.split('@')[0]?.toUpperCase()}{isAdmin ? ' / ADMIN' : ''}</span>
             <button onClick={() => setShowCalc((o) => !o)} className="p-2 text-neutral-200 hover:text-white" title="Calculator & pricing"><Calculator className="w-4 h-4" /></button>
             <button onClick={openSettings} className={`p-2 hover:text-white ${currentView === 'settings' ? 'text-[#e8552a]' : 'text-neutral-200'}`} title="Settings"><SettingsIcon className="w-4 h-4" /></button>
-            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v263</span></button>
+            <button onClick={signOut} className="flex items-center gap-1 px-2 py-1.5 text-neutral-200 hover:text-[#e8552a]" title="Sign out"><LogOut className="w-4 h-4" /><span className="font-mono text-[11px] text-neutral-300">v264</span></button>
           </div>
         </div>
         {/* second row: this portal's screens */}

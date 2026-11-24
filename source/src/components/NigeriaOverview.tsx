@@ -196,7 +196,7 @@ export default function NigeriaOverview() {
         <p className="px-4 py-2 text-xs text-gray-500">Profit so far = sales of that shipment's items − their landed cost. The rest of the profit is still in "Left in stock".</p>
       </div>
 
-      <p className="text-xs text-gray-500">Profit of each sale and what each partner can pull out: see <b>Profit NG</b>.</p>
+      <p className="text-xs text-gray-500">Sales are no longer typed. What the partner owes, and the profit that can be pulled out: see <b>Partner account</b>.</p>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
         <table className="w-full text-sm min-w-[640px]">

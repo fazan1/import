@@ -32,6 +32,7 @@ export default function NigeriaPartner() {
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<{ date: string; amount: string; method: string; note: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [shareBox, setShareBox] = useState('');
 
   async function load() {
     setLoading(true);
@@ -49,7 +50,7 @@ export default function NigeriaPartner() {
     setExpenses((ex.data || []).map((e) => ({ ...e, amount: Number(e.amount) || 0, rate: e.rate == null ? null : Number(e.rate) })));
     setRemits((rm.data || []).map((r) => ({ ...r, amount_ngn: Number(r.amount_ngn) || 0 })));
     setRate(Number((se.data?.value as { naira_per_rmb?: number } | undefined)?.naira_per_rmb) || 0);
-    setShare(Number((sp.data?.value as { share_pct?: number } | undefined)?.share_pct) || 0);
+    const sh = Number((sp.data?.value as { share_pct?: number } | undefined)?.share_pct) || 0; setShare(sh); setShareBox(sh ? String(sh) : '');
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -95,6 +96,12 @@ export default function NigeriaPartner() {
     setSaving(false);
     if (error) { alert('Could not save: ' + (/ng_remittances|does not exist|schema cache/i.test(error.message) ? 'run nigeria-remittances.sql in Supabase once.' : error.message)); return; }
     setForm(null); load();
+  }
+  async function saveShare() {
+    const v = parseFloat(shareBox); if (!isFinite(v) || v < 0 || v > 100) { alert("Type the partner's share of the profit as a percentage, e.g. 50."); return; }
+    const { error } = await supabase.from('ng_settings').upsert({ key: 'partner', value: { share_pct: v }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (error) { alert('Could not save: ' + error.message); return; }
+    setShare(v); alert(`Saved: partner ${v}%, owner ${100 - v}%.`);
   }
   async function remove(r: NgRemit) {
     if (!confirm(`Delete the ₦${n0(r.amount_ngn)} received on ${showDate(r.rec_date)}? It goes to the Recycle Bin.`)) return;
@@ -178,7 +185,8 @@ export default function NigeriaPartner() {
           <div className="bg-[#f4f3f1] rounded-lg p-3 text-sm">Partner {share}%: ₦{n0(D.pShare)} − pulled out ₦{n0(D.partnerOut)} = <b>₦{n0(D.pShare - D.partnerOut)}</b></div>
           <div className="bg-[#f4f3f1] rounded-lg p-3 text-sm">Owner {100 - share}%: ₦{n0(D.oShare)} − pulled out ₦{n0(D.ownerOut)} = <b>₦{n0(D.oShare - D.ownerOut)}</b></div>
         </div>}
-        <div className="text-sm text-gray-600 mt-3">Profit when everything is paid: <b className="text-[#111]">₦{n0(D.expected)}</b>. A pull-out is recorded in Expenses NG as "Partner payout" or "Owner withdrawal"{share ? '' : '; the share % is set in Profit NG'}.</div>
+        <div className="text-sm text-gray-600 mt-3">Profit when everything is paid: <b className="text-[#111]">₦{n0(D.expected)}</b>. A pull-out is recorded in Expenses NG as "Partner payout" or "Owner withdrawal".</div>
+        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-gray-200 text-sm"><span>Partner's share of the profit</span><input inputMode="decimal" value={shareBox} onChange={(e) => setShareBox(e.target.value)} placeholder="e.g. 50" className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 font-mono text-right" /><span>%</span><button onClick={saveShare} className="px-3 py-1.5 bg-[#111] text-white rounded-lg font-semibold">Save</button><span className="text-gray-500">{share ? `now: partner ${share}% · owner ${100 - share}%` : 'not set yet'}</span></div>
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4 mt-4">
