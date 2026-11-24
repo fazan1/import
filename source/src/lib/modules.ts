@@ -41,6 +41,7 @@ export const MODULE_GROUPS: { group: string; items: { id: string; label: string 
     { id: 'ng-stock', label: 'Stock NG' },
     { id: 'ng-sales', label: 'Sales NG' },
     { id: 'ng-expenses', label: 'Expenses NG' },
+    { id: 'ng-partner', label: 'Partner account NG' },
     { id: 'ng-profit', label: 'Profit NG' },
   ]},
   { group: 'Other', items: [
@@ -67,7 +68,7 @@ export interface AppUser { user_id: string; email: string; name: string | null; 
 // The screens of the shop book — the shop login gets these, and an admin who switches to the shop book sees only these.
 // The shop sees its own prices and costs, so Costing & Duty (landed cost) is part of its book too.
 /** NG book: only the Nigeria screens exist (plus Settings for the admin). */
-export const NG_MODULES = ['ng-overview', 'ng-items', 'ng-purchases', 'ng-stock', 'ng-sales', 'ng-expenses', 'ng-profit'];
+export const NG_MODULES = ['ng-overview', 'ng-items', 'ng-purchases', 'ng-stock', 'ng-sales', 'ng-expenses', 'ng-partner', 'ng-profit'];
 export const SHOP_MODULES = ['cn-home', 'purchase-orders', 'purchase-bills', 'outstanding-payments', 'investor', 'pl-input', 'packing-list', 'costing-duty', 'shipping', 'shipment-history', 'cn-reports', 'items', 'suppliers', 'clearing-agents'];
 
 // Presets to make setup fast
