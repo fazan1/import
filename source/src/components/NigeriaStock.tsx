@@ -137,8 +137,8 @@ export default function NigeriaStock() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Boxes className="w-6 h-6 text-[#e8552a]" /> Nigeria — Stock NG</h1>
-          <p className="text-sm text-gray-500">What is in Nigeria, in each item's unit. Value at cost in RMB (average of what was paid).</p>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><Boxes className="w-6 h-6 text-[#e8552a]" /> Nigeria — Goods given</h1>
+          <p className="text-sm text-gray-500">Everything sent to the partner, by item. He keeps his own stock, so nothing is deducted here; use Adjust only for missing or damaged goods.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={load} className="flex items-center gap-2 px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50"><RefreshCw className="w-4 h-4" /> Refresh</button>

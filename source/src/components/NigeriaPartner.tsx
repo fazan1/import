@@ -30,20 +30,26 @@ export default function NigeriaPartner() {
   const [rate, setRate] = useState(0);
   const [share, setShare] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState<{ date: string; amount: string; method: string; note: string } | null>(null);
+  const [form, setForm] = useState<{ date: string; amount: string; method: string; note: string; bill: string } | null>(null);
+  const [orders, setOrders] = useState<{ number: string; status: string; received_at: string | null; value: number }[]>([]);
   const [saving, setSaving] = useState(false);
   const [shareBox, setShareBox] = useState('');
 
   async function load() {
     setLoading(true);
-    const [it, mv, ex, rm, se, sp] = await Promise.all([
+    const [it, mv, ex, rm, se, sp, pu, pl] = await Promise.all([
       fetchAllPages<NgItem>(() => supabase.from('ng_items').select('id, name, specification, finish, cost_rmb, sell_naira').order('name')),
       fetchAllPages<NgMove>(() => supabase.from('ng_stock').select('item_id, kind, entry_date, quantity, cost_rmb, reference').order('entry_date')),
       fetchAllPages<NgExpense>(() => supabase.from('ng_expenses').select('entry_date, category, amount, currency, rate, reference')),
       fetchAllPages<NgRemit>(() => supabase.from('ng_remittances').select('id, rec_date, amount_ngn, method, reference, note').order('rec_date', { ascending: false }).order('created_at', { ascending: false })),
       supabase.from('ng_settings').select('value').eq('key', 'rate').maybeSingle(),
       supabase.from('ng_settings').select('value').eq('key', 'partner').maybeSingle(),
+      fetchAllPages<{ id: string; number: string; status: string; received_at: string | null }>(() => supabase.from('ng_purchases').select('id, number, status, received_at')),
+      fetchAllPages<{ purchase_id: string; item_id: string; quantity: number }>(() => supabase.from('ng_purchase_items').select('purchase_id, item_id, quantity')),
     ]);
+    // every bill (order), with its goods at today's selling price: a bill can take money before its goods are received
+    const priceOf: Record<string, number> = {}; (it.data || []).forEach((r) => { priceOf[r.id] = Number(r.sell_naira) || 0; });
+    setOrders((pu.data || []).filter((o) => o.status !== 'cancelled').map((o) => ({ number: o.number, status: o.status, received_at: o.received_at, value: (pl.data || []).filter((l) => l.purchase_id === o.id).reduce((t, l) => t + (Number(l.quantity) || 0) * (priceOf[l.item_id] || 0), 0) })));
     if (it.error || mv.error) alert('Could not load: ' + (it.error || mv.error));
     setItems((it.data || []).map((r) => ({ ...r, cost_rmb: Number(r.cost_rmb) || 0, sell_naira: r.sell_naira == null ? null : Number(r.sell_naira) })));
     setMoves((mv.data || []).map((m) => ({ ...m, quantity: Number(m.quantity) || 0, cost_rmb: m.cost_rmb == null ? null : Number(m.cost_rmb) })));
@@ -83,16 +89,24 @@ export default function NigeriaPartner() {
     const costLeft = Math.max(0, cost - received);
     const canPull = profitIn - partnerOut - ownerOut;
     const pShare = profitIn * (share / 100), oShare = profitIn - pShare;
-    return { lines, noPrice, goodsSell, goodsCost, exp, cost, received, balance: goodsSell - received, profitIn, costLeft, partnerOut, ownerOut, canPull, pShare, oShare, expected: goodsSell - cost,
+    // BY BILL: goods of the bill at selling price, the money he marked for that bill, and what is still open on it
+    const paidBy: Record<string, number> = {}; remits.forEach((r) => { const k = r.reference || ''; paidBy[k] = (paidBy[k] || 0) + r.amount_ngn; });
+    const names = Array.from(new Set([...Object.keys(byRef).filter((k) => k !== 'Adjustments' && k !== 'No reference'), ...orders.map((o) => o.number)]));
+    const bills = names.map((num) => { const st = byRef[num]; const o = orders.find((x) => x.number === num); const inStock = !!st && Math.abs(st.sell) > 0;
+      const value = inStock ? st.sell : (o?.value || 0); const paid = paidBy[num] || 0;
+      return { num, value, paid, open: value - paid, waiting: !inStock, cost: (st && rate ? st.rmb * rate : 0) + (expByRef[num] || 0) }; });
+    const other = (byRef['Adjustments']?.sell || 0) + (byRef['No reference']?.sell || 0);
+    const unassigned = Object.entries(paidBy).filter(([k]) => !names.includes(k)).reduce((t, [, v]) => t + v, 0);
+    return { bills, other, unassigned, lines, noPrice, goodsSell, goodsCost, exp, cost, received, balance: goodsSell - received, profitIn, costLeft, partnerOut, ownerOut, canPull, pShare, oShare, expected: goodsSell - cost,
       refs: Object.values(byRef).map((r) => ({ ...r, cost: (rate ? r.rmb * rate : 0) + (expByRef[r.ref] || 0) })).sort((a, b) => b.sell - a.sell) };
-  }, [items, moves, expenses, remits, rate, share]);
+  }, [items, moves, expenses, remits, rate, share, orders]);
 
   async function save() {
     if (!form || saving) return;
     const amt = parseFloat(form.amount.replace(/,/g, ''));
     if (!isFinite(amt) || amt <= 0) { alert('Type the amount in Naira.'); return; }
     setSaving(true);
-    const { error } = await supabase.from('ng_remittances').insert({ rec_date: form.date, amount_ngn: amt, method: form.method || null, note: form.note.trim() || null });
+    const { error } = await supabase.from('ng_remittances').insert({ rec_date: form.date, amount_ngn: amt, method: form.method || null, note: form.note.trim() || null, reference: form.bill || null });
     setSaving(false);
     if (error) { alert('Could not save: ' + (/ng_remittances|does not exist|schema cache/i.test(error.message) ? 'run nigeria-remittances.sql in Supabase once.' : error.message)); return; }
     setForm(null); load();
@@ -102,6 +116,11 @@ export default function NigeriaPartner() {
     const { error } = await supabase.from('ng_settings').upsert({ key: 'partner', value: { share_pct: v }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (error) { alert('Could not save: ' + error.message); return; }
     setShare(v); alert(`Saved: partner ${v}%, owner ${100 - v}%.`);
+  }
+  async function setBill(r: NgRemit, bill: string) {
+    const { error } = await supabase.from('ng_remittances').update({ reference: bill || null }).eq('id', r.id);
+    if (error) { alert('Could not save: ' + error.message); return; }
+    load();
   }
   async function remove(r: NgRemit) {
     if (!confirm(`Delete the ₦${n0(r.amount_ngn)} received on ${showDate(r.rec_date)}? It goes to the Recycle Bin.`)) return;
@@ -124,15 +143,20 @@ export default function NigeriaPartner() {
     D.costLeft > 0 ? '' : `Already pulled out: ₦${n0(D.partnerOut + D.ownerOut)} · can pull out now: ₦${n0(D.canPull)}`,
     `Profit when everything is paid: ₦${n0(D.expected)}`,
     '',
+    '*Bill by bill*',
+    ...D.bills.map((b) => `${b.num}: goods ₦${n0(b.value)}, received ₦${n0(b.paid)}, outstanding ₦${n0(b.open)}${b.waiting ? ' (goods not received yet)' : ''}`),
+    D.unassigned > 0.5 ? `Money with no bill chosen: ₦${n0(D.unassigned)}` : '',
+    '',
     '*Money received*',
-    ...remits.slice(0, 30).map((r) => `${showDate(r.rec_date)}  ₦${n0(r.amount_ngn)}${r.method ? ' ' + r.method : ''}${r.note ? ' — ' + r.note : ''}`),
+    ...remits.slice(0, 30).map((r) => `${showDate(r.rec_date)}  ₦${n0(r.amount_ngn)}${r.reference ? ' for ' + r.reference : ''}${r.method ? ' ' + r.method : ''}${r.note ? ' — ' + r.note : ''}`),
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
   async function copy() { const t = text(); try { await navigator.clipboard.writeText(t); alert('Copied — paste it into WhatsApp.'); } catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); alert('Copied — paste it into WhatsApp.'); } }
   function print() {
     ngPrint('Partner account — NG', `As at ${showDate(today())} · still to come ₦${n0(D.balance)} · rate ₦${rate || '—'} / RMB`, [
       { title: 'The account', head: ['', '₦'], right: [1], rows: [['Goods given, at selling price', n0(D.goodsSell)], ['Money received', n0(D.received)], ['Still to come', n0(D.balance)], ['Our cost (goods + duty + expenses)', n0(D.cost)], [D.costLeft > 0 ? 'Cost still to recover' : 'Profit received so far', n0(D.costLeft > 0 ? D.costLeft : D.profitIn)], ['Profit when everything is paid', n0(D.expected)]] },
+      { title: 'Bill by bill', head: ['Bill', 'Goods ₦', 'Received ₦', 'Outstanding ₦'], right: [1, 2, 3], rows: D.bills.map((b) => [b.num + (b.waiting ? ' (goods not received yet)' : ''), n0(b.value), n0(b.paid), n0(b.open)]), total: ['Total (goods received)', n0(D.goodsSell), n0(D.received), n0(D.balance)] },
       { title: 'Goods given', head: ['Item', 'Quantity', 'Selling price ₦', 'Value ₦'], right: [1, 2, 3], rows: D.lines.map((l) => [l.it ? label(l.it) : '?', n0(l.qty), l.price ? n0(l.price) : 'no price', n0(l.sell)]), total: ['Total', '', '', n0(D.goodsSell)] },
-      { title: 'Money received', head: ['Date', 'How', 'Note', '₦'], right: [3], rows: remits.map((r) => [showDate(r.rec_date), r.method || '', r.note || r.reference || '', n0(r.amount_ngn)]), total: ['Total', '', '', n0(D.received)] },
+      { title: 'Money received', head: ['Date', 'For bill', 'How / note', '₦'], right: [3], rows: remits.map((r) => [showDate(r.rec_date), r.reference || '—', [r.method, r.note].filter(Boolean).join(' — '), n0(r.amount_ngn)]), total: ['Total', '', '', n0(D.received)] },
     ], 'Rule: money received first pays back our cost; only what comes in above the cost is profit.');
   }
 
@@ -141,9 +165,9 @@ export default function NigeriaPartner() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div><h1 className="text-2xl font-bold flex items-center gap-2"><Handshake className="w-6 h-6" /> Partner account</h1><p className="text-sm text-gray-600">Everything he holds, at selling price, less the money he has sent. No sale-by-sale entry.</p></div>
+        <div><h1 className="text-2xl font-bold flex items-center gap-2"><Handshake className="w-6 h-6" /> Partner account</h1><p className="text-sm text-gray-600">What he owes, bill by bill: goods at selling price less the money he has sent. He keeps the stock himself.</p></div>
         <div className="flex flex-wrap gap-2">
-          <button onClick={() => setForm({ date: today(), amount: '', method: 'Bank', note: '' })} className="px-3 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-semibold flex items-center gap-1"><Plus className="w-4 h-4" /> Money received</button>
+          <button onClick={() => setForm({ date: today(), amount: '', method: 'Bank', note: '', bill: (D.bills.filter((b) => b.open > 0.5).slice(-1)[0] || D.bills[0])?.num || '' })} className="px-3 py-2 bg-[#e8552a] text-white rounded-lg text-sm font-semibold flex items-center gap-1"><Plus className="w-4 h-4" /> Money received</button>
           <button onClick={copy} className="px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm flex items-center gap-1"><Copy className="w-4 h-4" /> Copy statement</button>
           <button onClick={print} className="px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm flex items-center gap-1"><Printer className="w-4 h-4" /> Print / PDF</button>
           <button onClick={load} className="px-3 py-2 border border-gray-300 bg-white rounded-lg text-sm" aria-label="Refresh"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></button>
@@ -153,13 +177,16 @@ export default function NigeriaPartner() {
       {form && (
         <div className="bg-white border-2 border-[#111] rounded-lg p-4 mb-4">
           <div className="font-semibold mb-3">Money received from the partner</div>
+          <label className="text-sm block mb-3">For which bill<select value={form.bill} onChange={(e) => setForm({ ...form, bill: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">
+            {D.bills.map((b) => <option key={b.num} value={b.num}>{b.num} — still open ₦{n0(b.open)}{b.waiting ? ' (goods not received yet)' : ''}</option>)}
+            <option value="">No bill — on account</option></select></label>
           <div className="grid sm:grid-cols-4 gap-3">
             <label className="text-sm">Date<input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" /></label>
             <label className="text-sm">Amount (₦)<input inputMode="decimal" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="e.g. 2000000" className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 font-mono" /></label>
             <label className="text-sm">How<select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2">{['Bank', 'USDT', 'Cash', 'Other'].map((m) => <option key={m}>{m}</option>)}</select></label>
             <label className="text-sm">Note<input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2" /></label>
           </div>
-          {parseFloat(form.amount) > 0 && <div className="text-sm text-gray-600 mt-2">Still to come after this: <b>₦{n0(D.balance - parseFloat(form.amount.replace(/,/g, '')))}</b></div>}
+          {parseFloat(form.amount) > 0 && <div className="text-sm text-gray-600 mt-2">{form.bill ? <>Open on {form.bill} after this: <b>₦{n0((D.bills.find((b) => b.num === form.bill)?.open || 0) - parseFloat(form.amount.replace(/,/g, '')))}</b> · </> : null}total still to come after this: <b>₦{n0(D.balance - parseFloat(form.amount.replace(/,/g, '')))}</b></div>}
           <div className="flex gap-2 mt-3"><button onClick={save} disabled={saving} className="px-4 py-2 bg-[#111] text-white rounded-lg text-sm font-semibold disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button><button onClick={() => setForm(null)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm">Cancel</button></div>
         </div>
       )}
@@ -192,16 +219,20 @@ export default function NigeriaPartner() {
       <div className="grid lg:grid-cols-2 gap-4 mt-4">
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
           <div className="px-4 py-3 font-semibold border-b">Money received</div>
-          <table className="w-full text-sm"><thead><tr className="bg-[#111] text-white"><th className="text-left p-2">Date</th><th className="text-left p-2">How / note</th><th className="text-right p-2">₦</th><th className="p-2 w-8" /></tr></thead>
-            <tbody>{remits.map((r) => <tr key={r.id} className="border-b border-gray-100"><td className="p-2 whitespace-nowrap">{showDate(r.rec_date)}</td><td className="p-2">{[r.method, r.note || r.reference].filter(Boolean).join(' — ')}</td><td className="p-2 text-right font-mono">{n0(r.amount_ngn)}</td><td className="p-2"><button onClick={() => remove(r)} aria-label="Delete" className="text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>)}
-              {!remits.length && <tr><td colSpan={4} className="p-4 text-center text-gray-500">{loading ? 'Loading…' : 'No money recorded yet.'}</td></tr>}
-              {remits.length > 0 && <tr className="font-bold"><td className="p-2" colSpan={2}>Total</td><td className="p-2 text-right font-mono">{n0(D.received)}</td><td /></tr>}</tbody></table>
+          <table className="w-full text-sm"><thead><tr className="bg-[#111] text-white"><th className="text-left p-2">Date</th><th className="text-left p-2">For bill</th><th className="text-left p-2">How / note</th><th className="text-right p-2">₦</th><th className="p-2 w-8" /></tr></thead>
+            <tbody>{remits.map((r) => <tr key={r.id} className="border-b border-gray-100"><td className="p-2 whitespace-nowrap">{showDate(r.rec_date)}</td><td className="p-2"><select value={D.bills.some((b) => b.num === r.reference) ? r.reference || '' : ''} onChange={(e) => setBill(r, e.target.value)} className={`border rounded px-1.5 py-1 text-xs max-w-[9rem] ${r.reference && D.bills.some((b) => b.num === r.reference) ? 'border-gray-300' : 'border-amber-500 bg-amber-50'}`}><option value="">— choose bill —</option>{D.bills.map((b) => <option key={b.num} value={b.num}>{b.num}</option>)}</select></td><td className="p-2">{[r.method, r.note].filter(Boolean).join(' — ')}</td><td className="p-2 text-right font-mono">{n0(r.amount_ngn)}</td><td className="p-2"><button onClick={() => remove(r)} aria-label="Delete" className="text-gray-400 hover:text-red-600"><Trash2 className="w-4 h-4" /></button></td></tr>)}
+              {!remits.length && <tr><td colSpan={5} className="p-4 text-center text-gray-500">{loading ? 'Loading…' : 'No money recorded yet.'}</td></tr>}
+              {remits.length > 0 && <tr className="font-bold"><td className="p-2" colSpan={3}>Total</td><td className="p-2 text-right font-mono">{n0(D.received)}</td><td /></tr>}</tbody></table>
         </div>
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="px-4 py-3 font-semibold border-b">Goods given, by shipment</div>
-          <table className="w-full text-sm"><thead><tr className="bg-[#111] text-white"><th className="text-left p-2">Shipment</th><th className="text-right p-2">Pieces</th><th className="text-right p-2">At selling price ₦</th><th className="text-right p-2">Our cost ₦</th></tr></thead>
-            <tbody>{D.refs.map((r) => <tr key={r.ref} className="border-b border-gray-100"><td className="p-2">{r.ref}</td><td className="p-2 text-right font-mono">{n0(r.qty)}</td><td className="p-2 text-right font-mono">{n0(r.sell)}</td><td className="p-2 text-right font-mono">{n0(r.cost)}</td></tr>)}
-              {!D.refs.length && <tr><td colSpan={4} className="p-4 text-center text-gray-500">{loading ? 'Loading…' : 'No goods in stock yet.'}</td></tr>}</tbody></table>
+          <div className="px-4 py-3 font-semibold border-b">Outstanding, bill by bill</div>
+          <table className="w-full text-sm"><thead><tr className="bg-[#111] text-white"><th className="text-left p-2">Bill</th><th className="text-right p-2">Goods ₦</th><th className="text-right p-2">Received ₦</th><th className="text-right p-2">Outstanding ₦</th></tr></thead>
+            <tbody>{D.bills.map((b) => <tr key={b.num} className="border-b border-gray-100"><td className="p-2">{b.num}{b.waiting && <span className="block text-[11px] text-amber-700">goods not received yet</span>}</td><td className="p-2 text-right font-mono">{n0(b.value)}</td><td className="p-2 text-right font-mono text-green-700">{n0(b.paid)}</td><td className={`p-2 text-right font-mono font-bold ${b.open > 0.5 ? 'text-[#e8552a]' : 'text-green-700'}`}>{b.open > 0.5 ? n0(b.open) : b.open < -0.5 ? `${n0(-b.open)} extra` : 'paid'}</td></tr>)}
+              {Math.abs(D.other) > 0.5 && <tr className="border-b border-gray-100"><td className="p-2">Adjustments / goods without a bill</td><td className="p-2 text-right font-mono">{n0(D.other)}</td><td className="p-2 text-right font-mono">—</td><td className="p-2 text-right font-mono">{n0(D.other)}</td></tr>}
+              {D.unassigned > 0.5 && <tr className="border-b border-gray-100 bg-amber-50"><td className="p-2">Money with no bill chosen</td><td className="p-2 text-right font-mono">—</td><td className="p-2 text-right font-mono text-green-700">{n0(D.unassigned)}</td><td className="p-2 text-right font-mono">−{n0(D.unassigned)}</td></tr>}
+              {!D.bills.length && <tr><td colSpan={4} className="p-4 text-center text-gray-500">{loading ? 'Loading…' : 'No bills yet.'}</td></tr>}
+              {D.bills.length > 0 && <tr className="font-bold"><td className="p-2">Total (goods received)</td><td className="p-2 text-right font-mono">{n0(D.goodsSell)}</td><td className="p-2 text-right font-mono">{n0(D.received)}</td><td className="p-2 text-right font-mono">{n0(D.balance)}</td></tr>}</tbody></table>
+          {D.unassigned > 0.5 && <div className="px-4 py-2 text-xs text-amber-800 bg-amber-50 border-t border-amber-200">Some money has no bill yet: choose the bill in the "For bill" box of that payment.</div>}
         </div>
       </div>
 
