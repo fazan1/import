@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import TalkChinese from './TalkChinese';
 import AskChinese from './AskChinese';
+import ShortcutsChinese from './ShortcutsChinese';
 import { ArrowLeft, Check, Lock, Mic, RotateCcw, Volume2, X } from 'lucide-react';
 
 /* Learn Chinese (Tools). The ONLY data source is /chinese_lessons.json (shown as it is, never rewritten).
@@ -142,7 +143,7 @@ export default function LearnChinese() {
   const [lessons, setLessons] = useState<Lesson[] | null>(null);
   const [err, setErr] = useState('');
   const [prog, setProg] = useState<Record<number, Prog>>(loadProg);
-  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk'; n: number }>({ page: 'home', n: 1 });
+  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts'; n: number }>({ page: 'home', n: 1 });
   const [attempt, setAttempt] = useState(0);
   const [mist, setMist] = useState<Q[]>(loadMist);
   const [mode, setMode] = useState<Mode>('lesson');
@@ -233,7 +234,7 @@ export default function LearnChinese() {
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed || openL.includes(n);
   const unlockByHand = (n: number) => { if (!confirm(`Open Lesson ${n} now, without passing Lesson ${n - 1}?`)) return; const nx = [...new Set([...openL, n])]; setOpenL(nx); saveJ('learn-chinese-unlocked-v1', nx); };
   const lesson = lessons.find((l) => l.number === route.n) || lessons[0];
-  const go = (page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
+  const go = (page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
 
   const finish = (n: number, pct: number, sec: Sec, missed: Q[], got: Q[]) => {
     const gotIds = new Set(got.map(qid));
@@ -314,7 +315,7 @@ export default function LearnChinese() {
             {!!Object.keys(secTot).length && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">{Object.entries(SECNAME).map(([k, nm]) => { const t = secTot[k]; const pc = t && t[1] ? Math.round((t[0] / t[1]) * 100) : null; return <div key={k} className="bg-[#f4f3f1] rounded p-2"><div className="text-[11px] text-neutral-600">{nm}</div><div className={`font-bold ${pc !== null && pc < PASS ? 'text-[#e8552a]' : ''}`}>{pc === null ? '–' : pc + '%'}</div></div>; })}</div>}
             <div className="mt-3"><div className="flex justify-between text-sm"><span>Level: <b>{level}</b>{toNext > 0 && <span className="text-neutral-600"> · {toNext} more {toNext === 1 ? 'lesson' : 'lessons'} to the next level</span>}</span></div></div>
             <div className="mt-2"><div className="flex justify-between text-sm"><span>Today's goal</span><b>{todayN} of {goal} answers{todayN >= goal ? ' — done' : ''}</b></div><Bar v={(todayN / goal) * 100} color="bg-[#e8552a]" /></div>
-            <button onClick={() => go('progress')} className="mt-3 w-full border border-[#111] rounded-lg py-2 font-semibold">Full progress report</button>
+            <div className="grid grid-cols-2 gap-2 mt-3"><button onClick={() => go('progress')} className="border border-[#111] rounded-lg py-2 font-semibold">Full progress report</button><button onClick={() => go('shortcuts')} className="bg-[#111] text-white rounded-lg py-2 font-semibold">Shortcuts — quick rules</button></div>
             <div className="text-sm text-neutral-700 mt-3">Study streak: <b>{streak} {streak === 1 ? 'day' : 'days'}</b> · answers today: <b>{days[today] || 0}</b>{cards.length > 0 && <> · words and sentences known well: <b>{known} of {cards.length}</b></>}</div>
           </div>
           <div className="border-2 border-[#111] rounded-lg bg-white p-3 mb-4">
@@ -347,6 +348,7 @@ export default function LearnChinese() {
           <button onClick={() => go('home')} className="flex items-center gap-1 text-sm mb-3"><ArrowLeft className="w-4 h-4" /> All lessons</button>
           <h1 className="text-2xl font-bold">Lesson {lesson.number}: {lesson.title}</h1>
           <button onClick={() => { const el = document.getElementById('ask-lesson'); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); (el?.querySelector('button') as HTMLButtonElement | null)?.focus(); }} className="mt-2 text-sm border border-[#111] rounded-full px-3 py-1.5 bg-white font-semibold">Have a doubt? Ask the teacher ↓</button>
+          <button onClick={() => go('shortcuts')} className="mt-2 ml-2 text-sm border border-[#111] rounded-full px-3 py-1.5 bg-white font-semibold">Shortcuts</button>
           <p className="text-neutral-600 text-sm">{lesson.subtitle}</p>
 
           <H>New words</H>
@@ -427,6 +429,8 @@ export default function LearnChinese() {
       )}
 
       {route.page === 'talk' && <TalkChinese lessons={lessons} level={Math.max(1, ...lessons.filter((l) => prog[l.number]).map((l) => l.number))} onBack={() => go('home')} onAnswer={bump} />}
+
+      {route.page === 'shortcuts' && <ShortcutsChinese onBack={() => go('home')} />}
 
       {route.page === 'progress' && (
         <>
