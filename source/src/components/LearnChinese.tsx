@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import TalkChinese from './TalkChinese';
 import AskChinese from './AskChinese';
 import ShortcutsChinese from './ShortcutsChinese';
+import BuilderChinese from './BuilderChinese';
 import { ArrowLeft, Check, Lock, Mic, RotateCcw, Volume2, X } from 'lucide-react';
 
 /* Learn Chinese (Tools). The ONLY data source is /chinese_lessons.json (shown as it is, never rewritten).
@@ -143,7 +144,7 @@ export default function LearnChinese() {
   const [lessons, setLessons] = useState<Lesson[] | null>(null);
   const [err, setErr] = useState('');
   const [prog, setProg] = useState<Record<number, Prog>>(loadProg);
-  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts'; n: number }>({ page: 'home', n: 1 });
+  const [route, setRoute] = useState<{ page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts' | 'builder'; n: number }>({ page: 'home', n: 1 });
   const [attempt, setAttempt] = useState(0);
   const [mist, setMist] = useState<Q[]>(loadMist);
   const [mode, setMode] = useState<Mode>('lesson');
@@ -234,7 +235,7 @@ export default function LearnChinese() {
   const unlocked = (n: number) => n === 1 || !!prog[n - 1]?.passed || openL.includes(n);
   const unlockByHand = (n: number) => { if (!confirm(`Open Lesson ${n} now, without passing Lesson ${n - 1}?`)) return; const nx = [...new Set([...openL, n])]; setOpenL(nx); saveJ('learn-chinese-unlocked-v1', nx); };
   const lesson = lessons.find((l) => l.number === route.n) || lessons[0];
-  const go = (page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
+  const go = (page: 'home' | 'lesson' | 'quiz' | 'progress' | 'talk' | 'shortcuts' | 'builder', n = route.n) => { if (page === 'quiz') setAttempt((a) => a + 1); setMode('lesson'); setPreset(undefined); setRoute({ page, n }); };
 
   const finish = (n: number, pct: number, sec: Sec, missed: Q[], got: Q[]) => {
     const gotIds = new Set(got.map(qid));
@@ -323,7 +324,8 @@ export default function LearnChinese() {
             <div className="grid gap-2">
               <button disabled={!dueCards.length} onClick={() => start('review', reviewSet())} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#f4f3f1] disabled:opacity-50"><span className="w-7 h-7 rounded-full bg-[#111] text-white text-sm font-bold flex items-center justify-center shrink-0">1</span><span className="flex-1"><b>Daily review</b><span className="block text-xs text-neutral-600">{dueCards.length ? `${dueCards.length} words and sentences are due today (20 at a time)` : cards.length ? 'Nothing due today — well done' : 'Opens after your first lesson quiz'}</span></span></button>
               <button disabled={!mist.length} onClick={startPractice} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#f4f3f1] disabled:opacity-50"><span className="w-7 h-7 rounded-full bg-[#111] text-white text-sm font-bold flex items-center justify-center shrink-0">2</span><span className="flex-1"><b>Practice my mistakes</b><span className="block text-xs text-neutral-600">{mist.length ? `${mist.length} questions you got wrong before` : 'No mistakes waiting'}</span></span></button>
-              <button onClick={() => go('talk')} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#111] text-white"><span className="w-7 h-7 rounded-full bg-white text-[#111] text-sm font-bold flex items-center justify-center shrink-0">4</span><span className="flex-1"><b>Talk — AI conversation partner</b><span className="block text-xs opacity-90">Speak with a "supplier" using your lesson words; it answers out loud and corrects you</span></span></button>
+              <button onClick={() => go('builder')} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#f4f3f1]"><span className="w-7 h-7 rounded-full bg-[#111] text-white text-sm font-bold flex items-center justify-center shrink-0">4</span><span className="flex-1"><b>Sentence builder</b><span className="block text-xs text-neutral-600">Question → statement → Chinese, block by block. New sentences every round</span></span></button>
+              <button onClick={() => go('talk')} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#111] text-white"><span className="w-7 h-7 rounded-full bg-white text-[#111] text-sm font-bold flex items-center justify-center shrink-0">5</span><span className="flex-1"><b>Talk — AI conversation partner</b><span className="block text-xs opacity-90">Speak with a "supplier" using your lesson words; it answers out loud and corrects you</span></span></button>
               {nextLesson && <button onClick={() => go('lesson', nextLesson.number)} className="flex items-center gap-3 text-left rounded-lg p-2.5 bg-[#e8552a] text-white"><span className="w-7 h-7 rounded-full bg-white text-[#111] text-sm font-bold flex items-center justify-center shrink-0">3</span><span className="flex-1"><b>{prog[nextLesson.number] ? 'Repeat' : 'Start'} Lesson {nextLesson.number}: {nextLesson.title}</b><span className="block text-xs opacity-90">Study it, then take the quiz</span></span></button>}
             </div>
           </div>
@@ -429,6 +431,8 @@ export default function LearnChinese() {
       )}
 
       {route.page === 'talk' && <TalkChinese lessons={lessons} level={Math.max(1, ...lessons.filter((l) => prog[l.number]).map((l) => l.number))} onBack={() => go('home')} onAnswer={bump} />}
+
+      {route.page === 'builder' && <BuilderChinese onBack={() => go('home')} onAnswer={bump} />}
 
       {route.page === 'shortcuts' && <ShortcutsChinese onBack={() => go('home')} />}
 
