@@ -223,6 +223,14 @@ export default function LearnChinese() {
     return [...m.values()];
   }, [lessons]);
 
+  /* every Chinese word of the course -> its pinyin and meaning: turns what the phone HEARD into pinyin and English */
+  const zhWords = useMemo(() => {
+    const m = new Map<string, { p: string; m: string }>();
+    (lessons || []).forEach((l) => [...l.words, ...(l.extraWords || [])].forEach((w) => { const z = (w.chinese || '').trim(); if (z && !/[\s,]/.test(z) && !m.has(z)) m.set(z, { p: w.pinyin, m: w.meaning }); }));
+    [['吗', 'ma', 'question word'], ['不', 'bù', 'not'], ['没', 'méi', 'not'], ['没有', 'méi yǒu', "don't have"], ['的', 'de', "'s (owner)"], ['了', 'le', 'done'], ['个', 'ge', 'counting word'], ['她', 'tā', 'she'], ['它', 'tā', 'it']].forEach(([z, p2, m2]) => { if (!m.has(z)) m.set(z, { p: p2, m: m2 }); });
+    return m;
+  }, [lessons]);
+
   /* English words of the lessons' meanings: offered while he types in the Meaning quiz */
   const engBank = useMemo(() => {
     const m = new Map<string, { t: string; n: number }>();
@@ -501,14 +509,14 @@ export default function LearnChinese() {
         </>
       )}
 
-      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} bank={bank} engBank={engBank} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
+      {route.page === 'quiz' && <Quiz key={route.n + ':' + attempt} lesson={lesson} preset={practice ? preset : undefined} mode={mode} bank={bank} engBank={engBank} zhWords={zhWords} onAnswer={bump} onRestart={() => setAttempt((a) => a + 1)} onPractice={(qs) => start('mistakes', qs)} chineseOf={chineseOf} meaningOf={meaningOf} hasNext={route.n < lessons.length}
         onDone={(pct, sec, missed, got) => finish(route.n, pct, sec, missed, got)} onLesson={() => (mode === 'mistakes' || mode === 'review') ? go('home') : go('lesson')} onHome={() => go('home')} onNext={() => go('lesson', route.n + 1)} />}
     </div>
   );
 }
 
-function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
-  lesson: Lesson; preset?: Q[]; mode: Mode; bank: { t: string; n: number }[]; engBank: { t: string; n: number }[]; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
+function Quiz({ lesson, preset, mode, bank, engBank, zhWords, onAnswer, onRestart, onPractice, chineseOf, meaningOf, hasNext, onDone, onLesson, onHome, onNext }: {
+  lesson: Lesson; preset?: Q[]; mode: Mode; bank: { t: string; n: number }[]; engBank: { t: string; n: number }[]; zhWords: Map<string, { p: string; m: string }>; onAnswer: () => void; onRestart: () => void; onPractice: (qs: Q[]) => void; chineseOf: Map<string, string>; meaningOf: Map<string, string>; hasNext: boolean; onDone: (pct: number, sec: Sec, missed: Q[], got: Q[]) => void; onLesson: () => void; onHome: () => void; onNext: () => void;
 }) {
   // an unfinished lesson quiz is kept on this device, so it continues from the same question; a new quiz is in random order
   const kept = useMemo(() => { if (preset) return null; const r = loadJ<{ n: number; qs: Q[]; i: number; score: number; res: { q: Q; ok: boolean; a?: string }[] } | null>(rKey(lesson.number), null); return r && r.n === lesson.number && r.i > 0 && r.i < r.qs.length ? r : null; }, []); // eslint-disable-line
@@ -531,9 +539,14 @@ function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPrac
   const [saved, setSaved] = useState(false);
   const [res, setRes] = useState<{ q: Q; ok: boolean; a?: string }[]>(kept ? kept.res : []);
   const inputRef = useRef<HTMLInputElement>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const recRef = useRef<any>(null);
   const [hearing, setHearing] = useState(false);
   const [spTry, setSpTry] = useState(0);
   const [spMsg, setSpMsg] = useState('');
+  const [spHeard, setSpHeard] = useState('');   // the last thing the phone heard in Speaking practice
+  const [spLive, setSpLive] = useState('');
+  const [micOn, setMicOn] = useState(false);
   useEffect(() => { const c = qs[i]; if (c && (c.kind === 'listen' || c.kind === 'tone') && c.chinese) speak(c.chinese); }, [i]); // eslint-disable-line
 
   const done = i >= qs.length;
@@ -578,32 +591,72 @@ function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPrac
     else if (q.kind === 'meaning') mark(checkMeaning(val, q.answer, q.ask, meaningOf).ok);
     else mark(norm(val) === norm(q.answer));
   };
-  const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); setSpTry(0); setSpMsg(''); };
+  const next = () => { setI(i + 1); setVal(''); setPicked([]); setState('ask'); setSpTry(0); setSpMsg(''); setSpHeard(''); setSpLive(''); };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  /* what the phone heard -> lesson words with pinyin and English (longest word first); a character that is in no lesson shows as it is */
+  const segs = (zh: string) => {
+    const t = zh.replace(/[^\u4e00-\u9fff]/g, ''); const out: { c: string; p: string; m: string }[] = []; let k = 0;
+    while (k < t.length) {
+      let hit = false;
+      for (let n = Math.min(4, t.length - k); n >= 1 && !hit; n--) { const w = zhWords.get(t.slice(k, k + n)); if (w) { out.push({ c: t.slice(k, k + n), p: w.p, m: w.m }); k += n; hit = true; } }
+      if (!hit) { out.push({ c: t[k], p: t[k], m: 'not a word of your lessons' }); k++; }
+    }
+    return out;
+  };
+  /* compare what was heard with the sentence, word by word */
+  const speakNotes = (heard: string): string[] => {
+    if (!heard) return ['The phone did not catch any words.'];
+    const T = segs(q.chinese || ''), H = segs(heard); const tk = T.map((x) => x.c), hk = H.map((x) => x.c); const notes: string[] = [];
+    const miss = T.filter((x) => !hk.includes(x.c)), extra = H.filter((x) => !tk.includes(x.c));
+    const n = Math.min(miss.length, extra.length);
+    for (let i = 0; i < n; i++) notes.push(`It heard “${extra[i].p}” (${extra[i].m}) where the sentence has “${miss[i].p}” (${miss[i].m}).`);
+    miss.slice(n).forEach((x) => notes.push(`It did not hear “${x.p}” (${x.m}).`));
+    extra.slice(n).forEach((x) => notes.push(`It heard an extra “${x.p}” (${x.m}).`));
+    if (!notes.length && tk.join('') !== hk.join('')) notes.push('It heard the right words in a different order.');
+    return notes;
+  };
   const listenToMe = () => {
-    if (!SR || hearing) return;
+    if (hearing) { try { recRef.current?.stop(); } catch { /* ignore */ } return; }
+    if (!SR) return;
     try {
-      const r = new SR(); r.lang = 'zh-CN'; r.maxAlternatives = 5; r.interimResults = false; setHearing(true); setSpMsg('');
+      window.speechSynthesis?.cancel();
+      const r = new SR(); r.lang = 'zh-CN'; r.maxAlternatives = 5; r.interimResults = true; r.continuous = false; recRef.current = r;
+      setHearing(true); setMicOn(false); setSpMsg(''); setSpLive(''); let heard = ''; let alts: string[] = [];
+      const android = /Android/i.test(navigator.userAgent);
+      r.onaudiostart = () => setMicOn(true);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       r.onresult = (e: any) => {
-        const alts: string[] = Array.from(e.results[0] as ArrayLike<{ transcript: string }>).map((a) => a.transcript);
-        const ok = alts.some((a) => hanOnly(a) === hanOnly(q.chinese || ''));
-        setVal(alts[0] || '');
-        if (ok || spTry >= 2) mark(ok, alts[0] || ''); else { setSpTry(spTry + 1); setSpMsg(`The phone heard “${alts[0] || '…'}”. Listen once more and try again (${2 - spTry} ${2 - spTry === 1 ? 'try' : 'tries'} left).`); }
+        let t = '';
+        for (let k = android ? e.results.length - 1 : 0; k < e.results.length; k++) { t += e.results[k][0].transcript; if (e.results[k].isFinal) alts = Array.from(e.results[k] as ArrayLike<{ transcript: string }>).map((x) => x.transcript); }
+        heard = t; setSpLive(t);
       };
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      r.onerror = (e: any) => { setSpMsg(e.error === 'not-allowed' ? 'The microphone is blocked. Allow the microphone for this site in the browser settings.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the button and speak.' : 'The phone could not listen (' + e.error + '). Try again.'); };
-      r.onend = () => setHearing(false);
+      r.onerror = (e: any) => { if (e.error !== 'aborted') setSpMsg(e.error === 'not-allowed' ? 'The microphone is blocked. Tap the icon left of the address bar → Permissions → Microphone → Allow, then reload.' : e.error === 'no-speech' ? 'I did not hear anything. Tap the button, wait for “Listening”, then speak.' : 'The phone could not listen (' + e.error + '). Try again.'); };
+      r.onend = () => {
+        setHearing(false); setMicOn(false); setSpLive(''); recRef.current = null;
+        if (!heard.trim()) return;
+        const want = hanOnly(q.chinese || ''); const right = alts.find((x) => hanOnly(x) === want);
+        const ok = !!right || hanOnly(heard) === want; const shown = right || heard;
+        setSpHeard(shown); setVal(shown);
+        if (ok || spTry >= 2) mark(ok, shown); else setSpTry(spTry + 1);
+      };
       r.start();
     } catch { setHearing(false); setSpMsg('The phone could not start listening.'); }
   };
+  const HeardBox = ({ heard }: { heard: string }) => { const H = segs(heard); return (
+    <div className="mt-2 border border-neutral-300 rounded-lg bg-white p-2.5 text-left">
+      <div className="text-xs text-neutral-600">The phone heard</div>
+      <div className="font-mono text-lg font-semibold">{H.map((x) => x.p).join(' ')}</div>
+      <div className="text-lg leading-tight">{heard}</div>
+      <div className="flex flex-wrap gap-1.5 mt-1.5">{H.map((x, k) => <span key={k} className={`border rounded px-2 py-1 text-sm ${(q.chinese || '').includes(x.c) ? 'border-green-600 bg-green-50' : 'border-red-500 bg-red-50'}`}><b className="font-mono">{x.p}</b> = {x.m}</span>)}</div>
+    </div>); };
   const typed = q.kind === 'wordOrder' ? picked.map((k) => q.words![k]).join(' ') : val;
   const bd = breakdown(shownPinyin, meaningOf);
   const tn = q.kind === 'tone' ? toneAt(q.answer) : null;
   const fb = state === 'wrong'
     ? (q.kind === 'tone' ? { notes: [`You chose “${val}”. The right one is “${q.answer}”.`], marks: [] as { w: string; ok: boolean }[] }
-      : q.kind === 'speak' ? { notes: [val ? `The phone heard “${val}”.` : 'The phone did not catch it.', 'Play the sentence, copy the sound slowly, then say it at normal speed.'], marks: [] as { w: string; ok: boolean }[] }
+      : q.kind === 'speak' ? { notes: [...speakNotes(val), 'Play the sentence, copy the sound slowly, then say it at normal speed.'], marks: [] as { w: string; ok: boolean }[] }
       : q.kind === 'meaning' ? { notes: checkMeaning(val, q.answer, q.ask, meaningOf).notes, marks: [] as { w: string; ok: boolean }[] } : q.kind === 'fillGap'
       ? { notes: [val.trim() ? `You wrote “${val.trim()}”, but the missing word is “${q.answer}”${meaningOf.get(norm(q.answer)) ? ` (${q.answer} = ${meaningOf.get(norm(q.answer))})` : ''}.` : 'You did not type an answer.'], marks: full.split(/\s+/).map((w) => ({ w, ok: norm(w) !== norm(q.answer) })) }
       : explain(typed, q.answer, meaningOf))
@@ -640,8 +693,10 @@ function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPrac
         ) : q.kind === 'speak' ? (
           <div className="mt-4">
             {!SR ? <div className="text-sm text-red-700">This browser cannot listen to your voice. Use Chrome on Android or Safari on iPhone. You can still listen and repeat out loud.</div>
-              : !answered && <button onClick={listenToMe} disabled={hearing} className={`w-full rounded-lg py-4 font-bold text-white flex items-center justify-center gap-2 ${hearing ? 'bg-red-600 animate-pulse' : 'bg-[#111]'}`}><Mic className="w-5 h-5" /> {hearing ? 'Listening… speak now' : 'Tap and say it in Chinese'}</button>}
+              : !answered && <button onClick={listenToMe} className={`w-full rounded-lg py-4 font-bold text-white flex items-center justify-center gap-2 touch-manipulation ${hearing ? (micOn ? 'bg-red-600 animate-pulse' : 'bg-neutral-500') : 'bg-[#111]'}`}><Mic className="w-5 h-5" /> {hearing ? (micOn ? 'Listening… speak now · tap when you finish' : 'Opening the microphone… wait') : spHeard ? 'Tap and say it again' : 'Tap and say it in Chinese'}</button>}
+            {hearing && spLive && <div className="text-sm text-neutral-700 mt-2">Hearing: <b className="font-mono">{segs(spLive).map((x) => x.p).join(' ')}</b> {spLive}</div>}
             {spMsg && !answered && <div className="text-sm text-[#b3261e] mt-2">{spMsg}</div>}
+            {!answered && !hearing && spHeard && <><HeardBox heard={spHeard} /><ul className="list-disc pl-5 text-[15px] mt-2 text-left">{speakNotes(spHeard).map((n, k) => <li key={k}>{n}</li>)}</ul><div className="text-sm text-[#b3261e] mt-1">Not the same yet. Listen to the sentence and try again ({3 - spTry} {3 - spTry === 1 ? 'try' : 'tries'} left).</div></>}
             {!answered && <button onClick={() => { setVal(''); mark(false, ''); }} className="mt-2 w-full text-sm underline text-neutral-600">Skip this one</button>}
           </div>
         ) : q.kind === 'wordOrder' ? (
@@ -677,6 +732,7 @@ function Quiz({ lesson, preset, mode, bank, engBank, onAnswer, onRestart, onPrac
               : <div className="flex items-center gap-3"><div className="flex-1"><div className="font-mono text-lg font-semibold">{fb && fb.marks.length ? fb.marks.map((m, k) => <span key={k} className={m.ok ? '' : 'bg-yellow-200 text-red-700 px-0.5 rounded'}>{m.w}{' '}</span>) : shownPinyin}</div>{zh && <div className="text-2xl">{zh}</div>}{q.kind === 'fillGap' && q.sub && <div className="text-sm text-neutral-600">{q.sub}</div>}</div><Spk text={zh} /></div>}
             {q.kind === 'meaning' && zh && <div className="text-2xl mt-1">{zh}</div>}
             {state === 'right' && q.kind === 'meaning' && val.trim().toLowerCase().replace(/[^a-z0-9 ]/g, '') !== q.answer.toLowerCase().replace(/[^a-z0-9 ]/g, '') && <div className="text-sm text-neutral-700 mt-2">Your meaning is right. You wrote “{val.trim()}”; the line above is how it is said in good English.</div>}
+            {q.kind === 'speak' && val && <HeardBox heard={val} />}
             {q.mean && q.kind !== 'tone' && <div className="text-sm text-neutral-700 mt-1">Meaning: <b>{q.mean}</b></div>}
             {tn && <div className="text-sm mt-2"><b className="font-mono">{q.answer}</b> is the {TONETXT[tn.t]}.</div>}
             {state !== 'shown' && bd.length > 0 && <div className="mt-3"><div className="text-xs text-neutral-600">{state === 'right' ? 'Why it is right — word by word' : 'Word by word'}</div><div className="flex flex-wrap gap-1.5 mt-1">{bd.map((x, k) => <span key={k} className="bg-white border border-neutral-300 rounded px-2 py-1 text-sm"><b className="font-mono">{x.w}</b> = {x.m}</span>)}</div></div>}
